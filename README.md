@@ -1,2 +1,2 @@
 # chromatix
-Differentiable wave optics simulation using JAX!
+Differentiable computational optics using JAX!
