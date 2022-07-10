@@ -11,6 +11,7 @@ setup(
     version=__version__,
     description="Differentiable computational optics library using JAX!",
     long_description=long_description,
+    long_description_content_type="text/markdown",
     url="https://github.com/TuragaLab/chromatix",
     author="Diptodip Deb",
     license="MIT",
