@@ -1,0 +1,53 @@
+site_name: Chromatix
+
+
+nav:
+  - Getting started:
+    - Installing: installing.md
+    - Chromatix 101: 101.md
+    - Multi GPU: parallelism.md
+    - FAQ: FAQ.md
+  - Examples:
+    - Holoscope: holoscope.ipynb
+    - Fourier Ptychography: fourier_ptychography.md
+    - Synchotron X-ray holography: tomography.md
+  - API:
+    - Field: field.md
+    - Functional: functional.md
+    - Elements: elements.md
+
+theme:
+  name: material
+  palette: 
+    # Palette toggle for light mode
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+
+plugins:
+- mkdocstrings:
+    handlers:
+      python:
+        paths: [src]
+- mkdocs-jupyter
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+
+extra_css:
+- css/mkdocstrings.css

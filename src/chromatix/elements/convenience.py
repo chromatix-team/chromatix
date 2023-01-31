@@ -1,0 +1,21 @@
+import flax.linen as nn
+from chromatix import Field
+from chex import Array
+
+__all__ = ["Flip", "OffsetScale"]
+
+
+class Flip(nn.Module):
+    @nn.compact
+    def __call__(self, field: Field) -> Field:
+        # TODO: Add in support for both axes?
+        return field.replace(u=field.u[:, ::-1, :, :])
+
+
+class ScaleAndBias(nn.Module):
+    bias: Array
+
+    @nn.compact
+    def __call__(self, field: Field, scale: Array | Field) -> Field:
+        # TODO: Not sure why offset is fixed and scale an input?
+        return (field + self.bias) * scale
