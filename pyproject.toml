@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "chromatix"
+version = "0.1.0"
+description = ""
+authors = ["Chromatix team."]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10, <3.12"
+jax = "^0.4.1"
+jaxlib = "^0.4.1"
+einops = "^0.6.0"
+flax = "^0.6.3"
+chex = "^0.1.5"
+optax = "^0.1.4"
+scipy = "^1.10.0"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.12.0"
+flake8 = "^6.0.0"
+mypy = "^0.991"
+pytest = "^7.2.0"
+ipykernel = "^6.20.2"
+
+
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.4.2"
+mkdocs-material = "^9.0.6"
+mkdocstrings-python = "^0.8.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
