@@ -1,16 +1,11 @@
 # Chromatix: Differentiable lightfield simulation 
 
-Chromatix is a differentiable lightfield simulator based on [Jax](https://github.com/google/jax). We've build 
+Chromatix is a lightfield simulator based on [Jax](https://github.com/google/jax). Because of this we're fast, support multi-GPU setups and are fully differentiable. 
+It's first and foremost written for *research*: we offer a set of commonly required building blocks for working with lightfields, and leave the rest to you.
+This gives you the freedom to build whatever you can come up without us getting in the way. A few of the things we've build with it:
 
+- [**Holoscope**](examples/holoscope.ipynb) - optimizing the phasemask of an SLM to optimally encode a 3D volume into a 2D image. 
+- [**Fourier Ptychograpy**](examples/fourier_ptychography.md) - parallel fourier ptychography.
+- [**Synchotron X-ray tomography**](examples/tomography.md) - large scale phase constrast imaging with learnable parameters.
 
-
-
-
-We support multi-GPU setups and are working on implementing multi-wavelength support.
-
-
-Have a look at the examples to see what we've done with Chromatix so far!
-
-## Philosophy
-
-Chromatix is first and foremost written for *research*. In practice this means that Chromatix is nothing more than a set of commonly required functions and datatypes for working with lightfields, and that these are Jax-transformable. 
+Have a look [here](installing.md) for how to install Chromatix, and read [Chromatix 101](101.md) to get started. 
