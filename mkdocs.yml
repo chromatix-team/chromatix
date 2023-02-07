@@ -4,11 +4,12 @@ site_name: Chromatix
 nav:
   - Getting started:
     - Installing: installing.md
-    - Chromatix 101: 101.md
+    - Chromatix 101: 101.ipynb
     - Multi GPU: parallelism.md
     - FAQ: FAQ.md
   - Examples:
     - Holoscope: examples/holoscope.ipynb
+    - Computer Generated holography: examples/cgh.ipynb
     - Fourier Ptychography: examples/fourier_ptychography.md
     - Synchotron X-ray holography: examples/tomography.md
   - API:

@@ -131,3 +131,6 @@ dmypy.json
 # poetry stuff
 poetry.lock
 poetry.toml
+
+# dev folder
+dev/

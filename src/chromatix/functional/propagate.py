@@ -78,7 +78,7 @@ def transfer_propagate(
 
     # assert N_pad % 2 == 0, "Padding should be even."
     # Calculating propagator
-    L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
+    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
     f = jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx.squeeze())
     fx, fy = rearrange(f, "h -> 1 h 1 1"), rearrange(f, "w -> 1 1 w 1")
     phase = -jnp.pi * L**2 * (fx**2 + fy**2)
