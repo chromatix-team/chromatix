@@ -160,7 +160,6 @@ def propagate(
     N_pad: Optional[int] = None,
     loop_axis: Optional[int] = None,
 ) -> Field:
-
     # Only works for square fields?
     D = field.u.shape[1] * field.dx  # height of field in real coordinates
     Nf = jnp.max((D / 2) ** 2 / (field.spectrum * z))  # Fresnel number
