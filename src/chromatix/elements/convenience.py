@@ -2,7 +2,7 @@ import flax.linen as nn
 from chromatix import Field
 from chex import Array
 
-__all__ = ["Flip", "OffsetScale"]
+__all__ = ["Flip", "ScaleAndBias"]
 
 
 class Flip(nn.Module):

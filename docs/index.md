@@ -9,3 +9,5 @@ This gives you the freedom to build whatever you can come up without us getting 
 - [**Synchotron X-ray tomography**](examples/tomography.md) - large scale phase constrast imaging with learnable parameters.
 
 Have a look [here](installing.md) for how to install Chromatix, and read [Chromatix 101](101.md) to get started. 
+
+Chromatix is still in active development, so expect sharp edges!
