@@ -11,10 +11,10 @@ from ..functional.sources import (
 from typing import Optional, Callable
 from chex import PRNGKey, Array
 
-__all__ = ["Pointsource", "ObjectivePointsource", "PlaneWave", "GenericBeam"]
+__all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericBeam"]
 
 
-class Pointsource(nn.Module):
+class PointSource(nn.Module):
     shape: tuple[int, int]
     dx: float
     spectrum: float
@@ -41,7 +41,7 @@ class Pointsource(nn.Module):
         return point_source(self.empty_field, self._z, self._n, self._power, self.pupil)
 
 
-class ObjectivePointsource(nn.Module):
+class ObjectivePointSource(nn.Module):
     shape: tuple[int, int]
     dx: float
     spectrum: float

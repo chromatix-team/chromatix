@@ -1,4 +1,4 @@
-from chromatix.elements import ObjectivePointsource, PhaseMask, FFLens
+from chromatix.elements import ObjectivePointSource, PhaseMask, FFLens
 from chromatix import PSFImager
 from chromatix.ops.noise import approximate_shot_noise
 import jax.numpy as jnp
@@ -45,7 +45,7 @@ class Holoscope(nn.Module):
 
         self.model = PSFImager(
             [
-                ObjectivePointsource(
+                ObjectivePointSource(
                     shape,
                     spacing,
                     self.wavelength,
