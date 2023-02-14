@@ -1,5 +1,5 @@
 from chromatix.elements import ObjectivePointSource, PhaseMask, FFLens
-from chromatix import PSFImager
+from chromatix import Microscope
 from chromatix.ops.noise import approximate_shot_noise
 import jax.numpy as jnp
 from jax import jit
@@ -43,7 +43,7 @@ class Holoscope(nn.Module):
             / (self.n * shape[0] * self.camera_pixel_pitch)
         )
 
-        self.model = PSFImager(
+        self.model = Microscope(
             [
                 ObjectivePointSource(
                     shape,
