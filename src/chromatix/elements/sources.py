@@ -8,14 +8,14 @@ from ..functional.sources import (
     generic_field,
 )
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Tuple
 from chex import PRNGKey, Array
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericBeam"]
 
 
 class PointSource(nn.Module):
-    shape: tuple[int, int]
+    shape: Tuple[int, int]
     dx: float
     spectrum: float
     spectral_density: float
@@ -42,7 +42,7 @@ class PointSource(nn.Module):
 
 
 class ObjectivePointSource(nn.Module):
-    shape: tuple[int, int]
+    shape: Tuple[int, int]
     dx: float
     spectrum: float
     spectral_density: float
@@ -74,7 +74,7 @@ class ObjectivePointSource(nn.Module):
 
 
 class PlaneWave(nn.Module):
-    shape: tuple[int, int]
+    shape: Tuple[int, int]
     dx: float
     spectrum: float
     spectral_density: float
@@ -110,12 +110,12 @@ class PlaneWave(nn.Module):
 
 
 class GenericBeam(nn.Module):
-    shape: tuple[int, int]
+    shape: Tuple[int, int]
     dx: float
     spectrum: float
     spectral_density: float
-    amplitude: Array | Callable[[PRNGKey, tuple[int, int]], Array]
-    phase: Array | Callable[[PRNGKey, tuple[int, int]], Array]
+    amplitude: Array | Callable[[PRNGKey, Tuple[int, int]], Array]
+    phase: Array | Callable[[PRNGKey, Tuple[int, int]], Array]
     power: Optional[float | Callable[[PRNGKey], float]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
 
