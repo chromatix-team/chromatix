@@ -134,3 +134,6 @@ poetry.toml
 
 # dev folder
 dev/
+
+# DS_store
+.DS_Store
