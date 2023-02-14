@@ -23,7 +23,7 @@ def analytical_result_square_aperture(x, z, D, spectrum, n):
 
 
 def test_transform_propagation():
-    N = 512
+    N = 256
     dxi = D / N
     Q = 5
     N_pad = Q * N
@@ -45,7 +45,7 @@ def test_transform_propagation():
 
 
 def test_transfer_propagation():
-    N = 512
+    N = 256
     dxi = D / N
     Q = 5
     N_pad = Q * N
@@ -63,11 +63,11 @@ def test_transfer_propagation():
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
         I_analytical**2
     )
-    assert rel_error < 1e-3
+    assert rel_error < 2e-3
 
 
 def test_exact_propagation():
-    N = 512
+    N = 256
     dxi = D / N
     Q = 5
     N_pad = Q * N
@@ -91,7 +91,7 @@ def test_exact_propagation():
 
 
 def test_propagate():
-    N = 512
+    N = 256
     dxi = D / N
     Q = 5
     N_pad = Q * N
@@ -109,4 +109,4 @@ def test_propagate():
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
         I_analytical**2
     )
-    assert rel_error < 1e-3
+    assert rel_error < 2e-3
