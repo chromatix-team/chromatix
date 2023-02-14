@@ -23,13 +23,15 @@ flake8 = "^6.0.0"
 mypy = "^0.991"
 pytest = "^7.2.0"
 ipykernel = "^6.20.2"
-
-
+ruff = "^0.0.246"
 
 [tool.poetry.group.docs.dependencies]
 mkdocs = "^1.4.2"
 mkdocs-material = "^9.0.6"
 mkdocstrings-python = "^0.8.3"
+
+[tool.ruff]
+ignore = ["F401", "F403"] #ignore unused imports errors
 
 [build-system]
 requires = ["poetry-core"]
