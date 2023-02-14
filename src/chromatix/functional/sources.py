@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from einops import rearrange
 from ..field import Field
-from typing import Optional, Callable
+from typing import Optional, Callable, Tuple
 from chex import Array, assert_rank
 from .pupils import circular_pupil
 import jax
@@ -16,7 +16,7 @@ __all__ = [
 
 
 def empty_field(
-    shape: tuple[int, int], dx: float, spectrum: float, spectral_density: float
+    shape: Tuple[int, int], dx: float, spectrum: float, spectral_density: float
 ) -> Field:
     """Simple wrapper to create empty field."""
     return Field.create(dx, spectrum, spectral_density, shape=shape)
