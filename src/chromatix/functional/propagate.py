@@ -88,14 +88,13 @@ def transfer_propagate(
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
-    match mode:
-        case "full":
-            field = field.replace(u=u)
-        case "same":
-            u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-            field = field.replace(u=u)
-        case other:
-            raise NotImplementedError('Only "full" and "same" are supported.')
+    if mode == "full":
+        field = field.replace(u=u)
+    elif mode == "same":
+        u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+        field = field.replace(u=u)
+    else:
+        raise NotImplementedError('Only "full" and "same" are supported.')
 
     return field
 
@@ -138,14 +137,13 @@ def exact_propagate(
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
-    match mode:
-        case "full":
-            field = field.replace(u=u)
-        case "same":
-            u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-            field = field.replace(u=u)
-        case other:
-            raise NotImplementedError('Only "full" and "same" are supported.')
+    if mode == "full":
+        field = field.replace(u=u)
+    elif mode == "same":
+        u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+        field = field.replace(u=u)
+    else:
+        raise NotImplementedError('Only "full" and "same" are supported.')
 
     return field
 
@@ -168,32 +166,30 @@ def propagate(
     # running a quick simulation and checking the aliasing level
     Q = 2 * jnp.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
 
-    match method:
-        case "transform":
-            if N_pad is None:
-                N = int(jnp.ceil((Q * M) / 2) * 2)
-                N_pad = int((N - M))
-            field = transform_propagate(field, z, n, N_pad=N_pad, loop_axis=loop_axis)
-        case "transfer":
-            if N_pad is None:
-                N = int(jnp.ceil((Q * M) / 2) * 2)
-                N_pad = int((N - M))
-            field = transfer_propagate(
-                field, z, n, N_pad=N_pad, loop_axis=loop_axis, mode=mode
-            )
-        case "exact":
-            if N_pad is None:
-                scale = jnp.max((field.spectrum / (2 * field.dx)))
-                assert scale < 1, "Can't do exact transfer when dx < lambda / 2"
-                Q = Q / jnp.sqrt(1 - scale**2)  # minimum pad ratio for exact transfer
-                N = int(jnp.ceil((Q * M) / 2) * 2)
-                N_pad = int((N - M))
-            field = exact_propagate(
-                field, z, n, N_pad=N_pad, loop_axis=loop_axis, mode=mode
-            )
-
-        case other:
-            raise NotImplementedError(
-                "Method must be one of 'transform', 'transfer', or 'exact'."
-            )
+    if method == "transform":
+        if N_pad is None:
+            N = int(jnp.ceil((Q * M) / 2) * 2)
+            N_pad = int((N - M))
+        field = transform_propagate(field, z, n, N_pad=N_pad, loop_axis=loop_axis)
+    elif method == "transfer":
+        if N_pad is None:
+            N = int(jnp.ceil((Q * M) / 2) * 2)
+            N_pad = int((N - M))
+        field = transfer_propagate(
+            field, z, n, N_pad=N_pad, loop_axis=loop_axis, mode=mode
+        )
+    elif method == "exact":
+        if N_pad is None:
+            scale = jnp.max((field.spectrum / (2 * field.dx)))
+            assert scale < 1, "Can't do exact transfer when dx < lambda / 2"
+            Q = Q / jnp.sqrt(1 - scale**2)  # minimum pad ratio for exact transfer
+            N = int(jnp.ceil((Q * M) / 2) * 2)
+            N_pad = int((N - M))
+        field = exact_propagate(
+            field, z, n, N_pad=N_pad, loop_axis=loop_axis, mode=mode
+        )
+    else:
+        raise NotImplementedError(
+            "Method must be one of 'transform', 'transfer', or 'exact'."
+        )
     return field

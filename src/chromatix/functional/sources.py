@@ -78,7 +78,8 @@ def plane_wave(
     pupil: Optional[Callable[[Field], Field]] = None,
     k: Optional[Array] = None,
 ) -> Field:
-    """Generates plane wave of given phase and power. Can also be given pupil and k vector."""
+    """Generates plane wave of given phase and power.
+    Can also be given pupil and k vector."""
 
     # Field values
     if k is None:
