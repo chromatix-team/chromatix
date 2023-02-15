@@ -34,7 +34,7 @@ optical_model = chromatix.OpticalSystem(
 # pass an empty parameter dictionary when calling the system:
 widefield_psf = optical_model.apply({}, jnp.linspace(-5, 5, num=11)).intensity
 ```
-When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the spacing at the output: ``optical_model(jnp.linspace(-5, 5, num=11)).dx`` and we would know the pixel spacing of the final PSF.
+When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the spacing at the output: ``optical_model.apply({}, jnp.linspace(-5, 5, num=11)).dx`` and we would know the pixel spacing of the final PSF.
 
 Chromatix supports a variety of optical phenomena and elements including:
 
