@@ -12,24 +12,27 @@ Chromatix describes optical systems as sequences of sources and optical elements
 
 ```python
 import chromatix
+import chromatix.elements
 import jax
+import jax.numpy as jnp
 shape = (512, 512) # number of pixels in simulated field
-spacing = 0.05 # spacing of pixels for the final PSF, microns
-spectrum = [0.532] # microns
-spectral_density = [1.0]
+spacing = 0.3 # spacing of pixels for the final PSF, microns
+spectrum = 0.532 # microns
+spectral_density = 1.0
 f = 100.0 # focal length, microns
 n = 1.33 # refractive index of medium
 NA = 0.8 # numerical aperture of objective
 optical_model = chromatix.OpticalSystem(
     [
-        chromatix.ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        chromatix.PhaseMask(jnp.ones(shape)),
-        chromatix.FFLens(f, n)
+        chromatix.elements.ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
+        chromatix.elements.PhaseMask(jnp.ones(shape)[jnp.newaxis, ..., jnp.newaxis]),
+        chromatix.elements.FFLens(f, n)
     ]
 )
-optical_model = jax.jit(optical_model)
-# calculate widefield PSF at multiple defocuses in parallel
-widefield_psf = optical_model(jnp.linspace(-5, 5, num=11)).intensity
+# Calculate widefield PSF at multiple defocuses in parallel.
+# This system has no optimizable parameters, so we have to
+# pass an empty parameter dictionary when calling the system:
+widefield_psf = optical_model.apply({}, jnp.linspace(-5, 5, num=11)).intensity
 ```
 When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the spacing at the output: ``optical_model(jnp.linspace(-5, 5, num=11)).dx`` and we would know the pixel spacing of the final PSF.
 
