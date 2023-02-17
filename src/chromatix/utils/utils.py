@@ -1,9 +1,24 @@
 import jax.numpy as jnp
 from jax.nn.initializers import lecun_normal
 from jax.lax import complex
+from jax.random import KeyArray
 import numpy as np
 
-from typing import Sequence, Callable, Optional
+from typing import Any, Sequence, Callable, Optional
+
+
+def trainable(x: Any) -> Callable:
+    """
+    Returns a function with a valid signature for a Flax parameter initializer
+    function (accepts a jax.random.KeyArray), which simply returns x itself. When a
+    Chromatix element is constructed with such a function as its attribute, it will
+    automatically turn that into a parameter to be optimized. Thus, this function
+    is a convenient way to set the attribute of an optical element in Chromatix as
+    a trainable parameter initialized to value x.
+    """
+    def init_fn(key: KeyArray, *args, **kwargs) -> Any:
+        return x
+    return init_fn
 
 
 def next_order(val: int) -> int:
