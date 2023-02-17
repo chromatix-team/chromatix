@@ -16,8 +16,10 @@ def trainable(x: Any) -> Callable:
     is a convenient way to set the attribute of an optical element in Chromatix as
     a trainable parameter initialized to value x.
     """
+
     def init_fn(key: KeyArray, *args, **kwargs) -> Any:
         return x
+
     return init_fn
 
 
