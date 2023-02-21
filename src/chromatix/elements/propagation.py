@@ -1,5 +1,5 @@
 import flax.linen as nn
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 from chromatix import Field
 from chex import PRNGKey
 import chromatix.functional as cf
@@ -8,7 +8,7 @@ __all__ = ["Propagate"]
 
 
 class Propagate(nn.Module):
-    n: float | Callable[[PRNGKey], float]
+    n: Union[float, Callable[[PRNGKey], float]]
     N_pad: Optional[int] = None
     method: str = "transfer"
     mode: str = "same"

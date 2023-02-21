@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 from ..field import Field
 from chex import Array, assert_rank
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 __all__ = [
     "phase_change",
@@ -85,7 +85,7 @@ def defocused_ramps(
 
 
 # Utility functions
-def wrap_phase(phase: Array, limits: tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
+def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
     phase_min, phase_max = limits
     assert phase_min < phase_max, "Lower limit needs to be smaller than upper limit."
     min_indices = phase < phase_min

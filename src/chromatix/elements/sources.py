@@ -8,7 +8,7 @@ from ..functional.sources import (
     generic_field,
 )
 
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Tuple, Union
 from chex import PRNGKey, Array
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericBeam"]
@@ -19,9 +19,9 @@ class PointSource(nn.Module):
     dx: float
     spectrum: float
     spectral_density: float
-    z: float | Callable[[PRNGKey], float]
-    n: float | Callable[[PRNGKey], float]
-    power: Optional[float | Callable[[PRNGKey], float]] = 1.0
+    z: Union[float, Callable[[PRNGKey], float]]
+    n: Union[float, Callable[[PRNGKey], float]]
+    power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
 
     def setup(self):
@@ -46,10 +46,10 @@ class ObjectivePointSource(nn.Module):
     dx: float
     spectrum: float
     spectral_density: float
-    f: float | Callable[[PRNGKey], float]
-    n: float | Callable[[PRNGKey], float]
-    NA: float | Callable[[PRNGKey], float]
-    power: Optional[float | Callable[[PRNGKey], float]] = 1.0
+    f: Union[float, Callable[[PRNGKey], float]]
+    n: Union[float, Callable[[PRNGKey], float]]
+    NA: Union[float, Callable[[PRNGKey], float]]
+    power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
 
     def setup(self):
         self.empty_field = empty_field(
@@ -78,9 +78,9 @@ class PlaneWave(nn.Module):
     dx: float
     spectrum: float
     spectral_density: float
-    power: Optional[float | Callable[[PRNGKey], float]] = 1.0
-    phase: Optional[float | Callable[[PRNGKey], float]] = 0.0
-    k_offset: Optional[Array | Callable[[PRNGKey], Array]] = None
+    power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
+    phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
+    k_offset: Optional[Union[Array, Callable[[PRNGKey], Array]]] = None
     pupil: Optional[Callable[[Field], Field]] = None
 
     def setup(self):
@@ -114,9 +114,9 @@ class GenericBeam(nn.Module):
     dx: float
     spectrum: float
     spectral_density: float
-    amplitude: Array | Callable[[PRNGKey, Tuple[int, int]], Array]
-    phase: Array | Callable[[PRNGKey, Tuple[int, int]], Array]
-    power: Optional[float | Callable[[PRNGKey], float]] = 1.0
+    amplitude: Union[Array, Callable[[PRNGKey, Tuple[int, int]], Array]]
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int]], Array]]
+    power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
 
     def setup(self):

@@ -1,6 +1,7 @@
 import flax.linen as nn
 from chromatix import Field
 from chex import Array
+from typing import Union
 
 __all__ = ["Flip", "ScaleAndBias"]
 
@@ -16,6 +17,6 @@ class ScaleAndBias(nn.Module):
     bias: Array
 
     @nn.compact
-    def __call__(self, field: Field, scale: Array | Field) -> Field:
+    def __call__(self, field: Field, scale: Union[Array, Field]) -> Field:
         # TODO: Not sure why offset is fixed and scale an input?
         return (field + self.bias) * scale
