@@ -73,11 +73,11 @@ class Field(struct.PyTreeNode):
 
     @property
     def l2_sq_grid(self) -> jnp.ndarray:
-        return jnp.sum(self.grid ** 2, axis=0)
+        return jnp.sum(self.grid**2, axis=0)
 
     @property
     def l2_grid(self) -> jnp.ndarray:
-        return jnp.sqrt(jnp.sum(self.grid ** 2, axis=0))
+        return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
 
     @property
     def l1_grid(self) -> jnp.ndarray:
@@ -102,7 +102,7 @@ class Field(struct.PyTreeNode):
 
     @property
     def power(self) -> jnp.ndarray:
-        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx ** 2
+        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
 
     @property
     def shape(self) -> Tuple:

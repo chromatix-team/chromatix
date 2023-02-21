@@ -46,10 +46,10 @@ def potato_chip(
     # Normalize coordinates from -1 to 1 within radius R
     R = (wavelength * f) / n
     grid = (grid / R) / (NA / wavelength)
-    l2_sq_grid = jnp.sum(grid ** 2, axis=0)
+    l2_sq_grid = jnp.sum(grid**2, axis=0)
     theta = jnp.arctan2(*grid)
     k = n / wavelength
-    phase = theta * (d * jnp.sqrt(k ** 2 - l2_sq_grid) + C0)
+    phase = theta * (d * jnp.sqrt(k**2 - l2_sq_grid) + C0)
     phase *= l2_sq_grid < 1
     return phase
 
@@ -77,7 +77,7 @@ def defocused_ramps(
     # Normalize coordinates from -1 to 1 within radius R
     R = (wavelength * f) / n
     grid = (grid / R) / (NA / wavelength)
-    l2_sq_grid = jnp.sum(grid ** 2, axis=0)
+    l2_sq_grid = jnp.sum(grid**2, axis=0)
     theta = jnp.arctan2(*grid)
     edges = jnp.linspace(-jnp.pi, jnp.pi, num_ramps + 1)
     centers = (edges[:-1] + edges[1:]) / 2
