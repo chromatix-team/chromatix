@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 
 from ..field import Field
+from einops import rearrange
 from chex import Array, assert_rank
 from typing import Optional, Sequence, Tuple
 
