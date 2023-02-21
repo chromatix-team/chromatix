@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 from ..field import Field
 from ..functional.phase_masks import wrap_phase, phase_change
-from typing import Callable
+from typing import Callable, Union, Tuple
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
@@ -11,7 +11,7 @@ __all__ = ["PhaseMask", "SpatialLightModulator"]
 
 
 class PhaseMask(nn.Module):
-    phase: Array | Callable[[PRNGKey, tuple[int, ...]], Array]
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -26,8 +26,8 @@ class PhaseMask(nn.Module):
 
 class SpatialLightModulator(nn.Module):
     phase_init_fn: Callable[[PRNGKey], Array]
-    spacing: tuple[float, float]
-    phase_range: tuple[float, float] = (1.4 * jnp.pi, 4.6 * jnp.pi)
+    spacing: Tuple[float, float]
+    phase_range: Tuple[float, float] = (1.4 * jnp.pi, 4.6 * jnp.pi)
     interpolation_order: int = 0
 
     @nn.compact

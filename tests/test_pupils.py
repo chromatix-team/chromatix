@@ -9,8 +9,8 @@ def test_circular_pupil():
 
     w = 100
     field = circular_pupil(field, w)
-    A_pupil = jnp.pi * (w/2)**2
-    A_field = 512 ** 2
+    A_pupil = jnp.pi * (w / 2) ** 2
+    A_field = 512**2
 
     assert jnp.allclose(A_pupil / A_field, field.power, atol=1e-3)
 
@@ -22,6 +22,6 @@ def test_square_pupil():
     w = 100
     field = square_pupil(field, w)
     A_pupil = w**2
-    A_field = 512 ** 2
+    A_field = 512**2
 
     assert jnp.allclose(A_pupil / A_field, field.power, atol=1e-3)
