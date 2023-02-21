@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Chromatix"
+name = "chromatix"
 authors = [
     {name = "Gert-Jan Both", email = "gertjan.both@protonmail.com"}, 
     {name = "Diptodip Deb", email = "debd@janelia.hhmi.org"}
