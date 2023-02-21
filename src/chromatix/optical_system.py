@@ -8,7 +8,7 @@ from chex import Array, PRNGKey
 from typing import Callable, Sequence, Optional, Any
 
 
-class PSFImager(nn.Module):
+class Microscope(nn.Module):
     optical_system: Sequence[Callable]
     noise_fn: Optional[Callable[[PRNGKey, Array], Array]] = None
     reduce_fn: Optional[Callable] = None
