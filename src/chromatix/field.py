@@ -11,7 +11,7 @@ from jax.scipy.ndimage import map_coordinates
 
 
 class Field(struct.PyTreeNode):
-    u: jnp.ndarray  # field [b x h x w x c]
+    u: jnp.ndarray  # [B H W C]
     dx: jnp.ndarray
     spectrum: jnp.ndarray
     spectral_density: jnp.ndarray
@@ -25,9 +25,9 @@ class Field(struct.PyTreeNode):
         u: Optional[jnp.ndarray] = None,
         shape: Optional[Tuple[int, int]] = None,
     ) -> Field:
-        # getting everything into right shape
-        # we use b x h x w x c, where b is batchsize
-        # and c number of wavelengths.
+        # Getting everything into right shape
+        # We use [B H W C], where B is batch size
+        # and C is number of wavelengths.
         field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "1 -> 1 1 1 1")
         field_spectrum: jnp.ndarray = rearrange(
             jnp.atleast_1d(spectrum), "c -> 1 1 1 c"
@@ -37,7 +37,7 @@ class Field(struct.PyTreeNode):
         )
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
-        )  # must sum to 1
+        )  # Must sum to 1
         if u is None:
             # NOTE(dd): when jitting this function, shape must be a
             # static argument --- possibly requiring multiple traces
@@ -48,7 +48,7 @@ class Field(struct.PyTreeNode):
         else:
             field_u = u
         assert_rank(
-            field_u, 4, custom_message="Field must be ndarray of shape [b h w c]"
+            field_u, 4, custom_message="Field must be ndarray of shape [B H W C]"
         )
         field = cls(
             field_u,
@@ -58,14 +58,11 @@ class Field(struct.PyTreeNode):
         )
         return field
 
-    # grid properties
+    # Grid properties
     @property
     def grid(self) -> jnp.ndarray:
         half_size = jnp.array(self.shape[1:3]) / 2
-        # we must (!!) use a linspace here as mgrid the
-        # num of arguments can be set similar to the shape
-        # of the field allowing jit.
-
+        # We must use meshgrid instead of mgrid here in order to be jittable
         grid = jnp.meshgrid(
             jnp.linspace(-half_size[0], half_size[0] - 1, num=self.shape[1]) + 0.5,
             jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[2]) + 0.5,
@@ -76,11 +73,11 @@ class Field(struct.PyTreeNode):
 
     @property
     def l2_sq_grid(self) -> jnp.ndarray:
-        return jnp.sum(self.grid**2, axis=0)
+        return jnp.sum(self.grid ** 2, axis=0)
 
     @property
     def l2_grid(self) -> jnp.ndarray:
-        return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
+        return jnp.sqrt(jnp.sum(self.grid ** 2, axis=0))
 
     @property
     def l1_grid(self) -> jnp.ndarray:
@@ -105,7 +102,7 @@ class Field(struct.PyTreeNode):
 
     @property
     def power(self) -> jnp.ndarray:
-        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
+        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx ** 2
 
     @property
     def shape(self) -> Tuple:

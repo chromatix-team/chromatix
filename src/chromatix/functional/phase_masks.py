@@ -15,57 +15,92 @@ __all__ = [
 
 # Field function
 def phase_change(field: Field, phase: Array) -> Field:
-    assert_rank(phase, 4, custom_message="Phase must be array of shape [B, H, W, C]")
+    assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
     return field * jnp.exp(1j * phase)
 
 
-# Phase inits
-def flat_phase(field: Field, value: float = 0.0) -> Array:
-    return jnp.full((1, field.shape[1], field.shape[2], 1), value)
+# Phase mask initializations
+def flat_phase(shape: Tuple[int, int], value: float = 0.0) -> Array:
+    return jnp.full((1, shape[0], shape[1], 1), value)
 
 
-def potato_chip(field: Field, d: float, C0: float, n: float, f: float) -> Array:
-    theta = jnp.arctan2(*field.grid)
-    k = n / field.spectrum[..., 0]
-    L = jnp.sqrt(field.spectrum[..., 0] * f)
-    phase = theta * (d * jnp.sqrt(k**2 - field.l2_sq_grid / L**2) + C0)
+def potato_chip(
+    shape: Tuple[int, int],
+    spacing: float,
+    wavelength: float,
+    n: float,
+    f: float,
+    NA: float,
+    d: float = 50.0,
+    C0: float = -146.7,
+) -> Array:
+    # @copypaste(Field): We must use meshgrid instead of mgrid here
+    # in order to be jittable
+    half_size = jnp.array(shape) / 2
+    grid = jnp.meshgrid(
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[0]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[1]) + 0.5,
+        indexing="ij",
+    )
+    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    # Normalize coordinates from -1 to 1 within radius R
+    R = (wavelength * f) / n
+    grid = (grid / R) / (NA / wavelength)
+    l2_sq_grid = jnp.sum(grid ** 2, axis=0)
+    theta = jnp.arctan2(*grid)
+    k = n / wavelength
+    phase = theta * (d * jnp.sqrt(k ** 2 - l2_sq_grid) + C0)
+    phase *= l2_sq_grid < 1
     return phase
 
 
 def defocused_ramps(
-    field: Field,
-    D: float,
+    shape: Tuple[int, int],
+    spacing: float,
+    wavelength: float,
+    n: float,
+    f: float,
+    NA: float,
     num_ramps: int = 6,
     delta: Sequence[float] = [2374.0] * 6,
     defocus: Sequence[float] = [-50.0, 150.0, -100.0, 50.0, -150.0, 100.0],
-) -> jnp.ndarray:
-    # normalize coordinates from -1 to 1 within radius D
-    grid = field.grid / D
-    sq_dist = jnp.sum(grid**2, axis=0)
-    theta = jnp.arctan2(grid[0], grid[1])
-
+) -> Array:
+    # @copypaste(Field): We must use meshgrid instead of mgrid here
+    # in order to be jittable
+    half_size = jnp.array(shape) / 2
+    grid = jnp.meshgrid(
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[0]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[1]) + 0.5,
+        indexing="ij",
+    )
+    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    # Normalize coordinates from -1 to 1 within radius R
+    R = (wavelength * f) / n
+    grid = (grid / R) / (NA / wavelength)
+    l2_sq_grid = jnp.sum(grid ** 2, axis=0)
+    theta = jnp.arctan2(*grid)
     edges = jnp.linspace(-jnp.pi, jnp.pi, num_ramps + 1)
     centers = (edges[:-1] + edges[1:]) / 2
     flat_region_edge = (num_ramps + 1) ** -0.5
     defocus_center = (flat_region_edge + 1) / 2.0
-    phase = jnp.zeros((1, field.shape[1], field.shape[2], 1))
+    phase = jnp.zeros((1, shape[0], shape[1], 1))
 
     def ramp(center, theta_bounds, delta_ramp, ramp_defocus):
-        # calculate distances along and across current ramp
+        # Calculate distances along and across current ramp
         ramp_parallel_distance = grid[0] * jnp.sin(center) + grid[1] * jnp.cos(center)
         ramp_perpendicular_distance = grid[0] * jnp.cos(center) - grid[1] * jnp.sin(
             center
         )
-        # select coordinates for current ramp
+        # Select coordinates for current ramp
         ramp_mask = (
             (theta >= theta_bounds[0])
             & (theta < theta_bounds[1])
             & (ramp_parallel_distance > flat_region_edge)
-            & (sq_dist < 1)
+            & (l2_sq_grid < 1)
         )
-        # create ramp
+        # Create ramp
         phase = ramp_mask * delta_ramp * ramp_perpendicular_distance
-        # create defocus within ramp
+        # Create defocus within ramp
         ramp_quadratic = (grid[1] - jnp.cos(center) * defocus_center) ** 2 + (
             grid[0] - jnp.sin(center) * defocus_center
         ) ** 2
@@ -80,7 +115,7 @@ def defocused_ramps(
             delta[ramp_idx],
             defocus[ramp_idx],
         )
-    phase *= sq_dist < 1
+    phase *= l2_sq_grid < 1
     return phase
 
 

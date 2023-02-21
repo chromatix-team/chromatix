@@ -24,7 +24,7 @@ def optical_fft(
     norm = (field.dx / L) ** 2  # normalization factor
 
     # finding new coordinates
-    du = L**2 / (field.shape[1] * field.dx)
+    du = L ** 2 / (field.shape[1] * field.dx)
 
     # Doing the FFT
     if inverse:

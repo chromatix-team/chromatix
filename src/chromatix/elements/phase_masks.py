@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from ..field import Field
 from ..functional.phase_masks import wrap_phase, phase_change
 from typing import Callable, Union, Tuple
+from einops import rearrange
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
@@ -15,43 +16,53 @@ class PhaseMask(nn.Module):
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
-        _phase = (
-            self.param("_phase", self.phase, (1, *field.shape[1:3], 1))
+        phase = (
+            self.param("phase_pixels", self.phase, field.shape[1:3])
             if callable(self.phase)
             else self.phase
         )
-        assert_rank(_phase, 4, custom_message="Phase must have shape [N, H, W, C]")
-        return field * jnp.exp(1j * _phase)
+        assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+        phase = self.spectrally_modulate_phase(
+            phase, field.spectrum, field.spectrum[0].item()
+        )
+        return phase_change(field, phase)
 
 
 class SpatialLightModulator(nn.Module):
-    phase_init_fn: Callable[[PRNGKey], Array]
-    spacing: Tuple[float, float]
-    phase_range: Tuple[float, float] = (1.4 * jnp.pi, 4.6 * jnp.pi)
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+    shape: Tuple[int, int]
+    phase_range: Tuple[float, float]
     interpolation_order: int = 0
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
-        slm_pixels = self.param("phase", self.phase_init_fn)
-        field_grid = jnp.meshgrid(
+        phase = (
+            self.param("slm_pixels", self.phase, self.shape)
+            if callable(self.phase)
+            else self.phase
+        )
+        assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+        phase = wrap_phase(phase, self.phase_range)
+        field_pixel_grid = jnp.meshgrid(
             jnp.linspace(0, self.shape[0] - 1, num=field.shape[1]) + 0.5,
             jnp.linspace(0, self.shape[1] - 1, num=field.shape[2]) + 0.5,
             indexing="ij",
         )
-        phase = map_coordinates(slm_pixels, field_grid, self.interpolation_order)
-        phase = wrap_phase(phase, self.phase_range)
+        phase = map_coordinates(
+            phase.squeeze(), field_pixel_grid, self.interpolation_order
+        )
+        phase = rearrange(phase, "h w -> 1 h w 1")
         phase = self.spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[0].item()
         )
-        phase = wrap_phase(phase, self.phase_range)
-        return phase_change(field, jnp.exp(1j * phase[None, ..., None]))
+        return phase_change(field, phase)
 
     @staticmethod
     def spectrally_modulate_phase(
         phase: Array, spectrum: Array, central_wavelength: float
     ) -> Array:
         assert_rank(
-            spectrum, 4, custom_message="Spectrum must be ndarray of shape [1 1 1 c]"
+            spectrum, 4, custom_message="Spectrum must be array of shape [1 1 1 C]"
         )
 
         spectral_modulation = central_wavelength / spectrum

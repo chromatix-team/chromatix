@@ -34,8 +34,8 @@ def point_source(
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * z / n)
-    phase = jnp.pi * field.l2_sq_grid / L**2
-    u = -1j / L**2 * jnp.exp(1j * phase)
+    phase = jnp.pi * field.l2_sq_grid / L ** 2
+    u = -1j / L ** 2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
 
     # Applying pupil
@@ -58,10 +58,10 @@ def objective_point_source(
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * (z / f) * field.l2_sq_grid / L**2
+    phase = -jnp.pi * (z / f) * field.l2_sq_grid / L ** 2
 
     # Field
-    u = -1j / L**2 * jnp.exp(1j * phase)
+    u = -1j / L ** 2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
 
     D = 2 * f * NA / n  # Expression for NA yields width of pupil
