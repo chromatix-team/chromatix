@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jax import jit
 from jax import random
 import flax.linen as nn
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 from chromatix.utils import center_crop
 from chromatix.ops.ops import downsample
 from chex import Array
@@ -17,7 +17,7 @@ key = random.PRNGKey(42)
 
 
 class Holoscope(nn.Module):
-    camera_shape: tuple[int, int] = (512, 512)
+    camera_shape: Tuple[int, int] = (512, 512)
     camera_pixel_pitch: float = 0.325
     f: float = 100
     NA: float = 0.8

@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10, <3.12"
+python = "^3.8, <3.12"
 jax = "^0.4.1"
 jaxlib = "^0.4.1"
 einops = "^0.6.0"
@@ -19,10 +19,8 @@ scipy = "^1.10.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.1.0"
-flake8 = "^6.0.0"
 mypy = "^0.991"
 pytest = "^7.2.0"
-ipykernel = "^6.20.2"
 ruff = "^0.0.246"
 
 [tool.poetry.group.docs.dependencies]
