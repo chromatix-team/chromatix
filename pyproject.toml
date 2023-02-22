@@ -4,11 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chromatix"
-authors = [
-    {name = "Gert-Jan Both", email = "gertjan.both@protonmail.com"}, 
-    {name = "Diptodip Deb", email = "debd@janelia.hhmi.org"}
-]
-description = "Differentiable lightfield simulation using Jax."
+authors = [{name = "Chromatix Team"}]
+description = "Differentiable wave optics library using JAX"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
