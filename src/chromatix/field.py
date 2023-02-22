@@ -24,7 +24,7 @@ class Field(struct.PyTreeNode):
     including scalars, arrays, or other ``Field`` objects. These operations
     include: `+`, `-` (including negation), `*`, `/`, `+=`, `-=`, `*=`, `/=`.
 
-    The shape of a base ``Field`` object is [B H W C], where B is batch,
+    The shape of a base ``Field`` object is `[B H W C]`, where B is batch,
     H and W are height and width, and C is the channel dimension, which
     we use for different wavelengths in the spectrum of a ``Field``. The
     batch dimension can be used for any purpose, such as different samples,
@@ -116,7 +116,7 @@ class Field(struct.PyTreeNode):
         else:
             field_u = u
         assert_rank(
-            field_u, 4, custom_message="Field must be ndarray of shape [B H W C]"
+            field_u, 4, custom_message="Field must be ndarray of shape `[B H W C]`"
         )
         field = cls(
             field_u,
@@ -130,7 +130,7 @@ class Field(struct.PyTreeNode):
     @property
     def grid(self) -> jnp.ndarray:
         """
-        The grid for each spatial dimension as an array of shape [2 1 H W 1].
+        The grid for each spatial dimension as an array of shape `[2 1 H W 1]`.
         The 2 entries along the first dimension represent the y and x grids,
         respectively. This grid assumes that the center of the ``Field`` is
         the origin and that the elements are sampling from the center, not
