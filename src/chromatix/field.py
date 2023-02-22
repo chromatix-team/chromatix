@@ -11,6 +11,54 @@ from jax.scipy.ndimage import map_coordinates
 
 
 class Field(struct.PyTreeNode):
+    """
+    A container that describes the chromatic scalar light field at a 2D plane.
+
+    ``Field`` objects track various attributes of a complex-valued scalar
+    field (in addition to the field itself for each wavelength): the spacing
+    of the samples along the field, the wavelengths in the spectrum, and the
+    density of the wavelengths. This information can be used, for example, to
+    calculate the intensity of a field at a plane, appropriately weighted by
+    the spectrum. ``Field`` objects also provide various grids for convenience,
+    as well as allow elementwise operations with any broadcastable values,
+    including scalars, arrays, or other ``Field`` objects. These operations
+    include: `+`, `-` (including negation), `*`, `/`, `+=`, `-=`, `*=`, `/=`.
+
+    The shape of a base ``Field`` object is [B H W C], where B is batch,
+    H and W are height and width, and C is the channel dimension, which
+    we use for different wavelengths in the spectrum of a ``Field``. The
+    batch dimension can be used for any purpose, such as different samples,
+    depth, or time. If more dimensions are required, we encourage the use of
+    ``jax.vmap``, ``jax.pmap``, or a combination of the two. We intend for this
+    to be a compromise between not having too many dimensions when they are
+    not required, and also not having to litter a program with ``jax.vmap``
+    transformations for common simulations in 3D.
+
+    Concretely, this means simulations that are only in 2D and with a single
+    wavelength will always have only two distinct singleton dimensions. Any
+    simulations taking into account either depth or multiple wavelengths will
+    not need to use JAX transformations or loops. Any simulations requiring
+    both 3D spatial dimensions and the tracking of the field across time will
+    either have to loop through time or use ``jax.vmap``/``jax.pmap``.
+
+    Due to this shape, in order to ensure that attributes of ``Field``
+    objects broadcast appropriately, attributes which could be 1D arrays
+    are ensured to have extra singleton dimensions. In order to make the
+    creation of a ``Field`` object more convenient, we provide the class
+    method ``Field.create()`` (detailed below), which accepts scalar or 1D
+    array arguments for the various attributes (e.g. if a single wavelength
+    is desired, a scalar value can be used, but if multiple wavelengths are
+    desired, a 1D array can be used for the value of ``spectrum``). This method
+    appropriately reshapes the attributes provided to the correct shapes.
+
+    Attributes:
+        u: The scalar field of shape `[B H W C]`.
+        dx: The spacing of the samples in ``u`` discretizing a continuous field.
+        spectrum: The wavelengths sampled by the field, in any units specified.
+        spectral_density: The weights of the wavelengths in the spectrum. Must
+            sum to 1.0.
+    """
+
     u: jnp.ndarray  # [B H W C]
     dx: jnp.ndarray
     spectrum: jnp.ndarray
@@ -25,9 +73,29 @@ class Field(struct.PyTreeNode):
         u: Optional[jnp.ndarray] = None,
         shape: Optional[Tuple[int, int]] = None,
     ) -> Field:
+        """
+        Create a ``Field`` object in a convenient way.
+
+        Creates a ``Field`` object, accepting arguments as scalars or 1D values
+        as appropriate. This class function appropriately reshapes the given
+        values of attributes to the necessary shapes, allowing a ``Field`` to
+        be created with scalar or 1D array values for the spectrum and spectral
+        density, as desired.
+
+        Args:
+            dx: The spacing of the samples in ``u`` discretizing a continuous field.
+            spectrum: The wavelengths sampled by the field, in any units specified.
+            spectral_density: The weights of the wavelengths in the spectrum.
+                Will be normalized to sum to 1.0.
+            u (optional): The scalar field of shape `[B H W C]`. If not given,
+                the ``Field`` is allocated with uninitialized values of the
+                given ``shape``.
+            shape (optional): A tuple defining the shape of only the spatial
+                dimensions of the ``Field`` (height and width). Not required
+                if ``u`` is provided. If ``u`` is not provided, then ``shape``
+                must be provided.
+        """
         # Getting everything into right shape
-        # We use [B H W C], where B is batch size
-        # and C is number of wavelengths.
         field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "1 -> 1 1 1 1")
         field_spectrum: jnp.ndarray = rearrange(
             jnp.atleast_1d(spectrum), "c -> 1 1 1 c"
@@ -61,6 +129,20 @@ class Field(struct.PyTreeNode):
     # Grid properties
     @property
     def grid(self) -> jnp.ndarray:
+        """
+        The grid for each spatial dimension as an array of shape [2 1 H W 1].
+        The 2 entries along the first dimension represent the y and x grids,
+        respectively. This grid assumes that the center of the ``Field`` is
+        the origin and that the elements are sampling from the center, not
+        the corner.
+
+        In addition to this actual grid, ``Field`` also provides:
+            - ``l2_sq_grid``
+            - ``l2_grid``
+            - ``l1_grid``
+            - ``linf_grid``
+        each of which are described below.
+        """
         half_size = jnp.array(self.shape[1:3]) / 2
         # We must use meshgrid instead of mgrid here in order to be jittable
         grid = jnp.meshgrid(
@@ -73,27 +155,33 @@ class Field(struct.PyTreeNode):
 
     @property
     def l2_sq_grid(self) -> jnp.ndarray:
+        """Sum of the squared grid over spatial dimensions, i.e. `x**2 + y**2`."""
         return jnp.sum(self.grid**2, axis=0)
 
     @property
     def l2_grid(self) -> jnp.ndarray:
+        """Square root of ``l2_sq_grid``, i.e. `sqrt(x**2 + y**2)`."""
         return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
 
     @property
     def l1_grid(self) -> jnp.ndarray:
+        """Sum absolute value over spatial dimensions, i.e. `|x| + |y|`."""
         return jnp.sum(jnp.abs(self.grid), axis=0)
 
     @property
     def linf_grid(self) -> jnp.ndarray:
+        """Max absolute value over spatial dimensions, i.e. `max(|x|, |y|)`."""
         return jnp.max(jnp.abs(self.grid), axis=0)
 
     # Field properties
     @property
     def phase(self) -> jnp.ndarray:
+        """Phase of the complex scalar field, shape `[B H W C]`."""
         return jnp.angle(self.u)
 
     @property
     def intensity(self) -> jnp.ndarray:
+        """Intensity of the complex scalar field, shape `[B H W 1]`."""
         return jnp.sum(
             self.spectral_density * jnp.abs(self.u) ** 2,
             axis=-1,
@@ -102,10 +190,12 @@ class Field(struct.PyTreeNode):
 
     @property
     def power(self) -> jnp.ndarray:
+        """Power of the complex scalar field, shape `[B 1 1 1]`."""
         return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
 
     @property
-    def shape(self) -> Tuple:
+    def shape(self) -> Tuple[int, ...]:
+        """Shape of the complex scalar field."""
         return self.u.shape
 
     # Math operations
