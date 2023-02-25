@@ -7,6 +7,12 @@ __all__ = ["Flip", "ScaleAndBias"]
 
 
 class Flip(nn.Module):
+    """
+    This elements flips the incoming ``Field`` upside down.
+
+    This is useful for situations where an upside down image is formed.
+    """
+
     @nn.compact
     def __call__(self, field: Field) -> Field:
         # TODO: Add in support for both axes?
