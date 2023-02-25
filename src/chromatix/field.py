@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from chex import Array, assert_rank
+from chex import Array, assert_rank, assert_equal_shape
 from flax import struct
 from einops import rearrange
 from typing import Union, Optional, Tuple, Any
@@ -96,7 +96,7 @@ class Field(struct.PyTreeNode):
                 must be provided.
         """
         # Getting everything into right shape
-        field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "1 -> 1 1 1 1")
+        field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
         field_spectrum: jnp.ndarray = rearrange(
             jnp.atleast_1d(spectrum), "c -> 1 1 1 c"
         )
@@ -106,6 +106,7 @@ class Field(struct.PyTreeNode):
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )  # Must sum to 1
+        assert_equal_shape([field_dx, field_spectrum, field_spectral_density])
         if u is None:
             # NOTE(dd): when jitting this function, shape must be a
             # static argument --- possibly requiring multiple traces
