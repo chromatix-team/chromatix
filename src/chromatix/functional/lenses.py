@@ -9,16 +9,18 @@ __all__ = ["thin_lens", "ff_lens", "df_lens"]
 
 
 def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
-    """_summary_
+    """
+    Applies a thin lens placed directly after the incoming ``Field``.
 
     Args:
-        field (Field): _description_
-        f (float): _description_
-        n (float): _description_
-        NA (Optional[float], optional): _description_. Defaults to None.
+        field: The ``Field`` to which the lens will be applied.
+        f: Focal length of the lens.
+        n: Refractive index of the lens.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
 
     Returns:
-        Field: _description_
+        The ``Field`` directly after the lens.
     """
     L = jnp.sqrt(field.spectrum * f / n)
     phase = -jnp.pi * field.l2_sq_grid / L**2
@@ -38,18 +40,18 @@ def ff_lens(
     inverse: bool = False,
     loop_axis: Optional[int] = None,
 ) -> Field:
-    """_summary_
+    """
+    Applies a thin lens placed a distance ``f`` after the incoming ``Field``.
 
     Args:
-        field (Field): _description_
-        f (float): _description_
-        n (float): _description_
-        NA (Optional[float], optional): _description_. Defaults to None.
-        inverse (bool, optional): _description_. Defaults to False.
-        loop_axis (Optional[int], optional): _description_. Defaults to None.
+        field: The ``Field`` to which the lens will be applied.
+        f: Focal length of the lens.
+        n: Refractive index of the lens.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
 
     Returns:
-        Field: _description_
+        The ``Field`` propagated a distance ``f`` after the lens.
     """
     # Pupil
     if NA is not None:
@@ -68,19 +70,19 @@ def df_lens(
     inverse: bool = False,
     loop_axis: Optional[int] = None,
 ) -> Field:
-    """_summary_
+    """
+    Applies a thin lens placed a distance ``d`` after the incoming ``Field``.
 
     Args:
-        field (Field): _description_
-        d (float): _description_
-        f (float): _description_
-        n (float): _description_
-        NA (Optional[float], optional): _description_. Defaults to None.
-        inverse (bool, optional): _description_. Defaults to False.
-        loop_axis (Optional[int], optional): _description_. Defaults to None.
+        field: The ``Field`` to which the lens will be applied.
+        d: Distance from the incoming ``Field`` to the lens.
+        f: Focal length of the lens.
+        n: Refractive index of the lens.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
 
     Returns:
-        Field: _description_
+        The ``Field`` propagated a distance ``f`` after the lens.
     """
     # Preliminaries
     L = jnp.sqrt(field.spectrum * f / n)  # Lengthscale L
