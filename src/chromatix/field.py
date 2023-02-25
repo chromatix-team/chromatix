@@ -87,10 +87,10 @@ class Field(struct.PyTreeNode):
             spectrum: The wavelengths sampled by the field, in any units specified.
             spectral_density: The weights of the wavelengths in the spectrum.
                 Will be normalized to sum to 1.0.
-            u (optional): The scalar field of shape `[B H W C]`. If not given,
+            u: The scalar field of shape `[B H W C]`. If not given,
                 the ``Field`` is allocated with uninitialized values of the
                 given ``shape``.
-            shape (optional): A tuple defining the shape of only the spatial
+            shape: A tuple defining the shape of only the spatial
                 dimensions of the ``Field`` (height and width). Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
