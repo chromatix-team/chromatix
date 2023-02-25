@@ -49,16 +49,19 @@ def optical_fft(
 
     # Doing the FFT
     if inverse:
-        u = norm * fftshift(fft(field.u, loop_axis))
-    else:
         u = norm * ifftshift(ifft(field.u, loop_axis))
+    else:
+        u = norm * fftshift(fft(field.u, loop_axis))
     return -1j * field.replace(u=u, dx=du)
 
 
 def fft(x: Array, loop_axis=None) -> Array:
     """Computes ``fft2`` for input of shape `[B H W C]`."""
     if loop_axis is None:
-        return jnp.fft.fft2(x, axes=[1, 2])
+        if x.ndim > 4:
+            return jnp.fft.fft2(x, axes=[2, 3])
+        else:
+            return jnp.fft.fft2(x, axes=[1, 2])
     else:
         return looped_fft(x, loop_axis)
 
@@ -66,7 +69,10 @@ def fft(x: Array, loop_axis=None) -> Array:
 def ifft(x: Array, loop_axis=None) -> Array:
     """Computes ``ifft2`` for input of shape `[B H W C]`."""
     if loop_axis is None:
-        return jnp.fft.ifft2(x, axes=[1, 2])
+        if x.ndim > 4:
+            return jnp.fft.ifft2(x, axes=[2, 3])
+        else:
+            return jnp.fft.ifft2(x, axes=[1, 2])
     else:
         return looped_ifft(x, loop_axis)
 

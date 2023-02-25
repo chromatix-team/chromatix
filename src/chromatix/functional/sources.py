@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from einops import rearrange
-from ..field import Field
+from ..field import Field, PolarizedField
 from typing import Optional, Callable, Tuple
 from chex import Array, assert_rank
 from .pupils import circular_pupil
@@ -12,14 +12,23 @@ __all__ = [
     "objective_point_source",
     "plane_wave",
     "generic_field",
+    "vector_plane_wave",
 ]
 
 
 def empty_field(
-    shape: Tuple[int, int], dx: float, spectrum: float, spectral_density: float
-) -> Field:
+    shape: Tuple[int, int],
+    dx: float,
+    spectrum: float,
+    spectral_density: float,
+    polarized: bool = False,
+) -> Field | PolarizedField:
     """Simple wrapper to create empty field."""
-    return Field.create(dx, spectrum, spectral_density, shape=shape)
+    if polarized:
+        field = PolarizedField.create(dx, spectrum, spectral_density, shape=shape)
+    else:
+        field = Field.create(dx, spectrum, spectral_density, shape=shape)
+    return field
 
 
 def point_source(
@@ -98,8 +107,9 @@ def plane_wave(
     field: Field,
     power: float = 1.0,
     phase: float = 0.0,
+    n: float = 1.00,
     pupil: Optional[Callable[[Field], Field]] = None,
-    k: Optional[Array] = None,
+    kykx: Optional[Array] = None,
 ) -> Field:
     """
     Generates plane wave of given ``phase`` and ``power``.
@@ -112,15 +122,20 @@ def plane_wave(
         power: The total power that the result should be normalized to,
             defaults to 1.0.
         phase: The phase of the plane wave in radians, defaults to 0.0.
+        n: the refractive index of the medium
         pupil: If provided, will be called on the field to apply a pupil.
-        k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+        kykx: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2,]` in the format [ky, kx]. If provided, ``phase`` is
+            ignored.
     """
-    # Field values
-    if k is None:
+    if kykx is None:
         u = jnp.exp(1j * jnp.full(field.shape, phase))
     else:
-        u = jnp.exp(1j * 2 * jnp.pi * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+        kykx_norm = jnp.linalg.norm(kykx)
+        assert (
+            kykx_norm**2 <= (n * 2 * jnp.pi / field.spectrum) ** 2
+        ), "kx**2 + ky**2 must not be larger than (2*pi * n/wavelength)**2"
+        u = jnp.exp(1j * jnp.einsum("v, vbhwc->bhwc", kykx, field.grid))
 
     field = field.replace(u=u)
 
@@ -163,3 +178,45 @@ def generic_field(
         field = pupil(field)
     # Setting to correct power
     return field * jnp.sqrt(power / field.power)
+
+
+def vector_plane_wave(
+    field: PolarizedField,
+    k: Array,
+    Ep: Array,
+) -> Field:
+    """
+    Generates plane wave of given ``phase`` and ``power``.
+
+    Can also be given ``pupil`` and ``k`` vector.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the plane
+            wave (should be empty).
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        phase: The phase of the plane wave in radians, defaults to 0.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+        k: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+    """
+    # Field values
+    Ep = rearrange(Ep, "v -> 1 v 1 1 1")
+    u = Ep * jnp.exp(1j * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+    field = field.replace(u=u)
+
+    # Setting to correct power
+    return field
+
+def get_full_k(
+    spectrum: Array,
+    k: Array,
+    n: float
+) -> Array:
+    """
+    Generate kz from kx, ky and the wave numbers
+    """
+    kykx_norm = jnp.linalg.norm(k)
+    kz = jnp.sqrt((n * 2 * jnp.pi / spectrum) ** 2 - kykx_norm**2)
+    fullK = jnp.insert(k,0,kz)
+    return fullK

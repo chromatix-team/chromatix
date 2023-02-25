@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
@@ -73,27 +74,46 @@ def transfer_propagate(
     # assert N_pad % 2 == 0, "Padding should be even."
     # Calculating propagator
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
-    f = jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx.squeeze())
-    fx, fy = rearrange(f, "h -> 1 h 1 1"), rearrange(f, "w -> 1 1 w 1")
-    phase = -jnp.pi * L**2 * (fx**2 + fy**2)
+    # TODO(dd): This calculation could probably go into Field
+    f = []
+    if field.u.ndim > 4:
+        for d in range(field.dx.size):
+            f.append(
+                jnp.fft.fftfreq(field.shape[2] + N_pad, d=field.dx[..., d].squeeze())
+            )
+    else:
+        for d in range(field.dx.size):
+            f.append(
+                jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze())
+            )
+    f = jnp.stack(f, axis=-1)
+
+    if field.u.ndim > 4:
+        fx, fy = rearrange(f, "h c -> 1 1 h 1 c"), rearrange(f, "w c -> 1 1 1 w c")
+        u = center_pad(field.u, [0, 0, int(N_pad / 2), int(N_pad / 2), 0])
+        print("fx shape is:", fx.shape)
+        phase = -jnp.pi * L**2 * (fx**2 + fy**2)
+    else:
+        fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
+        u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+        phase = -jnp.pi * L**2 * (fx**2 + fy**2)
 
     # Propagating field
-    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
     if mode == "full":
         field = field.replace(u=u)
     elif mode == "same":
-        u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+        if field.u.ndim > 4:
+            u = center_crop(u, [0, 0, int(N_pad / 2), int(N_pad / 2), 0])
+        else:
+            u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
         field = field.replace(u=u)
     else:
         raise NotImplementedError('Only "full" and "same" are supported.')
 
     return field
-
-
-# Exact transfer method
 
 
 def exact_propagate(
@@ -117,8 +137,11 @@ def exact_propagate(
         ConcretizationError will arise when traced!).
     """
     # Calculating propagator
-    f = jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx.squeeze())
-    fx, fy = rearrange(f, "h -> 1 h 1 1"), rearrange(f, "w -> 1 1 w 1")
+    f = []
+    for d in range(field.dx.size):
+        f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
+    f = jnp.stack(f, axis=-1)
+    fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
     kernel = 1 - (field.spectrum / n) ** 2 * (fx**2 + fy**2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
