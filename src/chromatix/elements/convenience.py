@@ -20,9 +20,16 @@ class Flip(nn.Module):
 
 
 class ScaleAndBias(nn.Module):
-    bias: Array
+    """
+    This elements applies a ``scale`` and ``bias`` to the incoming ``Field``.
+
+    The ``scale`` and ``bias`` can either be scalars or ``Array``s
+    broadcastable to the shape of the incoming ``Field``.
+    """
+
+    bias: Union[float, Array]
+    scale: Union[float, Array]
 
     @nn.compact
-    def __call__(self, field: Field, scale: Union[Array, Field]) -> Field:
-        # TODO: Not sure why offset is fixed and scale an input?
-        return (field + self.bias) * scale
+    def __call__(self, field: Field) -> Field:
+        return (field + self.bias) * self.scale
