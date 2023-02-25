@@ -1,17 +1,26 @@
 import jax.numpy as jnp
 from jax import random, custom_jvp
+from jax.random import PRNGKey
+from chex import Array
+from typing import Tuple
 
 
 @custom_jvp
-def approximate_shot_noise(key, image):
-    """Approximates shot noise with a Gaussian with std=sqrt(N)"""
+def approximate_shot_noise(key: PRNGKey, image: Array) -> Array:
+    """
+    Approximates Poisson shot noise using a Gaussian for differentiability.
+    """
     noisy = image + jnp.sqrt(image) * random.normal(key, image.shape)
     return jnp.maximum(noisy, 0.0)
 
 
 @approximate_shot_noise.defjvp
-def approximate_shotnoise_jvp(primals, tangents):
-    """Custom backprop for approximate shotnoise"""
+def approximate_shotnoise_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+    """
+    Custom gradient for ``approximate_shot_noise``.
+
+    This is necessary to fix an instability when the input ``image`` is 0.
+    """
     key, image = primals
     _, image_dot = tangents
     primal_out = approximate_shot_noise(key, image)
@@ -26,15 +35,25 @@ def approximate_shotnoise_jvp(primals, tangents):
 
 
 @custom_jvp
-def shot_noise(key, image):
-    """Shot noise with custom backpro approximating the gradient as gradient
-    of gaussian with std=sqrt(N)."""
+def shot_noise(key: PRNGKey, image: Array) -> Array:
+    """
+    Simulates Poisson shot noise whose gradient is approximated using
+    the gradient of a Gaussian, just as if the simulation had been
+    ``approximate_shot_noise`` instead.
+    """
     noisy = random.poisson(key, image, image.shape)
     return jnp.float32(noisy)
 
 
 @shot_noise.defjvp
-def shotnoise_jvp(primals, tangents):
+def shotnoise_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+    """
+    Custom gradient for ``shot_noise``.
+
+    Because the Poisson distribution computed in ``shot_noise`` cannot be
+    differentiated, this function computes the gradient as if the forward pass
+    had been ``approximate_shot_noise``.
+    """
     key, image = primals
     _, image_dot = tangents
     primal_out = shot_noise(key, image)
