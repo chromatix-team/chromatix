@@ -15,6 +15,27 @@ __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericBeam"]
 
 
 class PointSource(nn.Module):
+    """
+    Generates field due to point source a distance ``z`` away.
+
+    Can also be given ``pupil``.
+
+    The attributes ``z``, ``n``, and ``power`` can be learned by using
+    ``chromatix.utils.trainable``.
+
+    Attributes:
+        shape: The shape (height and width) of the ``Field`` to be created.
+        dx: The spacing of the samples of the ``Field``.
+        spectrum: The wavelengths included in the ``Field`` to be created.
+        spectral_density: The weights of each wavelength in the ``Field`` to
+            be created.
+        z: The distance of the point source.
+        n: Refractive index.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+    """
+
     shape: Tuple[int, int]
     dx: float
     spectrum: float
@@ -42,6 +63,28 @@ class PointSource(nn.Module):
 
 
 class ObjectivePointSource(nn.Module):
+    """
+    Generates field due to a point source defocused by an amount ``z`` away
+    from the focal plane, just after passing through a lens with focal length
+    ``f`` and numerical aperture ``NA``.
+
+    The attributes ``f``, ``n``, ``NA``, and ``power`` can be learned by using
+    ``chromatix.utils.trainable``.
+
+    Attributes:
+        shape: The shape (height and width) of the ``Field`` to be created.
+        dx: The spacing of the samples of the ``Field``.
+        spectrum: The wavelengths included in the ``Field`` to be created.
+        spectral_density: The weights of each wavelength in the ``Field`` to
+            be created.
+        z: The distance of the point source.
+        f: Focal length of the objective lens.
+        n: Refractive index.
+        NA: The numerical aperture of the objective lens.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+    """
+
     shape: Tuple[int, int]
     dx: float
     spectrum: float
@@ -74,14 +117,36 @@ class ObjectivePointSource(nn.Module):
 
 
 class PlaneWave(nn.Module):
+    """
+    Generates plane wave of given ``phase`` and ``power``.
+
+    Can also be given ``pupil`` and ``k`` vector.
+
+    The attributes ``power``, ``phase``, and ``k`` can be learned by using
+    ``chromatix.utils.trainable``.
+
+    Attributes:
+        shape: The shape (height and width) of the ``Field`` to be created.
+        dx: The spacing of the samples of the ``Field``.
+        spectrum: The wavelengths included in the ``Field`` to be created.
+        spectral_density: The weights of each wavelength in the ``Field`` to
+            be created.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        phase: The phase of the plane wave in radians, defaults to 0.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+        k: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+    """
+
     shape: Tuple[int, int]
     dx: float
     spectrum: float
     spectral_density: float
     power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
     phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
-    k_offset: Optional[Union[Array, Callable[[PRNGKey], Array]]] = None
     pupil: Optional[Callable[[Field], Field]] = None
+    k: Optional[Union[Array, Callable[[PRNGKey], Array]]] = None
 
     def setup(self):
         self.empty_field = empty_field(
@@ -97,19 +162,36 @@ class PlaneWave(nn.Module):
             if isinstance(self.phase, Callable)
             else self.phase
         )
-        self._k_offset = (
-            self.param("_NA", self.k_offset)
-            if isinstance(self.k_offset, Callable)
-            else self.k_offset
-        )
+        self._k = self.param("_k", self.k) if isinstance(self.k, Callable) else self.k
 
     def __call__(self) -> Field:
         return plane_wave(
-            self.empty_field, self._power, self._phase, self.pupil, self._k_offset
+            self.empty_field, self._power, self._phase, self.pupil, self._k
         )
 
 
 class GenericBeam(nn.Module):
+    """
+    Generates field with arbitrary ``phase`` and ``amplitude``.
+
+    Can also be given ``pupil``.
+
+    The attributes ``amplitude``, ``phase``, and ``power`` can be learned by
+    using ``chromatix.utils.trainable``.
+
+    Attributes:
+        shape: The shape (height and width) of the ``Field`` to be created.
+        dx: The spacing of the samples of the ``Field``.
+        spectrum: The wavelengths included in the ``Field`` to be created.
+        spectral_density: The weights of each wavelength in the ``Field`` to
+            be created.
+        amplitude: The amplitude of the field with shape `[B H W C]`.
+        phase: The phase of the field with shape `[B H W C]`.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+    """
+
     shape: Tuple[int, int]
     dx: float
     spectrum: float
@@ -130,16 +212,16 @@ class GenericBeam(nn.Module):
             else self.amplitude
         )
 
-        self._power = (
-            self.param("_power", self.power)
-            if isinstance(self.power, Callable)
-            else self.power
-        )
-
         self._phase = (
             self.param("_phase", self.phase)
             if isinstance(self.phase, Callable)
             else self.phase
+        )
+
+        self._power = (
+            self.param("_power", self.power)
+            if isinstance(self.power, Callable)
+            else self.power
         )
 
     def __call__(self) -> Field:
