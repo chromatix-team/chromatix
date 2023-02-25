@@ -9,9 +9,9 @@ nav:
     - FAQ: FAQ.md
   - Examples:
     - Holoscope: examples/holoscope.ipynb
-    - Computer Generated holography: examples/cgh.ipynb
+    - Computer Generated Holography: examples/cgh.ipynb
     - Fourier Ptychography: examples/fourier_ptychography.md
-    - Synchotron X-ray holography: examples/tomography.md
+    - Synchrotron X-ray Holography: examples/tomography.md
   - API:
     - Field: api/field.md
     - Functional: api/functional.md
