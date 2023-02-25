@@ -33,7 +33,14 @@ def trainable(x: Any) -> Callable:
 
     phase_mask = PhaseMask(
         phase=trainable(
-            potato_chip(shape=(3840, 3840), spacing=0.3, wavelength=0.5, n=1.33, f=100, NA=0.8)
+            potato_chip(
+                shape=(3840, 3840),
+                spacing=0.3,
+                wavelength=0.5,
+                n=1.33,
+                f=100,
+                NA=0.8
+            )
         )
     )
     params = phase_mask.init()
