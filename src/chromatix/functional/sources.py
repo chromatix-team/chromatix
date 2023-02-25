@@ -29,7 +29,20 @@ def point_source(
     power: float = 1.0,
     pupil: Optional[Callable[[Field], Field]] = None,
 ) -> Field:
-    """Generates field due to point source a distance z from it. Can take pupil."""
+    """
+    Generates field due to point source a distance ``z`` away.
+
+    Can also be given ``pupil``.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the point
+            source (should be empty).
+        z: The distance of the point source.
+        n: Refractive index.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+    """
     z = rearrange(jnp.atleast_1d(z), "d -> d 1 1 1")
 
     # Calculating phase and pupil
@@ -50,9 +63,19 @@ def objective_point_source(
     field: Field, z: float, f: float, n: float, NA: float, power: float = 1.0
 ) -> Field:
     """
-    Replace field value with the result of a point source defocused by
-    an amount z away from the focal plane, just after passing through
-    a lens with focus f and numerical aperture NA.
+    Generates field due to a point source defocused by an amount ``z`` away
+    from the focal plane, just after passing through a lens with focal length
+    ``f`` and numerical aperture ``NA``.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the point
+            source after an objective lens (should be empty).
+        z: The distance of the point source.
+        f: Focal length of the objective lens.
+        n: Refractive index.
+        NA: The numerical aperture of the objective lens.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
     """
     z = rearrange(jnp.atleast_1d(z), "d -> d 1 1 1")
 
@@ -78,9 +101,21 @@ def plane_wave(
     pupil: Optional[Callable[[Field], Field]] = None,
     k: Optional[Array] = None,
 ) -> Field:
-    """Generates plane wave of given phase and power.
-    Can also be given pupil and k vector."""
+    """
+    Generates plane wave of given ``phase`` and ``power``.
 
+    Can also be given ``pupil`` and ``k`` vector.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the plane
+            wave (should be empty).
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        phase: The phase of the plane wave in radians, defaults to 0.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+        k: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+    """
     # Field values
     if k is None:
         u = jnp.exp(1j * jnp.full(field.shape, phase))
@@ -103,11 +138,24 @@ def generic_field(
     phase: Array,
     power: Optional[float] = 1.0,
     pupil: Optional[Callable[[Field], Field]] = None,
-):
+) -> Field:
+    """
+    Generates field with arbitrary ``phase`` and ``amplitude``.
+
+    Can also be given ``pupil``.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the
+            arbitrary phase perturbation (should be empty).
+        amplitude: The amplitude of the field with shape `[B H W C]`.
+        phase: The phase of the field with shape `[B H W C]`.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+    """
     assert_rank(
         amplitude, 4, custom_message="Amplitude must be array of shape [B, H, W, C]"
     )
-
     assert_rank(phase, 4, custom_message="Phase must be array of shape [B, H, W, C]")
     field = field.replace(u=amplitude * jnp.exp(1j * phase))
 
