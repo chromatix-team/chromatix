@@ -44,6 +44,8 @@ plugins:
       python:
         paths: [src]
 - mkdocs-jupyter
+- search:
+    separator: '[\s\-\.]+'
 
 markdown_extensions:
   - pymdownx.highlight:
