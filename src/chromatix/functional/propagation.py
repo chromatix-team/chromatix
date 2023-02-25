@@ -12,17 +12,14 @@ def transform_propagate(
     field: Field, z: float, n: float, *, N_pad: int, loop_axis: Optional[int] = None
 ) -> Field:
     """
-    Fresnel propagate a field for a distance z using the transform method.
+    Fresnel propagate ``field`` for a distance ``z`` using transform method.
 
     Args:
-      field: A LightField describing what should be propagated.
-      z: A float that defines the distance to propagate.
-      n: A float that defines the refractive index of the medium.
-      N_pad: A keyword argument integer defining the pad length for the
-      propagation FFT
-
-    Returns:
-      The propagated LightField.
+        field: ``Field`` to be propagated.
+        z: A float that defines the distance to propagate.
+        n: A float that defines the refractive index of the medium.
+        N_pad: A keyword argument integer defining the pad length for the
+        propagation FFT
     """
 
     # Fourier normalization factor
@@ -62,18 +59,15 @@ def transfer_propagate(
     mode: str = "full",
 ) -> Field:
     """
-    Fresnel propagate a field for a distance z using the transfer method.
+    Fresnel propagate ``field`` for a distance ``z`` using transfer method.
 
     Args:
-      field: A LightField describing what should be propagated.
-      z: A float that defines the distance to propagate.
-      n: A float that defines the refractive index of the medium.
-      N_pad: A keyword argument integer defining the pad length for the
-      propagation FFT (NOTE: should not be a Jax array, otherwise a
-      ConcretizationError will arise when traced!).
-
-    Returns:
-      The propagated LightField.
+        field: ``Field`` to be propagated.
+        z: A float that defines the distance to propagate.
+        n: A float that defines the refractive index of the medium.
+        N_pad: A keyword argument integer defining the pad length for the
+        propagation FFT (NOTE: should not be a Jax array, otherwise a
+        ConcretizationError will arise when traced!).
     """
 
     # assert N_pad % 2 == 0, "Padding should be even."
@@ -112,18 +106,15 @@ def exact_propagate(
     mode: str = "full",
 ) -> Field:
     """
-    Exactly propagate a field for a distance z using the exact transfer method.
+    Propagate ``field`` for a distance ``z`` using exact transfer method.
 
     Args:
-      field: A LightField describing what should be propagated.
-      z: A float that defines the distance to propagate.
-      n: A float that defines the refractive index of the medium.
-      N_pad: A keyword argument integer defining the pad length for the
-      propagation FFT (NOTE: should not be a Jax array, otherwise a
-      ConcretizationError will arise when traced!).
-
-    Returns:
-      The propagated LightField.
+        field: ``Field`` to be propagated.
+        z: A float that defines the distance to propagate.
+        n: A float that defines the refractive index of the medium.
+        N_pad: A keyword argument integer defining the pad length for the
+        propagation FFT (NOTE: should not be a Jax array, otherwise a
+        ConcretizationError will arise when traced!).
     """
     # Calculating propagator
     f = jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx.squeeze())
@@ -158,6 +149,28 @@ def propagate(
     N_pad: Optional[int] = None,
     loop_axis: Optional[int] = None,
 ) -> Field:
+    """
+    Propagate ``field`` by a distance ``z`` with appropriate padding.
+
+    Allows for propagation with one of three different methods:
+        - ``"transform"``: Uses Fresnel transform propagation
+        - ``"transfer"``: Uses Fresnel transfer propagation
+        - ``"exact"``: Uses exact transfer propagation with no Fresnel approximation
+
+    Args:
+        field: ``Field`` to be propagated.
+        z: A float that defines the distance to propagate.
+        n: A float that defines the refractive index of the medium.
+        method: A string that defines the method of propagation.
+        mode: A string that defines whether the result is cropped or not. Can
+            be either ``"full"`` or ``"same"``.
+        N_pad: A keyword argument integer defining the pad length for
+            the propagation FFT (NOTE: should not be a Jax array, otherwise a
+            ConcretizationError will arise when traced!). If not provided,
+            will be calculated automatically based on the spacing and shape
+            of the ``field``, the distance to propagate, and the chosen method
+            of propagation.
+    """
     # Only works for square fields?
     D = field.u.shape[1] * field.dx  # height of field in real coordinates
     Nf = jnp.max((D / 2) ** 2 / (field.spectrum * z))  # Fresnel number
