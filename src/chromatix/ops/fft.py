@@ -5,10 +5,12 @@ from chex import Array
 
 
 def fftshift(x: Array) -> Array:
+    """Computes appropriate ``fftshift`` for ``x`` of shape `[B H W C]`."""
     return jnp.fft.fftshift(x, axes=[1, 2])
 
 
 def ifftshift(x: Array) -> Array:
+    """Computes appropriate ``ifftshift`` for ``x`` of shape `[B H W C]`."""
     return jnp.fft.ifftshift(x, axes=[1, 2])
 
 
@@ -19,6 +21,25 @@ def optical_fft(
     loop_axis: Optional[int] = None,
     inverse: bool = False,
 ) -> Field:
+    """
+    Computes the optical ``fft`` on an incoming ``Field`` propagated by ``z``.
+
+    This means that this function appropriately changes the sampling of the
+    ``Field`` that is output (after propagating to some distance ``z``), and
+    also computes the correct ``fftshift``/``ifftshift`` as needed.
+
+    Optionally, this function can also compute the ``ifft`` instead (which is
+    useful to prevent outputs from being flipped if that is not desired).
+
+    Args:
+        field: The ``Field`` to be propagated by ``fft``.
+        z: The distance the ``Field`` will be propagated.
+        n: Refractive index.
+        inverse: If ``True``, performs an ``ifft`` instead of an ``fft``.
+
+    Returns:
+        The propagated ``Field``, transformed by ``fft``/``ifft``.
+    """
     # Preliminaries
     L = jnp.sqrt(field.spectrum * z / n)  # Lengthscale L
     norm = (field.dx / L) ** 2  # normalization factor
@@ -35,6 +56,7 @@ def optical_fft(
 
 
 def fft(x: Array, loop_axis=None) -> Array:
+    """Computes ``fft2`` for input of shape `[B H W C]`."""
     if loop_axis is None:
         return jnp.fft.fft2(x, axes=[1, 2])
     else:
@@ -42,6 +64,7 @@ def fft(x: Array, loop_axis=None) -> Array:
 
 
 def ifft(x: Array, loop_axis=None) -> Array:
+    """Computes ``ifft2`` for input of shape `[B H W C]`."""
     if loop_axis is None:
         return jnp.fft.ifft2(x, axes=[1, 2])
     else:
