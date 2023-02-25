@@ -16,12 +16,29 @@ __all__ = [
 
 # Field function
 def phase_change(field: Field, phase: Array) -> Field:
+    """
+    Perturbs ``field`` by ``phase`` (given in radians).
+
+    Returns a new ``Field`` with the result of the perturbation.
+
+    Args:
+        field: The complex field to be perturbed.
+        phase: The phase to apply.
+    """
     assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
     return field * jnp.exp(1j * phase)
 
 
 # Phase mask initializations
 def flat_phase(shape: Tuple[int, int], value: float = 0.0) -> Array:
+    """
+    Computes a flat phase mask (one with constant value).
+
+    Args:
+        shape: The shape of the phase mask, described as a tuple of
+            two integers describing height and width.
+        value: The constant value to use for the phase mask, defaults to 0.
+    """
     return jnp.full((1, shape[0], shape[1], 1), value)
 
 
@@ -35,6 +52,30 @@ def potato_chip(
     d: float = 50.0,
     C0: float = -146.7,
 ) -> Array:
+    """
+    Computes the "potato chip" phase mask described by [1].
+
+    Also known as the "helical focus" phase mask, this phase mask was designed
+    to produce an extended helical PSF for 3D snapshot microscopy.
+
+    [1]: Broxton, Michael. "Volume reconstruction and resolution limits for
+        three dimensional snapshot microscopy."
+        Dissertation, Stanford University, 2017.
+
+    Args:
+        shape: The shape of the phase mask, described as a tuple of
+            two integers describing height and width.
+        spacing: The spacing of each pixel in the phase mask.
+        wavelength: The wavelength to compute the phase mask for.
+        n: Refractive index.
+        f: The focal distance (should be in same units as ``wavelength``).
+        NA: The numerical aperture. Phase will be 0 outside of this NA.
+        d: Sets the axial extent of the PSF (should be in same units as
+            ``wavelength``). Defaults to 50 microns, as shown in [1]. See [1]
+            for more details.
+        C0: Adjusts the focus of the PSF. Set to value described in [1]. See
+            [1] for more details.
+    """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
     half_size = jnp.array(shape) / 2
@@ -66,6 +107,39 @@ def defocused_ramps(
     delta: Sequence[float] = [2374.0] * 6,
     defocus: Sequence[float] = [-50.0, 150.0, -100.0, 50.0, -150.0, 100.0],
 ) -> Array:
+    """
+    Computes the "defocused ramps" phase mask as described in [1].
+
+    This phase mask is intended to be used in a 4f microscope to produce a
+    number of "pencil" beams in the resulting PSF. The resulting PSF produces
+    multiple subimages of the sample on the camera that are projections of the
+    sample along different angles and through different axial ranges, intended
+    to be used for 3D snapshot microscopy.
+
+    The name describes the fact that the phase mask consists of multiple phase
+    ramps around a central flat region, combined with a bowl of defocus within
+    each phase ramp to defocus the pencil beam that results from that arm of
+    the phase mask.
+
+    [1]: Deb et al. "FourierNets enable the design of highly non-local optical
+        encoders for computational imaging." NeurIPS, 2022.
+
+    Args:
+        shape: The shape of the phase mask, described as a tuple of
+            two integers describing height and width.
+        spacing: The spacing of each pixel in the phase mask.
+        wavelength: The wavelength to compute the phase mask for.
+        n: Refractive index.
+        f: The focal distance (should be in same units as ``wavelength``).
+        NA: The numerical aperture. Phase will be 0 outside of this NA.
+        num_ramps: Sets the number of "pencil" beams or "ramps". The number of
+            pencil beams will be ``num_ramps + 1``, because of the central
+            flat region of the phase mask.
+        delta: Controls the "slope" of each phase ramp. Higher values move the
+            resulting pencil further away from the center of the field.
+        defocus: Controls the defocus of each pencil axially (should be in
+            same units as ``wavelength``).
+    """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
     half_size = jnp.array(shape) / 2
@@ -122,6 +196,14 @@ def defocused_ramps(
 
 # Utility functions
 def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
+    """
+    Wraps values of ``phase`` to the range given by ``limits``.
+
+    Args:
+        phase: The phase mask to wrap (in radians).
+        limits: A tuple defining the minimum and maximum value that ``phase``
+            will be wrapped to.
+    """
     phase_min, phase_max = limits
     assert phase_min < phase_max, "Lower limit needs to be smaller than upper limit."
     min_indices = phase < phase_min
@@ -135,3 +217,13 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
         - 2 * jnp.pi * (1 + (phase[max_indices] - phase_max) // (2 * jnp.pi))
     )
     return phase
+
+
+def spectrally_modulate_phase(
+    phase: Array, spectrum: Array, central_wavelength: float
+) -> Array:
+    """Spectrally modulates a given ``phase`` for multiple wavelengths."""
+    assert_rank(spectrum, 4, custom_message="Spectrum must be array of shape [1 1 1 C]")
+
+    spectral_modulation = central_wavelength / spectrum
+    return phase * spectral_modulation
