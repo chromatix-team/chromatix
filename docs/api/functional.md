@@ -1,15 +1,13 @@
-# Chromatix.functional
-
+# Functional
 
 ## Sources
-
-## Phase Masks
-
+::: chromatix.functional.sources
 
 ## Lenses
-### thin_lens
-### ff_lens
-### df_lens
+::: chromatix.functional.lenses
 
+## Phase Masks
+::: chromatix.functional.phase_masks
 
 ## Propagation
+::: chromatix.functional.propagation
