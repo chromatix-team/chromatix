@@ -30,20 +30,20 @@ def phase_change(field: Field, phase: Array) -> Field:
 
 
 # Phase mask initializations
-def flat_phase(shape: Tuple[int, int], value: float = 0.0) -> Array:
+def flat_phase(shape: Tuple[int, ...], value: float = 0.0) -> Array:
     """
     Computes a flat phase mask (one with constant value).
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            two integers describing height and width.
+            integers of the form (1 H W 1).
         value: The constant value to use for the phase mask, defaults to 0.
     """
-    return jnp.full((1, shape[0], shape[1], 1), value)
+    return jnp.full(shape, value)
 
 
 def potato_chip(
-    shape: Tuple[int, int],
+    shape: Tuple[int, ...],
     spacing: float,
     wavelength: float,
     n: float,
@@ -64,7 +64,7 @@ def potato_chip(
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            two integers describing height and width.
+            integers of the form (1 H W 1).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
         n: Refractive index.
@@ -97,7 +97,7 @@ def potato_chip(
 
 
 def defocused_ramps(
-    shape: Tuple[int, int],
+    shape: Tuple[int, ...],
     spacing: float,
     wavelength: float,
     n: float,
@@ -126,7 +126,7 @@ def defocused_ramps(
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            two integers describing height and width.
+            integers of the form (1 H W 1).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
         n: Refractive index.
@@ -142,7 +142,7 @@ def defocused_ramps(
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
-    half_size = jnp.array(shape) / 2
+    half_size = jnp.array(shape[1:3]) / 2
     grid = jnp.meshgrid(
         jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[0]) + 0.5,
         jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[1]) + 0.5,
@@ -158,7 +158,7 @@ def defocused_ramps(
     centers = (edges[:-1] + edges[1:]) / 2
     flat_region_edge = (num_ramps + 1) ** -0.5
     defocus_center = (flat_region_edge + 1) / 2.0
-    phase = jnp.zeros((1, shape[0], shape[1], 1))
+    phase = jnp.zeros(shape)
 
     def ramp(center, theta_bounds, delta_ramp, ramp_defocus):
         # Calculate distances along and across current ramp

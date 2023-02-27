@@ -37,7 +37,7 @@ class PhaseMask(nn.Module):
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
         phase = (
-            self.param("phase_pixels", self.phase, field.shape[1:3])
+            self.param("phase_pixels", self.phase, (1, *field.shape[1:3], 1))
             if callable(self.phase)
             else self.phase
         )
@@ -96,7 +96,7 @@ class SpatialLightModulator(nn.Module):
     def __call__(self, field: Field) -> Field:
         """Applies simulated SLM ``phase`` mask to incoming ``Field``."""
         phase = (
-            self.param("slm_pixels", self.phase, self.shape)
+            self.param("slm_pixels", self.phase, (1, self.shape, 1))
             if callable(self.phase)
             else self.phase
         )
