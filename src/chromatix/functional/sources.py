@@ -98,8 +98,9 @@ def plane_wave(
     field: Field,
     power: float = 1.0,
     phase: float = 0.0,
+    n: float = 1.00,
     pupil: Optional[Callable[[Field], Field]] = None,
-    k: Optional[Array] = None,
+    kykx: Optional[Array] = None,
 ) -> Field:
     """
     Generates plane wave of given ``phase`` and ``power``.
@@ -112,15 +113,20 @@ def plane_wave(
         power: The total power that the result should be normalized to,
             defaults to 1.0.
         phase: The phase of the plane wave in radians, defaults to 0.0.
+        n: the refractive index of the medium
         pupil: If provided, will be called on the field to apply a pupil.
-        k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+        kykx: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2,]` in the format [ky, kx]. If provided, ``phase`` is
+            ignored.
     """
-    # Field values
-    if k is None:
+    if kykx is None:
         u = jnp.exp(1j * jnp.full(field.shape, phase))
     else:
-        u = jnp.exp(1j * 2 * jnp.pi * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+        kykx_norm = jnp.linalg.norm(kykx)
+        assert (
+            kykx_norm**2 <= (n * 2 * jnp.pi / field.spectrum) ** 2
+        ), "kx**2 + ky**2 must not be larger than (2*pi * n/wavelength)**2"
+        u = jnp.exp(1j * jnp.einsum("v, vbhwc->bhwc", kykx, field.grid))
 
     field = field.replace(u=u)
 
