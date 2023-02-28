@@ -4,8 +4,6 @@ import jax.numpy as jnp
 from chex import Array, assert_rank
 
 from ..field import Field
-from ..ops.fft import optical_fft
-from .pupils import circular_pupil
 
 
 def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) -> Field:
@@ -22,9 +20,9 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
 
     Args:
         field: The complex field to be perturbed.
-        absorption: The sample absorption
-        dn: sample refractive index change times 2 pi
-        optical_thickness: optical thickness at each sample location
+        absorption: The sample absorption defined as [B H W C] array
+        dn: sample refractive index change [B H W C] array
+        thickness: thickness at each sample location [B H W C] array
     """
     assert_rank(
         absorption, 4, custom_message="Absorption must be array of shape [1 H W 1]"
