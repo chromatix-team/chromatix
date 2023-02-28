@@ -56,11 +56,13 @@ class FFLens(nn.Module):
         n: Refractive index of the lens.
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
+        inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
     f: Union[float, Callable[[PRNGKey], float]]
     n: Union[float, Callable[[PRNGKey], float]]
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
+    inverse: bool = False
 
     def setup(self):
         self._f = self.param("f", self.f) if isinstance(self.f, Callable) else self.f
@@ -70,7 +72,7 @@ class FFLens(nn.Module):
         )
 
     def __call__(self, field: Field) -> Field:
-        return cf.ff_lens(field, self._f, self._n, self._NA)
+        return cf.ff_lens(field, self._f, self._n, self._NA, inverse=self.inverse)
 
 
 class DFLens(nn.Module):
@@ -90,12 +92,14 @@ class DFLens(nn.Module):
         n: Refractive index of the lens.
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
+        inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
     d: Union[float, Callable[[PRNGKey], float]]
     f: Union[float, Callable[[PRNGKey], float]]
     n: Union[float, Callable[[PRNGKey], float]]
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
+    inverse: bool = False
 
     def setup(self):
         self._d = self.param("d", self.d) if isinstance(self.d, Callable) else self.d
@@ -106,4 +110,4 @@ class DFLens(nn.Module):
         )
 
     def __call__(self, field: Field) -> Field:
-        return cf.df_lens(field, self._d, self._f, self._n, self._NA)
+        return cf.df_lens(field, self._d, self._f, self._n, self._NA, inverse=self.inverse)
