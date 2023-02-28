@@ -114,13 +114,15 @@ def plane_wave(
         phase: The phase of the plane wave in radians, defaults to 0.0.
         pupil: If provided, will be called on the field to apply a pupil.
         k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+            array of shape `[2,]`. If provided, ``phase`` is ignored.
     """
     # Field values
     if k is None:
         u = jnp.exp(1j * jnp.full(field.shape, phase))
     else:
-        u = jnp.exp(1j * 2 * jnp.pi * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+        if jnp.linalg.norm(k) != 0:
+            k = k / jnp.linalg.norm(k)
+        u = jnp.exp(1j * 2 * jnp.pi * jnp.einsum("v, vbhwc->bhwc", k[::-1], field.grid))
 
     field = field.replace(u=u)
 
