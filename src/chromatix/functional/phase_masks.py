@@ -78,7 +78,7 @@ def potato_chip(
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
-    half_size = jnp.array(shape) / 2
+    half_size = jnp.array(shape[1:3]) / 2
     grid = jnp.meshgrid(
         jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
         jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
