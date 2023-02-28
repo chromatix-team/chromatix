@@ -14,13 +14,13 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
 
     The sample is supposed to follow the thin sample approximation, so the sample
     perturbation is calculated as
-    ``exp(-absorption + 1j * 2*pi * dn * thickness / lambda)``.
+    ``exp(1j * 2*pi * (dn + 1j*absorption) * thickness / lambda)``.
 
     Returns a ``Field`` with the result of the perturbation.
 
     Args:
         field: The complex field to be perturbed.
-        absorption: The sample absorption defined as [B H W C] array
+        absorption: The sample absorption per micrometre defined as [B H W C] array
         dn: sample refractive index change [B H W C] array
         thickness: thickness at each sample location [B H W C] array
     """
@@ -37,7 +37,7 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
     )
 
     sample_func = jnp.exp(
-        -1 * absorption + 1j * 2 * jnp.pi * dn * thickness / field.spectrum
+        1j * 2 * jnp.pi * (dn + 1j * absorption) * thickness / field.spectrum
     )
 
     return field * sample_func
