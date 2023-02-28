@@ -4,6 +4,7 @@ from jax.lax import complex
 from jax.random import PRNGKey
 import numpy as np
 
+from einops import rearrange
 from typing import Any, Sequence, Callable, Optional
 
 
@@ -160,3 +161,24 @@ def gaussian_kernel(
     x = jnp.mgrid[tuple(slice(-r, r + 1) for r in radius)]
     phi = jnp.exp(-0.5 * jnp.sum((x.T / _sigma) ** 2, axis=-1))  # type: ignore
     return phi / phi.sum()
+
+
+def create_grid(shape, spacing):
+    '''
+    Args:
+        shape: The shape of the grid, described as a tuple of
+            integers of the form (1 H W 1).
+    '''
+    
+    half_size = jnp.array(shape[1:3]) / 2
+    grid = jnp.meshgrid(
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
+        indexing="ij",
+    )
+    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    return grid
+
+def normalize_grid(grid, f, NA, n):
+    R = f * NA / n # pupil radius
+    return grid / R
