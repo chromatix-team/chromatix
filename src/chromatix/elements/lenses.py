@@ -110,4 +110,6 @@ class DFLens(nn.Module):
         )
 
     def __call__(self, field: Field) -> Field:
-        return cf.df_lens(field, self._d, self._f, self._n, self._NA, inverse=self.inverse)
+        return cf.df_lens(
+            field, self._d, self._f, self._n, self._NA, inverse=self.inverse
+        )
