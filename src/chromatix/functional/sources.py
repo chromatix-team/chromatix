@@ -119,15 +119,14 @@ def plane_wave(
             array of shape `[2,]` in the format [ky, kx]. If provided, ``phase`` is
             ignored.
     """
-    if k is None:
+    if kykx is None:
         u = jnp.exp(1j * jnp.full(field.shape, phase))
     else:
         kykx_norm = jnp.linalg.norm(kykx)
         assert (
-            kykx_norm**2 <= (n * 2* jnp.pi / field.spectrum) ** 2
-        ), "kx**2 + ky**2 must not be larger than (n/wavelength)**2"
-        kz = jnp.sqrt((2 * jnp.pi * n / field.spectrum) ** 2 - kykx_norm**2)
-        u = jnp.exp(1j * jnp.einsum("v, vbhwc->bhwc", k, field.grid))
+            kykx_norm**2 <= (n * 2 * jnp.pi / field.spectrum) ** 2
+        ), "kx**2 + ky**2 must not be larger than (2*pi * n/wavelength)**2"
+        u = jnp.exp(1j * jnp.einsum("v, vbhwc->bhwc", kykx, field.grid))
 
     field = field.replace(u=u)
 
