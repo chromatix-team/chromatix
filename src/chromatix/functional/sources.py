@@ -114,7 +114,7 @@ def plane_wave(
         phase: The phase of the plane wave in radians, defaults to 0.0.
         pupil: If provided, will be called on the field to apply a pupil.
         k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2,]` in the format [y, x]. If provided, ``phase`` is
+            array of shape `[2,]` in the format [ky, kx]. If provided, ``phase`` is
             ignored.
     """
     # Field values
