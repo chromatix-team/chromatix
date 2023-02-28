@@ -14,7 +14,7 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
 
     The sample is supposed to follow the thin sample approximation, so the sample
     perturbation is calculated as
-    ``absorption * exp(1j * 2*pi * dn * thickness / lambda)``.
+    ``exp(-absorption + 1j * 2*pi * dn * thickness / lambda)``.
 
     Returns a ``Field`` with the result of the perturbation.
 
@@ -36,8 +36,8 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
         custom_message="Thickness must be array of shape [1 H W 1]",
     )
 
-    sample_func = absorption * jnp.exp(
-        1j * 2 * jnp.pi * dn * thickness / field.spectrum
+    sample_func = jnp.exp(
+        -1 * absorption + 1j * 2 * jnp.pi * dn * thickness / field.spectrum
     )
 
     return field * sample_func
