@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from einops import rearrange
-from ..field import Field
+from ..field import Field, PolarizedField
 from typing import Optional, Callable, Tuple
 from chex import Array, assert_rank
 from .pupils import circular_pupil
@@ -12,14 +12,23 @@ __all__ = [
     "objective_point_source",
     "plane_wave",
     "generic_field",
+    "vector_plane_wave",
 ]
 
 
 def empty_field(
-    shape: Tuple[int, int], dx: float, spectrum: float, spectral_density: float
-) -> Field:
+    shape: Tuple[int, int],
+    dx: float,
+    spectrum: float,
+    spectral_density: float,
+    polarized: bool = False,
+) -> Field | PolarizedField:
     """Simple wrapper to create empty field."""
-    return Field.create(dx, spectrum, spectral_density, shape=shape)
+    if polarized:
+        field = PolarizedField.create(dx, spectrum, spectral_density, shape=shape)
+    else:
+        field = Field.create(dx, spectrum, spectral_density, shape=shape)
+    return field
 
 
 def point_source(
@@ -163,3 +172,32 @@ def generic_field(
         field = pupil(field)
     # Setting to correct power
     return field * jnp.sqrt(power / field.power)
+
+
+def vector_plane_wave(
+    field: PolarizedField,
+    k: Array,
+    E0: Array,
+) -> Field:
+    """
+    Generates plane wave of given ``phase`` and ``power``.
+
+    Can also be given ``pupil`` and ``k`` vector.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the plane
+            wave (should be empty).
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        phase: The phase of the plane wave in radians, defaults to 0.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+        k: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+    """
+    # Field values
+    E0 = rearrange(E0, "v -> 1 v 1 1 1")
+    u = E0 * jnp.exp(1j * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+    field = field.replace(u=u)
+
+    # Setting to correct power
+    return field
