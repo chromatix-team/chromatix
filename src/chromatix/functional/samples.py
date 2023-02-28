@@ -8,17 +8,15 @@ from ..ops.fft import optical_fft
 from .pupils import circular_pupil
 
 
-def thin_sample(
-    field: Field, absorption: Array, dn: Array, optical_thickness: Array
-) -> Field:
+def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) -> Field:
     """
     Perturbs a ``field`` as if it went through a thin sample object with a given
-    ``absorption`` and refractive index change ``dn`` and of a given 
-    ``optical_thickness``.
+    ``absorption`` and refractive index change ``dn`` and of a given
+    ``thickness`` in micrometres.
 
     The sample is supposed to follow the thin sample approximation, so the sample
-    perturbation is calculated as 
-    ``absorption * exp{1j * dn * optical_thickness / lambda}``.
+    perturbation is calculated as
+    ``absorption * exp(1j * 2*pi * dn * thickness / lambda)``.
 
     Returns a ``Field`` with the result of the perturbation.
 
@@ -35,11 +33,13 @@ def thin_sample(
         dn, 4, custom_message="Refractive index must be array of shape [1 H W 1]"
     )
     assert_rank(
-        optical_thickness,
+        thickness,
         4,
         custom_message="Thickness must be array of shape [1 H W 1]",
     )
 
-    sample_func = absorption * jnp.exp(1j * dn * optical_thickness / field.spectrum)
+    sample_func = absorption * jnp.exp(
+        1j * 2 * jnp.pi * dn * thickness / field.spectrum
+    )
 
     return field * sample_func
