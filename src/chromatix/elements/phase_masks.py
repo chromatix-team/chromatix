@@ -96,7 +96,7 @@ class SpatialLightModulator(nn.Module):
     def __call__(self, field: Field) -> Field:
         """Applies simulated SLM ``phase`` mask to incoming ``Field``."""
         phase = (
-            self.param("slm_pixels", self.phase, (1, self.shape, 1))
+            self.param("slm_pixels", self.phase, (1, *self.shape, 1))
             if callable(self.phase)
             else self.phase
         )

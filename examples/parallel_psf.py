@@ -6,6 +6,9 @@ import numpy as np
 from flax import linen as nn
 from time import perf_counter_ns
 
+num_devices = 4
+num_planes_per_device = 32
+num_planes = num_devices * num_planes_per_device
 shape = (1536, 1536) # number of pixels in simulated field
 spacing = 0.3 # spacing of pixels for the final PSF, microns
 spectrum = 0.532 # microns
@@ -26,7 +29,7 @@ def compute_psf(z):
     return optical_model.apply({}, z).intensity
 
 
-z = jnp.linspace(-4, 4, num=128)
+z = jnp.linspace(-4, 4, num=num_planes)
 widefield_psf = compute_psf(z)
 
 single_gpu_times = []
@@ -44,7 +47,7 @@ def compute_psf(z):
     return optical_model.apply({}, z).intensity
 
 
-z = jax.device_put_sharded([chunk_z for chunk_z in jnp.linspace(-4, 4, num=128).reshape(4, 32)], jax.devices())
+z = jax.device_put_sharded([chunk_z for chunk_z in jnp.linspace(-4, 4, num=num_planes).reshape(num_devices, num_planes_per_device)], jax.devices()[:num_devices])
 widefield_psf = compute_psf(z)
 
 pmap_gpu_times = []
