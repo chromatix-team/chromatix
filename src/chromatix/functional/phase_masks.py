@@ -80,8 +80,8 @@ def potato_chip(
     # in order to be jittable
     half_size = jnp.array(shape) / 2
     grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[0]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[1]) + 0.5,
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
         indexing="ij",
     )
     grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
@@ -144,8 +144,8 @@ def defocused_ramps(
     # in order to be jittable
     half_size = jnp.array(shape[1:3]) / 2
     grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[0]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[1]) + 0.5,
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
         indexing="ij",
     )
     grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
