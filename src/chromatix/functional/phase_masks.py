@@ -91,6 +91,7 @@ def potato_chip(
     phase *= l2_sq_grid < 1
     return phase
 
+
 def seidel_aberrations(
     shape: Tuple[int, ...],
     spacing: float,
@@ -103,11 +104,13 @@ def seidel_aberrations(
     v: float = 0,
 ) -> Array:
     """
-    Computes the Seidel phase polynomial described by [1].
+    Computes the Seidel phase polynomial described by [1]. Accounts for spatially
+    varying aberrations by creating a different phase mask for each object field
+    position (u,v)
 
-    [1]: Voelz, David George. Computational fourier optics: a MATLAB tutorial. Vol. 534. 
+    [1]: Voelz, David George. Computational fourier optics: a MATLAB tutorial. Vol. 534.
     Bellingham, Washington: SPIE press, 2011.
-    
+
     Args:
         shape: The shape of the phase mask, described as a tuple of
             integers of the form (1 H W 1).
@@ -117,8 +120,8 @@ def seidel_aberrations(
         f: The focal distance (should be in same units as ``wavelength``).
         NA: The numerical aperture. Phase will be 0 outside of this NA.
         coefficients: weight coefficients for Seidel aberrations
-        u
-        v
+        u: The horizontal position of the object field point
+        v: The vertical position of the object field point
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
@@ -126,18 +129,22 @@ def seidel_aberrations(
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n)
     Y, X = grid
-    
+
     rot_angle = jnp.arctan2(v, u)
 
     obj_rad = jnp.sqrt(u**2 + v**2)
 
-    X_rot = X*jnp.cos(rot_angle) + Y*jnp.sin(rot_angle)
-    Y_rot = -X*jnp.sin(rot_angle) + Y*jnp.cos(rot_angle)
+    X_rot = X * jnp.cos(rot_angle) + Y * jnp.sin(rot_angle)
+    Y_rot = -X * jnp.sin(rot_angle) + Y * jnp.cos(rot_angle)
 
     pupil_radii = jnp.square(X_rot) + jnp.square(Y_rot)
-    phase =  wavelength*coefficients[0]*jnp.square(pupil_radii) \
-                 + wavelength*coefficients[1]*obj_rad*pupil_radii*X_rot + wavelength*coefficients[2]*(obj_rad**2)*jnp.square(X_rot) \
-                 + wavelength*coefficients[3]*(obj_rad**2)*pupil_radii + wavelength*coefficients[4]*(obj_rad**3)*X_rot
+    phase = (
+        wavelength * coefficients[0] * jnp.square(pupil_radii)
+        + wavelength * coefficients[1] * obj_rad * pupil_radii * X_rot
+        + wavelength * coefficients[2] * (obj_rad**2) * jnp.square(X_rot)
+        + wavelength * coefficients[3] * (obj_rad**2) * pupil_radii
+        + wavelength * coefficients[4] * (obj_rad**3) * X_rot
+    )
 
     l2_sq_grid = X**2 + Y**2
 
