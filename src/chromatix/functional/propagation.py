@@ -114,6 +114,7 @@ def exact_propagate(
     n: float,
     *,
     N_pad: int,
+    pad_value: float = 0,
     kykx: Array = jnp.zeros(2),
     loop_axis: Optional[int] = None,
     mode: str = "full",
@@ -146,7 +147,7 @@ def exact_propagate(
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
 
     # Propagating field
-    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0], pad_value=pad_value)
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
