@@ -10,6 +10,7 @@ __all__ = [
     "phase_change",
     "flat_phase",
     "potato_chip",
+    "seidel_aberrations",
     "defocused_ramps",
     "wrap_phase",
 ]
@@ -96,59 +97,6 @@ def potato_chip(
     phase *= l2_sq_grid < 1
     return phase
 
-def potato_chip(
-    shape: Tuple[int, ...],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
-    d: float = 50.0,
-    C0: float = -146.7,
-) -> Array:
-    """
-    Computes the "potato chip" phase mask described by [1].
-
-    Also known as the "helical focus" phase mask, this phase mask was designed
-    to produce an extended helical PSF for 3D snapshot microscopy.
-
-    [1]: Broxton, Michael. "Volume reconstruction and resolution limits for
-        three dimensional snapshot microscopy."
-        Dissertation, Stanford University, 2017.
-
-    Args:
-        shape: The shape of the phase mask, described as a tuple of
-            integers of the form (1 H W 1).
-        spacing: The spacing of each pixel in the phase mask.
-        wavelength: The wavelength to compute the phase mask for.
-        n: Refractive index.
-        f: The focal distance (should be in same units as ``wavelength``).
-        NA: The numerical aperture. Phase will be 0 outside of this NA.
-        d: Sets the axial extent of the PSF (should be in same units as
-            ``wavelength``). Defaults to 50 microns, as shown in [1]. See [1]
-            for more details.
-        C0: Adjusts the focus of the PSF. Set to value described in [1]. See
-            [1] for more details.
-    """
-    # @copypaste(Field): We must use meshgrid instead of mgrid here
-    # in order to be jittable
-    half_size = jnp.array(shape) / 2
-    grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
-        indexing="ij",
-    )
-    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
-    # Normalize coordinates from -1 to 1 within radius R
-    R = (wavelength * f) / n
-    grid = (grid / R) / (NA / wavelength)
-    l2_sq_grid = jnp.sum(grid**2, axis=0)
-    theta = jnp.arctan2(*grid)
-    k = n / wavelength
-    phase = theta * (d * jnp.sqrt(k**2 - l2_sq_grid) + C0)
-    phase *= l2_sq_grid < 1
-    return phase
-
 def seidel_aberrations(
     shape: Tuple[int, ...],
     spacing: float,
@@ -156,15 +104,15 @@ def seidel_aberrations(
     n: float,
     f: float,
     NA: float,
-    coefficients: Tuple[float, float, float, float, float],
+    coefficients: Array,
     u: float = 0,
     v: float = 0,
 ) -> Array:
     """
     Computes the Seidel phase polynomial described by [1].
 
-    Also known as the "helical focus" phase mask, this phase mask was designed
-    to produce an extended helical PSF for 3D snapshot microscopy.
+    Voelz, David George. Computational fourier optics: a MATLAB tutorial. Vol. 534. 
+    Bellingham, Washington: SPIE press, 2011.
 
     [1]: Broxton, Michael. "Volume reconstruction and resolution limits for
         three dimensional snapshot microscopy."

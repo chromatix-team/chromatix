@@ -1,14 +1,14 @@
 import jax.numpy as jnp
 
 from ..field import Field
-from ..functional.phase_masks import wrap_phase, spectrally_modulate_phase, phase_change
+from ..functional.phase_masks import wrap_phase, spectrally_modulate_phase, phase_change, seidel_aberrations
 from typing import Callable, Union, Tuple
 from einops import rearrange
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
 
-__all__ = ["PhaseMask", "SpatialLightModulator"]
+__all__ = ["PhaseMask", "SpatialLightModulator", "SeidelAberrations"]
 
 
 class PhaseMask(nn.Module):
@@ -114,6 +114,49 @@ class SpatialLightModulator(nn.Module):
             phase.squeeze(), field_pixel_grid, self.interpolation_order
         )
         phase = rearrange(phase, "h w -> 1 h w 1")
+        phase = spectrally_modulate_phase(
+            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+        )
+        return phase_change(field, phase)
+
+
+class SeidelAberrations(nn.Module):
+    """
+    Applies Seidel phase polynomial to an incoming ``Field``.
+
+    This element can be placed after any element that returns a ``Field`` or
+    before any element that accepts a ``Field``.
+
+    This element handles multi-wavelength ``Field``s by assuming that the first
+    wavelength in the ``spectrum`` of the ``Field`` is the central wavelength
+    for which the ``phase`` was calculated, and modulates the ``phase`` by the
+    ratio of other wavelengths in the ``spectrum`` to the central wavelength
+    appropriately.
+
+    The ``phase`` can be learned (pixel by pixel) by using
+    ``chromatix.utils.trainable``.
+
+    Attributes:
+        phase: The phase to be applied. Should have shape `[1 H W 1]`.
+    """
+
+    coefficients: Union[Array, Callable[[PRNGKey], Array]]
+    f: float
+    n: float
+    NA: float
+    u: float
+    v:float
+
+    @nn.compact
+    def __call__(self, field: Field) -> Field:
+        """Applies ``phase`` mask to incoming ``Field``."""
+        coefficients = (
+            self.param("seidel_coefficients", self.coefficients)
+            if callable(self.coefficients)
+            else self.coefficients
+        )
+        #assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+        phase = seidel_aberrations(field.shape, field.dx, field.spectrum[..., 0].squeeze(), self.n, self.f, self.NA, coefficients, self.u, self.v)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
