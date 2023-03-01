@@ -15,7 +15,7 @@ import pytest
 )
 def test_plane_wave(power, size, pupil):
     field = cf.empty_field(size, 0.1, 0.532, 1.0)
-    field = cf.plane_wave(field, power, pupil)
+    field = cf.plane_wave(field, power, pupil=pupil)
 
     assert jnp.allclose(field.power, power)
     assert_shape(field.u, (1, *size, 1))
