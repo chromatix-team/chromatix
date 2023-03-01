@@ -210,6 +210,7 @@ def zernike_aberrations(
     # construct zernike bases to combine during forward pass
     zernike_polynomials = []
     zernike_indices = convert_ansi_to_zernike_indices(ansi_indices)
+    
     for (n, m) in zernike_indices:
         calc_polynomial = radial_polynomial(n, m)
         R_nm = calc_polynomial(rho)
@@ -224,10 +225,13 @@ def zernike_aberrations(
         Z = Z * mask
         zernike_polynomials.append(Z)
     
-    phase = jnp.zeros_like(zernike_polynomials[0])
-    for ind, polynomial in enumerate(zernike_polynomials):
-        phase += (coefficients[ind] * polynomial)
-        
+    zernike_polynomials = jnp.asarray(zernike_polynomials)
+    zernike_polynomials = rearrange(zernike_polynomials, 'b h w -> h w b')
+    
+    phase = jnp.dot(zernike_polynomials, jnp.asarray(coefficients))
+    
+    phase = phase[jnp.newaxis, ..., jnp.newaxis]
+    
     return phase
 
 
