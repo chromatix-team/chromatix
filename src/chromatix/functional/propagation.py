@@ -5,8 +5,18 @@ from einops import rearrange
 from ..utils import center_pad, center_crop
 from ..ops.fft import fftshift, fft, ifft
 from typing import Optional
+from chex import Array
+import numpy as np
+from functools import partial
 
-__all__ = ["propagate", "transform_propagate", "transfer_propagate", "exact_propagate"]
+__all__ = [
+    "transform_propagate",
+    "transfer_propagate",
+    "exact_propagate",
+    "calculate_padding_transform",
+    "calculate_padding_transfer",
+    "calculate_padding_exact",
+]
 
 
 def transform_propagate(
@@ -104,6 +114,7 @@ def exact_propagate(
     n: float,
     *,
     N_pad: int,
+    kykx: Array = jnp.zeros(2),
     loop_axis: Optional[int] = None,
     mode: str = "full",
 ) -> Field:
@@ -115,16 +126,22 @@ def exact_propagate(
         z: A float that defines the distance to propagate.
         n: A float that defines the refractive index of the medium.
         N_pad: A keyword argument integer defining the pad length for the
-        propagation FFT (NOTE: should not be a Jax array, otherwise a
-        ConcretizationError will arise when traced!).
+            propagation FFT (NOTE: should not be a Jax array, otherwise a
+            ConcretizationError will arise when traced!). Use padding calculator
+            utilities from ``chromatix.functional.propagation`` to calculate the
+            padding.
+        kykx: If provided, defines the orientation of the propagation. Should be an
+            array of shape `[2,]` in the format [ky, kx].
     """
     # Calculating propagator
+    if kykx is None:
+        kykx = jnp.zeros(2)
     f = []
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    kernel = 1 - (field.spectrum / n) ** 2 * (fx**2 + fy**2)
+    kernel = 1 - (field.spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
 
@@ -144,70 +161,71 @@ def exact_propagate(
     return field
 
 
-def propagate(
-    field: Field,
-    z: float,
-    n: float,
-    *,
-    method: str = "transfer",
-    mode: str = "full",
-    N_pad: Optional[int] = None,
-    loop_axis: Optional[int] = None,
-) -> Field:
+def calculate_padding_transform(
+    height: int, spectrum: float, dx: float, z: float
+) -> int:
     """
-    Propagate ``field`` by a distance ``z`` with appropriate padding.
-
-    Allows for propagation with one of three different methods:
-        - ``"transform"``: Uses Fresnel transform propagation
-        - ``"transfer"``: Uses Fresnel transfer propagation
-        - ``"exact"``: Uses exact transfer propagation with no Fresnel approximation
+    Automatically calculate the padding required for transform propagation.
 
     Args:
-        field: ``Field`` to be propagated.
+        height: Shape of the field
+        spectrum: spectrum of the field
+        dx: spacing of the field
         z: A float that defines the distance to propagate.
-        n: A float that defines the refractive index of the medium.
-        method: A string that defines the method of propagation.
-        mode: A string that defines whether the result is cropped or not. Can
-            be either ``"full"`` or ``"same"``.
-        N_pad: A keyword argument integer defining the pad length for
-            the propagation FFT (NOTE: should not be a Jax array, otherwise a
-            ConcretizationError will arise when traced!). If not provided,
-            will be calculated automatically based on the spacing and shape
-            of the ``field``, the distance to propagate, and the chosen method
-            of propagation.
     """
-    # Only works for square fields?
-    D = field.u.shape[1] * field.dx  # height of field in real coordinates
-    Nf = jnp.max((D / 2) ** 2 / (field.spectrum * z))  # Fresnel number
-    M = field.u.shape[1]  # height of field in pixels
-    # TODO(dd): we should figure out a better approximation method, perhaps by
-    # running a quick simulation and checking the aliasing level
-    Q = 2 * jnp.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
+    D = height * dx  # height of field in real coordinates
+    Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
+    M = height  # height of field in pixels
+    Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
 
-    if method == "transform":
-        if N_pad is None:
-            N = int(jnp.ceil((Q * M) / 2) * 2)
-            N_pad = int((N - M))
-        field = transform_propagate(field, z, n, N_pad=N_pad, loop_axis=loop_axis)
-    elif method == "transfer":
-        if N_pad is None:
-            N = int(jnp.ceil((Q * M) / 2) * 2)
-            N_pad = int((N - M))
-        field = transfer_propagate(
-            field, z, n, N_pad=N_pad, loop_axis=loop_axis, mode=mode
-        )
-    elif method == "exact":
-        if N_pad is None:
-            scale = jnp.max((field.spectrum / (2 * field.dx)))
-            assert scale < 1, "Can't do exact transfer when dx < lambda / 2"
-            Q = Q / jnp.sqrt(1 - scale**2)  # minimum pad ratio for exact transfer
-            N = int(jnp.ceil((Q * M) / 2) * 2)
-            N_pad = int((N - M))
-        field = exact_propagate(
-            field, z, n, N_pad=N_pad, loop_axis=loop_axis, mode=mode
-        )
-    else:
-        raise NotImplementedError(
-            "Method must be one of 'transform', 'transfer', or 'exact'."
-        )
-    return field
+    N = (np.ceil((Q * M) / 2) * 2).astype(int)
+    N_pad = ((N - M)).astype(int)
+
+    return N_pad
+
+
+def calculate_padding_transfer(
+    height: int, spectrum: float, dx: float, z: float
+) -> int:
+    """
+    Automatically calculate the padding required for transfer propagation.
+
+    Args:
+        height: Shape of the field
+        spectrum: spectrum of the field
+        dx: spacing of the field
+        z: A float that defines the distance to propagate.
+    """
+    D = height * dx  # height of field in real coordinates
+    Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
+    M = height  # height of field in pixels
+    Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
+
+    N = (jnp.ceil((Q * M) / 2) * 2).astype(int)
+    N_pad = (N - M).astype(int)
+
+    return N_pad
+
+
+def calculate_padding_exact(height: int, spectrum: float, dx: float, z: float) -> int:
+    """
+    Automatically calculate the padding required for exact propagation.
+
+    Args:
+        height: Shape of the field
+        spectrum: spectrum of the field
+        dx: spacing of the field
+        z: A float that defines the distance to propagate.
+    """
+    D = height * dx  # height of field in real coordinates
+    Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
+    M = height  # height of field in pixels
+    Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
+
+    scale = np.max((spectrum / (2 * dx)))
+    # assert scale < 1, "Can't do exact transfer when field.dx < lambda / 2"
+    Q = Q / np.sqrt(1 - scale**2)  # minimum pad ratio for exact transfer
+    N = (np.ceil((Q * M) / 2) * 2).astype(int)
+    N_pad = (N - M).astype(int)
+
+    return N_pad

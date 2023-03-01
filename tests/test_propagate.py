@@ -88,25 +88,3 @@ def test_exact_propagation():
     # Exact is a bit worse here since it requires a lot of padding.
     # TODO: Find better test case.
     assert rel_error < 1e-2
-
-
-def test_propagate():
-    N = 256
-    dxi = D / N
-    Q = 5
-    N_pad = Q * N
-
-    # Input field
-    field = cf.empty_field((N, N), dxi, 0.532, 1.0)
-    field = cf.plane_wave(field, pupil=lambda field: cf.square_pupil(field, dxi * N))
-    out_field = cf.propagate(field, z, n, method="transfer", mode="same")
-    I_numerical = out_field.intensity.squeeze()
-    xi = out_field.dx.squeeze() * jnp.arange(-N / 2, N / 2)
-
-    # Analytical
-    U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
-    I_analytical = jnp.abs(U_analytical) ** 2
-    rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
-        I_analytical**2
-    )
-    assert rel_error < 2e-3

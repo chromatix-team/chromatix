@@ -38,8 +38,8 @@ class Propagate(nn.Module):
     Attributes:
         n: Refractive index.
         N_pad: If provided, the padding for propagation (will be used as both
-            height and width padding). Otherwise, the padding will be
-            automatically calculated in ``chromatix.functional.propagate``.
+            height and width padding). To automatically calculate the padding,
+            use padding calculation functions from  ``chromatix.functional``.
         method: The propagation method for ``chromatix.functional.propagate``.
         mode: Defines the cropping of the output in
             ``chromatix.functional.propagate``.
@@ -55,12 +55,33 @@ class Propagate(nn.Module):
         self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
 
     def __call__(self, field: Field, z: float) -> Field:
-        return cf.propagate(
-            field,
-            z,
-            self._n,
-            method=self.method,
-            mode=self.mode,
-            N_pad=self.N_pad,
-            loop_axis=self.loop_axis,
-        )
+        if self.method == "transfer":
+            return cf.transform_propagate(
+                field,
+                z,
+                self._n,
+                N_pad=self.N_pad,
+                loop_axis=self.loop_axis,
+            )
+        elif self.method == "transform":
+            return cf.transfer_propagate(
+                field,
+                z,
+                self._n,
+                mode=self.mode,
+                N_pad=self.N_pad,
+                loop_axis=self.loop_axis,
+            )
+        elif self.method == "exact":
+            return cf.exact_propagate(
+                field,
+                z,
+                self._n,
+                mode=self.mode,
+                N_pad=self.N_pad,
+                loop_axis=self.loop_axis,
+            )
+        else:
+            raise NotImplementedError(
+                "Method must be one of 'transform', 'transfer', or 'exact'."
+            )
