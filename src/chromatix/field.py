@@ -6,6 +6,7 @@ from flax import struct
 from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
+import jax
 
 from jax.scipy.ndimage import map_coordinates
 
@@ -144,11 +145,11 @@ class Field(struct.PyTreeNode):
             - ``linf_grid``
         each of which are described below.
         """
-        half_size = jnp.array(self.shape[1:3]) / 2
+        half_size = jnp.array(self.shape[-3:-1]) / 2
         # We must use meshgrid instead of mgrid here in order to be jittable
         grid = jnp.meshgrid(
-            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.shape[1]) + 0.5,
-            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[2]) + 0.5,
+            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.shape[-3]) + 0.5,
+            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[-2]) + 0.5,
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d 1 h w 1")
@@ -265,3 +266,105 @@ class Field(struct.PyTreeNode):
 
     def __rmod__(self, other: Any) -> Field:
         return self.replace(u=other % self.u)
+
+
+class PolarizedField(Field):
+    @classmethod
+    def create(
+        cls,
+        dx: float,
+        spectrum: Union[float, jnp.ndarray],
+        spectral_density: Union[float, jnp.ndarray],
+        u: Optional[jnp.ndarray] = None,
+        shape: Optional[Tuple[int, int]] = None,
+    ) -> Field:
+        """
+        Create a ``Field`` object in a convenient way.
+
+        Creates a ``Field`` object, accepting arguments as scalars or 1D values
+        as appropriate. This class function appropriately reshapes the given
+        values of attributes to the necessary shapes, allowing a ``Field`` to
+        be created with scalar or 1D array values for the spectrum and spectral
+        density, as desired.
+
+        Args:
+            dx: The spacing of the samples in ``u`` discretizing a continuous field.
+            spectrum: The wavelengths sampled by the field, in any units specified.
+            spectral_density: The weights of the wavelengths in the spectrum.
+                Will be normalized to sum to 1.0.
+            u: The scalar field of shape `[B 3 H W C]`. If not given,
+                the ``Field`` is allocated with uninitialized values of the
+                given ``shape``.
+            shape: A tuple defining the shape of only the spatial
+                dimensions of the ``Field`` (height and width). Not required
+                if ``u`` is provided. If ``u`` is not provided, then ``shape``
+                must be provided.
+        """
+        # Getting everything into right shape
+        field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 1 c")
+        field_spectrum: jnp.ndarray = rearrange(
+            jnp.atleast_1d(spectrum), "c -> 1 1 1 1 c"
+        )
+        field_spectral_density: jnp.ndarray = rearrange(
+            jnp.atleast_1d(spectral_density), "c -> 1 1 1 1 c"
+        )
+        field_spectral_density = field_spectral_density / jnp.sum(
+            field_spectral_density
+        )  # Must sum to 1
+        assert_equal_shape([field_dx, field_spectrum, field_spectral_density])
+        if u is None:
+            # NOTE(dd): when jitting this function, shape must be a
+            # static argument --- possibly requiring multiple traces
+            assert shape is not None, "Must specify shape if u is None"
+            field_u: jnp.ndarray = jnp.empty(
+                (1, 3, *shape, field_spectrum.size), dtype=jnp.complex64
+            )
+        else:
+            field_u = u
+        assert_rank(
+            field_u, 5, custom_message="Field must be ndarray of shape `[B 3 H W C]`"
+        )
+        field = cls(
+            field_u,
+            field_dx,
+            field_spectrum,
+            field_spectral_density,
+        )
+        return field
+
+    # Grid properties
+    @property
+    def grid(self) -> jnp.ndarray:
+        """
+        The grid for each spatial dimension as an array of shape `[2 1 H W 1]`.
+        The 2 entries along the first dimension represent the y and x grids,
+        respectively. This grid assumes that the center of the ``Field`` is
+        the origin and that the elements are sampling from the center, not
+        the corner.
+
+        In addition to this actual grid, ``Field`` also provides:
+            - ``l2_sq_grid``
+            - ``l2_grid``
+            - ``l1_grid``
+            - ``linf_grid``
+        each of which are described below.
+        """
+        half_size = jnp.array(self.shape[-3:-1]) / 2
+        # We must use meshgrid instead of mgrid here in order to be jittable
+        grid = jnp.meshgrid(
+            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.shape[-3]) + 0.5,
+            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[-2]) + 0.5,
+            indexing="ij",
+        )
+        grid = rearrange(grid, "d h w -> d 1 1 h w 1")
+        return self.dx * grid
+
+    @property
+    def intensity(self) -> jnp.ndarray:
+        """Intensity of the complex vector field, shape `[B H W 1]`."""
+        # summing over the spectrum and vector field components
+        return jnp.sum(
+            self.spectral_density * jnp.abs(self.u) ** 2,
+            axis=(-1, -4),
+            keepdims=True,
+        )
