@@ -6,7 +6,7 @@ from ..functional.phase_masks import (
     spectrally_modulate_phase,
     phase_change,
     seidel_aberrations,
-    zernike_aberrations
+    zernike_aberrations,
 )
 from typing import Callable, Union, Tuple
 from einops import rearrange
@@ -15,10 +15,12 @@ from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
 import pdb
 
-__all__ = ["PhaseMask",
-           "SpatialLightModulator",
-           "SeidelAberrations",
-           "ZernikeAberrations"]
+__all__ = [
+    "PhaseMask",
+    "SpatialLightModulator",
+    "SeidelAberrations",
+    "ZernikeAberrations",
+]
 
 
 class PhaseMask(nn.Module):
@@ -204,13 +206,13 @@ class ZernikeAberrations(nn.Module):
         ansi_indices:
         coefficients: length of coefficients
     """
-    
+
     n: float
     f: float
     NA: float
     ansi_indices: Array
     coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    
+
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
@@ -219,11 +221,18 @@ class ZernikeAberrations(nn.Module):
             if callable(self.coefficients)
             else self.coefficients
         )
-        
-        phase = zernike_aberrations(field.shape, field.dx, field.spectrum[..., 0].squeeze(),
-                                    self.n, self.f, self.NA, self.ansi_indices, coefficients)
+
+        phase = zernike_aberrations(
+            field.shape,
+            field.dx,
+            field.spectrum[..., 0].squeeze(),
+            self.n,
+            self.f,
+            self.NA,
+            self.ansi_indices,
+            coefficients,
+        )
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
         return phase_change(field, phase)
-

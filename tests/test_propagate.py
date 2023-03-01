@@ -39,7 +39,7 @@ def test_transform_propagation():
     U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
     I_analytical = jnp.abs(U_analytical) ** 2
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
-        I_analytical**2
+        I_analytical ** 2
     )
     assert rel_error < 1e-3
 
@@ -61,7 +61,7 @@ def test_transfer_propagation():
     U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
     I_analytical = jnp.abs(U_analytical) ** 2
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
-        I_analytical**2
+        I_analytical ** 2
     )
     assert rel_error < 2e-3
 
@@ -83,7 +83,7 @@ def test_exact_propagation():
     U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
     I_analytical = jnp.abs(U_analytical) ** 2
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
-        I_analytical**2
+        I_analytical ** 2
     )
     # Exact is a bit worse here since it requires a lot of padding.
     # TODO: Find better test case.
@@ -107,6 +107,6 @@ def test_propagate():
     U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
     I_analytical = jnp.abs(U_analytical) ** 2
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
-        I_analytical**2
+        I_analytical ** 2
     )
     assert rel_error < 2e-3

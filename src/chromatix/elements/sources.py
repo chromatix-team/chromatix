@@ -226,9 +226,5 @@ class GenericBeam(nn.Module):
 
     def __call__(self) -> Field:
         return generic_field(
-            self.empty_field,
-            self._amplitude,
-            self._phase,
-            self._power,
-            self.pupil,
+            self.empty_field, self._amplitude, self._phase, self._power, self.pupil,
         )

@@ -31,9 +31,7 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
         dn, 4, custom_message="Refractive index must be array of shape [1 H W 1]"
     )
     assert_rank(
-        thickness,
-        4,
-        custom_message="Thickness must be array of shape [1 H W 1]",
+        thickness, 4, custom_message="Thickness must be array of shape [1 H W 1]",
     )
 
     sample_func = jnp.exp(
