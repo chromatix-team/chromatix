@@ -212,4 +212,5 @@ def get_full_k(
     """
     kykx_norm = jnp.linalg.norm(k)
     kz = jnp.sqrt((n * 2 * jnp.pi / spectrum) ** 2 - kykx_norm**2)
-    return jnp.insert(k,0,kz)
+    fullK = jnp.insert(k,0,kz)
+    return fullK
