@@ -111,13 +111,9 @@ def seidel_aberrations(
     """
     Computes the Seidel phase polynomial described by [1].
 
-    Voelz, David George. Computational fourier optics: a MATLAB tutorial. Vol. 534. 
+    [1]: Voelz, David George. Computational fourier optics: a MATLAB tutorial. Vol. 534. 
     Bellingham, Washington: SPIE press, 2011.
-
-    [1]: Broxton, Michael. "Volume reconstruction and resolution limits for
-        three dimensional snapshot microscopy."
-        Dissertation, Stanford University, 2017.
-
+    
     Args:
         shape: The shape of the phase mask, described as a tuple of
             integers of the form (1 H W 1).
@@ -126,11 +122,9 @@ def seidel_aberrations(
         n: Refractive index.
         f: The focal distance (should be in same units as ``wavelength``).
         NA: The numerical aperture. Phase will be 0 outside of this NA.
-        d: Sets the axial extent of the PSF (should be in same units as
-            ``wavelength``). Defaults to 50 microns, as shown in [1]. See [1]
-            for more details.
-        C0: Adjusts the focus of the PSF. Set to value described in [1]. See
-            [1] for more details.
+        coefficients: weight coefficients for Seidel aberrations
+        u
+        v
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
