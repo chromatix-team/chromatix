@@ -365,6 +365,6 @@ class PolarizedField(Field):
         # summing over the spectrum and vector field components
         return jnp.sum(
             self.spectral_density * jnp.abs(self.u) ** 2,
-            axis=(-1,-4),
+            axis=(-1, -4),
             keepdims=True,
         )
