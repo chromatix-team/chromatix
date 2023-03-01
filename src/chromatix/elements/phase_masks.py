@@ -7,6 +7,7 @@ from einops import rearrange
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
+import pdb
 
 __all__ = ["PhaseMask", "SpatialLightModulator", "SeidelAberrations"]
 
