@@ -207,16 +207,3 @@ def vector_plane_wave(
 
     # Setting to correct power
     return field
-
-def get_full_k(
-    spectrum: Array,
-    k: Array,
-    n: float
-) -> Array:
-    """
-    Generate kz from kx, ky and the wave numbers
-    """
-    kykx_norm = jnp.linalg.norm(k)
-    kz = jnp.sqrt((n * 2 * jnp.pi / spectrum) ** 2 - kykx_norm**2)
-    fullK = jnp.insert(k,0,kz)
-    return fullK
