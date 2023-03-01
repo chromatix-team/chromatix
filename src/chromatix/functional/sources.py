@@ -97,8 +97,8 @@ def objective_point_source(
 def plane_wave(
     field: Field,
     power: float = 1.0,
-    kykx: Array = jnp.zeros(2),
     pupil: Optional[Callable[[Field], Field]] = None,
+    kykx: Array = jnp.zeros(2),
 ) -> Field:
     """
     Generates plane wave of given ``power``.
