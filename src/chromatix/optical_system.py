@@ -5,28 +5,38 @@ from .ops import fourier_convolution
 
 from .field import Field
 from chex import Array, PRNGKey
-from typing import Callable, Sequence, Optional, Any
+from typing import Any, Callable, Self, Sequence, Optional, Union
 
 
 class Microscope(nn.Module):
     """
     Microscope with a point spread function (spatially invariant in each plane).
 
-    This ``Microscope`` is a ``flax`` ``Module`` that accepts a sequence of
-    functions or ``Module``s which form an ``OpticalSystem``. This sequence of
-    ``Callable``s are assumed to compute the point spread function (PSF) of the
-    microscope. ``Microscope`` takes the intensity of this PSF and convolves it
-    (respecting the batch dimension of the input) with the given ``data``.
+    This ``Microscope`` is a ``flax`` ``Module`` that accepts a function or
+    ``Module`` that computes the point spread function (PSF) of the microscope.
+    ``Microscope`` then uses this PSF to simulate imaging using a function or
+    ``Module`` that defines a sensor. The reason that this thin wrapper exists
+    is to enable fast simulations of cases where a system has a single PSF (as
+    opposed to a point response function or PRF that varies across the field).
+    In these cases, the sensor function can perform a simple convolution of the
+    sample with the specified PSF. Optionally, this sensor can also simulate
+    noise.
 
-    Optionally, ``reduce_fn`` can be provided which will be called on the
-    resulting image. For example, if a batch represents planes of a volume in
-    ``data``, then setting ``reduce_fn`` as shown:
+    For example, if a batch represents planes of a volume in
+    ``sample``, then setting ``sensor_fn`` as shown:
 
     ```python
     from chromatix.optical_system import Microscope
+    from chromatix.elements import ShiftInvariantSensor
     microscope = Microscope(
-        optical_system=...,
-        reduce_fn=lambda image: jnp.sum(image, axis=0)
+        psf_spacing=...,
+        n=...,
+        f=...,
+        NA=...,
+        spectrum=...,
+        spectral_density=...,
+        psf_fn=...,
+        sensor_fn=ShiftInvariantSensor(...))
     )
     ```
 
@@ -38,38 +48,45 @@ class Microscope(nn.Module):
     Further, to simulate noise (e.g. sensor read noise or shot noise) a
     ``noise_fn`` can be optionally provided, which will be called after the
     ``reduce_fn`` (if it has been provided). For example, continuing the
-    example from above, we can simulate shot noise as shown:
+    example from above, we can simulate Poisson shot noise as shown:
 
     ```python
     from chromatix.optical_system import Microscope
-    from chromatix.ops.noise import shot_noise
+    from chromatix.elements import ShiftInvariantSensor
     microscope = Microscope(
-        optical_system=...,
-        noise_fn=shot_noise,
-        reduce_fn=lambda image: jnp.sum(image, axis=0)
+        psf_spacing=...,
+        n=...,
+        f=...,
+        NA=...,
+        spectrum=...,
+        spectral_density=...,
+        psf_fn=...,
+        sensor_fn=ShiftInvariantSensor(..., shot_noise_mode='poisson'))
     )
     ```
 
     Attributes:
-        optical_system: A sequence of functions or ``Module``s that will be
-            used to construct an ``OpticalSystem`` that is assumed to output
-            a ``Field``. The intensity of this ``Field`` will be interpreted
-            as the PSF used for imaging.
-        reduce_fn: A function that will be called on the result of the
-            convolution of the PSF and ``data``.
-        noise_fn: A function taking a ``PRNGKey`` and an ``Array`` and
-            returning an ``Array`` of the same shape with noise applied.
+        psf_fn: A function or ``Module`` that will compute the ``Field`` just
+            before the sensor plane due to a point source for this imaging
+            system. Must take a ``Microscope`` as the first argument to read
+            any relevant optical properties of the system. Can take any other
+            arguments passed during a call to this ``Microscope`` (e.g. z
+            values to compute a 3D PSF at for imaging).
+        sensor_fn: A function or ``Module`` that simulates an imaging sensor,
+            producing a image (or batch of images) using the specified PSF and
+            sample. Potentially, this sensor_fn also simulates noise (in which
+            case a `flax` RNG stream is created with key "noise").
     """
+    psf_spacing: float
+    n: float
+    f: float
+    NA: float
+    spectrum: Array
+    spectral_density: Array
+    psf_fn: Callable[[Self], Field]
+    sensor_fn: Callable[[Array, Array, Optional[PRNGKey]], Array]
 
-    optical_system: Sequence[Callable]
-    reduce_fn: Optional[Callable] = None
-    noise_fn: Optional[Callable[[PRNGKey, Array], Array]] = None
-
-    def setup(self):
-        """Creates the ``OpticalSystem`` describing the PSF."""
-        self.psf_model = OpticalSystem(self.optical_system)
-
-    def __call__(self, data: Array, *args: Any, **kwargs: Any) -> Array:
+    def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
         """
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
@@ -78,34 +95,30 @@ class Microscope(nn.Module):
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
-        psf = self.psf(*args, **kwargs)
-        return self.image(psf, data)
+        psf = self.psf_intensity(*args, **kwargs)
+        return self.image(sample, psf)
 
-    def psf(self, *args: Any, **kwargs: Any) -> Array:
+    def psf_field(self, *args: Any, **kwargs: Any) -> Field:
+        """Computes PSF complex field, taking any necessary arguments."""
+        return self.psf_fn(self, *args, **kwargs)
+
+    def psf_intensity(self, *args: Any, **kwargs: Any) -> Array:
         """Computes PSF intensity, taking any necessary arguments."""
-        return self.psf_model(*args, **kwargs).intensity
+        return self.psf_fn(self, *args, **kwargs).intensity
 
-    def output_field(self, *args: Any, **kwargs: Any) -> Field:
-        """Computes PSF (complex field), taking any necessary arguments."""
-        return self.psf_model(*args, **kwargs)
-
-    def image(self, psf: Array, data: Array) -> Array:
+    def image(self, sample: Array, psf: Array) -> Array:
         """
-        Computes image by convolving ``psf`` and ``data``.
+        Computes image or batch of images using the specified PSF and sample.
 
-        If ``self.reduce_fn`` and/or ``self.noise_fn`` are defined, then they
-        are called here as well.
+        Potentially, this sensor function is a ``Module`` that can declare a
+        `flax` RNG stream in order to simulate noise (e.g. shot noise), in
+        which case a `flax` RNG stream is created with key "noise."
 
         Args:
             psf: The PSF intensity volume to image with, has shape `[B H W C]`.
             data: The sample volume to image with, has shape `[B H W C]`.
         """
-        image = vmap(fourier_convolution, in_axes=(0, 0))(data, psf)
-        if self.reduce_fn is not None:
-            image = self.reduce_fn(image)
-        if self.noise_fn is not None:
-            image = self.noise_fn(self.make_rng("noise"), image)
-        return image
+        return self.sensor_fn(sample, psf)
 
 
 class OpticalSystem(nn.Module):
