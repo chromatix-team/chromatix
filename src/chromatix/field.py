@@ -152,7 +152,7 @@ class Field(struct.PyTreeNode):
             jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[-2]) + 0.5,
             indexing="ij",
         )
-        grid = rearrange(grid, "d h w -> d 1 1 h w 1")
+        grid = rearrange(grid, "d h w -> d 1 h w 1")
         return self.dx * grid
 
     @property
