@@ -10,7 +10,6 @@ import numpy as np
 from functools import partial
 
 __all__ = [
-    "propagate",
     "transform_propagate",
     "transfer_propagate",
     "exact_propagate",
@@ -115,6 +114,7 @@ def exact_propagate(
     n: float,
     *,
     N_pad: int,
+    kykx: Array = jnp.zeros(2),
     loop_axis: Optional[int] = None,
     mode: str = "full",
 ) -> Field:
@@ -130,12 +130,14 @@ def exact_propagate(
             ConcretizationError will arise when traced!).
     """
     # Calculating propagator
+    if kykx is None:
+        kykx = jnp.zeros(2)
     f = []
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    kernel = 1 - (field.spectrum / n) ** 2 * (fx**2 + fy**2)
+    kernel = 1 - (field.spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
 
