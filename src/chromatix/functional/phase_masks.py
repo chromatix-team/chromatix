@@ -167,7 +167,7 @@ def zernike_aberrations(
 ) -> Array:
     """
     Computes Zernike aberrations
-    
+
     Args:
         shape: The shape of the phase mask, described as a tuple of
             integers of the form (1 H W 1).
@@ -211,8 +211,9 @@ def zernike_aberrations(
     grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n).squeeze()
-
-    rho = jnp.sum(grid ** 2, axis=0)  # radial coordinate
+    
+    rho = jnp.sum(grid**2, axis=0)  # radial coordinate
+    
     mask = rho <= 1
     rho = rho * mask
     theta = jnp.arctan2(*grid) * mask  # angle coordinate
@@ -220,8 +221,10 @@ def zernike_aberrations(
     # construct zernike bases to combine during forward pass
     zernike_polynomials = []
     zernike_indices = convert_ansi_to_zernike_indices(ansi_indices)
-
-    for (n, m) in zernike_indices:
+    
+    for n, m in zernike_indices:
+    
+    
         calc_polynomial = radial_polynomial(n, m)
         R_nm = calc_polynomial(rho)
 
