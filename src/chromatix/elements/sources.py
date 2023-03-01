@@ -1,6 +1,7 @@
 import flax.linen as nn
 from chromatix import Field
 import jax.numpy as jnp
+from ..utils.utils import get_wave_vector
 
 from ..functional.sources import (
     empty_field,
@@ -9,13 +10,18 @@ from ..functional.sources import (
     objective_point_source,
     generic_field,
     vector_plane_wave,
-    get_full_k
 )
 
 from typing import Optional, Callable, Tuple, Union
 from chex import PRNGKey, Array
 
-__all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericBeam","VectorPlaneWave"]
+__all__ = [
+    "PointSource",
+    "ObjectivePointSource",
+    "PlaneWave",
+    "GenericBeam",
+    "VectorPlaneWave",
+]
 
 
 class PointSource(nn.Module):
@@ -238,7 +244,6 @@ class GenericBeam(nn.Module):
         )
 
 
-
 class VectorPlaneWave(nn.Module):
     """
     Generates plane wave of given ``phase`` and ``power``.
@@ -267,11 +272,10 @@ class VectorPlaneWave(nn.Module):
     n: float
     spectrum: float
     spectral_density: float
-    k: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0 ,0.0])
-    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0 ,0.0, 1.0])
+    k: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0])
+    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0, 1.0])
     phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
     pupil: Optional[Callable[[Field], Field]] = None
-
 
     def setup(self):
         self.empty_field = empty_field(
@@ -283,16 +287,13 @@ class VectorPlaneWave(nn.Module):
             else self.phase
         )
         self._k = self.param("_k", self.k) if isinstance(self.k, Callable) else self.k
-        self._Ep = self.param("_Ep", self.Ep) if isinstance(self.Ep, Callable) else self.Ep
-        
-        FullK = get_full_k(self.spectrum,self.k,self.n)
-        print("k vector", FullK, "E field", self._Ep)
+        self._Ep = (
+            self.param("_Ep", self.Ep) if isinstance(self.Ep, Callable) else self.Ep
+        )
 
-        ValuesEpk = jnp.dot(self._Ep,FullK[::-1])  
-        assert(ValuesEpk == 0), "Isotropic media, the polarization vector should be orthogonal to the propagation vector."
-
+        # FullK = get_wave_vector(self.spectrum, self.k,self.n)
+        # ValuesEpk = jnp.dot(self._Ep, FullK[::-1])
+        # assert(ValuesEpk == 0), "Isotropic media, the polarization vector should be orthogonal to the propagation vector."
 
     def __call__(self) -> Field:
-        return vector_plane_wave(
-            self.empty_field, self.k, self.Ep
-        )
+        return vector_plane_wave(self.empty_field, self.k, self.Ep)
