@@ -331,3 +331,30 @@ class PolarizedField(Field):
             field_spectral_density,
         )
         return field
+
+    # Grid properties
+    @property
+    def grid(self) -> jnp.ndarray:
+        """
+        The grid for each spatial dimension as an array of shape `[2 1 H W 1]`.
+        The 2 entries along the first dimension represent the y and x grids,
+        respectively. This grid assumes that the center of the ``Field`` is
+        the origin and that the elements are sampling from the center, not
+        the corner.
+
+        In addition to this actual grid, ``Field`` also provides:
+            - ``l2_sq_grid``
+            - ``l2_grid``
+            - ``l1_grid``
+            - ``linf_grid``
+        each of which are described below.
+        """
+        half_size = jnp.array(self.shape[-3:-1]) / 2
+        # We must use meshgrid instead of mgrid here in order to be jittable
+        grid = jnp.meshgrid(
+            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.shape[-3]) + 0.5,
+            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[-2]) + 0.5,
+            indexing="ij",
+        )
+        grid = rearrange(grid, "d h w -> d 1 1 h w 1")
+        return self.dx * grid
