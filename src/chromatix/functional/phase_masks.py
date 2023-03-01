@@ -6,12 +6,15 @@ from chex import Array, assert_rank
 from typing import Optional, Sequence, Tuple
 import pdb
 from chromatix.utils import create_grid, grid_spatial_to_pupil
+from scipy.special import comb
+import math
 
 __all__ = [
     "phase_change",
     "flat_phase",
     "potato_chip",
     "seidel_aberrations",
+    "zernike_aberrations",
     "defocused_ramps",
     "wrap_phase",
 ]
@@ -142,6 +145,89 @@ def seidel_aberrations(
     l2_sq_grid = X**2 + Y**2
 
     phase *= l2_sq_grid < 1
+    return phase
+
+def zernike_aberrations(
+    shape: Tuple[int, ...],
+    spacing: float,
+    wavelength: float,
+    n: float,
+    f: float,
+    NA: float,
+    ansi_indices: list[int, ...],
+    coefficients: list,
+) -> Array:
+    """
+    Computes Zernike aberrations
+    
+    Args:
+        shape: The shape of the phase mask, described as a tuple of
+            integers of the form (1 H W 1).
+        spacing: The spacing of each pixel in the phase mask.
+        wavelength: The wavelength to compute the phase mask for.
+        n: Refractive index.
+        f: The focal distance (should be in same units as ``wavelength``).
+        NA: The numerical aperture. Phase will be 0 outside of this NA.
+        ansi_indices: linear Zernike indices according to ANSI numbering
+        coefficients: weight coefficients for the Zernike polynomials
+    """
+    
+    def convert_ansi_to_zernike_indices(indices):
+        d = [math.sqrt(9+ 8*ind) for ind in indices]
+        n = [math.ceil((x-3)/2) for x in d]
+        m = [2*ind - x*(x+2) for ind, x in zip(indices, n)]
+        return tuple(zip(n, m))
+                        
+    def radial_polynomial(n, m):
+        """Returns a function calculating the specified radial polynomial."""
+        def R(rho):
+            if (n -  m) % 2 == 0:
+                sum = 0
+                for k in range(int((n - m) / 2)+1):
+                    sum += (
+                        rho ** (n - 2 * k)
+                        * ((-1) ** k)
+                        * comb(n - k, k)
+                        * comb(n - 2 * k, (n - m) / 2 - k)
+                    )
+                R_nm = sum
+            else:
+                R_nm = 0
+            return R_nm
+        return R
+    
+    # @copypaste(Field): We must use meshgrid instead of mgrid here
+    # in order to be jittable
+    grid = create_grid(shape, spacing)
+    # Normalize coordinates from -1 to 1 within radius R
+    grid = grid_spatial_to_pupil(grid, f, NA, n).squeeze()
+    
+    rho = jnp.sum(grid**2, axis=0) # radial coordinate
+    mask = (rho <= 1)
+    rho = rho * mask
+    theta = jnp.arctan2(*grid) * mask # angle coordinate
+    
+    # construct zernike bases to combine during forward pass
+    zernike_polynomials = []
+    zernike_indices = convert_ansi_to_zernike_indices(ansi_indices)
+    for (n, m) in zernike_indices:
+        calc_polynomial = radial_polynomial(n, m)
+        R_nm = calc_polynomial(rho)
+        
+        if m == 0:
+            Z = R_nm
+        elif m > 0: # 'even' Zernike polynomials
+            Z = R_nm * jnp.cos( theta * abs(m) )
+        else: # 'odd' Zernike polynomials
+            Z = R_nm * jnp.sin( theta * abs(m) )
+        
+        Z = Z * mask
+        zernike_polynomials.append(Z)
+    
+    phase = jnp.zeros_like(zernike_polynomials[0])
+    for ind, polynomial in enumerate(zernike_polynomials):
+        phase += (coefficients[ind] * polynomial)
+        
     return phase
 
 
