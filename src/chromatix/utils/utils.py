@@ -3,6 +3,8 @@ from jax.nn.initializers import lecun_normal
 from jax.lax import complex
 from jax.random import PRNGKey
 import numpy as np
+import flax.linen as nn
+from chromatix import Field
 
 from einops import rearrange
 from typing import Any, Sequence, Callable, Optional
@@ -186,3 +188,12 @@ def create_grid(shape, spacing):
 def grid_spatial_to_pupil(grid, f, NA, n):
     R = f * NA / n  # pupil radius
     return grid / R
+
+
+def get_wave_vector(spectrum, k, n):
+    """
+    Generate kz from kx, ky and the wave numbers and return a full wave vectors
+    """
+    kykx_norm = jnp.linalg.norm(k)
+    kz = jnp.sqrt((n * 2 * jnp.pi / spectrum) ** 2 - kykx_norm**2)
+    return jnp.insert(k, 0, kz)

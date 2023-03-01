@@ -183,7 +183,7 @@ def generic_field(
 def vector_plane_wave(
     field: PolarizedField,
     k: Array,
-    E0: Array,
+    Ep: Array,
 ) -> Field:
     """
     Generates plane wave of given ``phase`` and ``power``.
@@ -201,8 +201,8 @@ def vector_plane_wave(
             array of shape `[2 H W]`. If provided, ``phase`` is ignored.
     """
     # Field values
-    E0 = rearrange(E0, "v -> 1 v 1 1 1")
-    u = E0 * jnp.exp(1j * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+    Ep = rearrange(Ep, "v -> 1 v 1 1 1")
+    u = Ep * jnp.exp(1j * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
     field = field.replace(u=u)
 
     # Setting to correct power
