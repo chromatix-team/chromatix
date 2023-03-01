@@ -1,7 +1,13 @@
 import jax.numpy as jnp
 
 from ..field import Field
-from ..functional.phase_masks import wrap_phase, spectrally_modulate_phase, phase_change, seidel_aberrations, zernike_aberrations
+from ..functional.phase_masks import (
+    wrap_phase,
+    spectrally_modulate_phase,
+    phase_change,
+    seidel_aberrations,
+    zernike_aberrations
+)
 from typing import Callable, Union, Tuple
 from einops import rearrange
 from flax import linen as nn
@@ -137,11 +143,16 @@ class SeidelAberrations(nn.Module):
     ratio of other wavelengths in the ``spectrum`` to the central wavelength
     appropriately.
 
-    The ``phase`` can be learned (pixel by pixel) by using
+    The ``coefficients`` can be learned (pixel by pixel) by using
     ``chromatix.utils.trainable``.
 
     Attributes:
-        phase: The phase to be applied. Should have shape `[1 H W 1]`.
+        coefficients: The phase to be applied. Should have shape `[5,]`.
+        f: The focal length.
+        n: The refractive index.
+        NA: The numerical aperture. The applied phase will be 0 outside NA.
+        u: The horizontal position of the object field point
+        v: The vertical position of the object field point
     """
 
     coefficients: Union[Array, Callable[[PRNGKey], Array]]
@@ -149,7 +160,7 @@ class SeidelAberrations(nn.Module):
     n: float
     NA: float
     u: float
-    v:float
+    v: float
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -159,8 +170,17 @@ class SeidelAberrations(nn.Module):
             if callable(self.coefficients)
             else self.coefficients
         )
-        #assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
-        phase = seidel_aberrations(field.shape, field.dx, field.spectrum[..., 0].squeeze(), self.n, self.f, self.NA, coefficients, self.u, self.v)
+        phase = seidel_aberrations(
+            field.shape,
+            field.dx,
+            field.spectrum[..., 0].squeeze(),
+            self.n,
+            self.f,
+            self.NA,
+            coefficients,
+            self.u,
+            self.v,
+        )
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
@@ -206,3 +226,4 @@ class ZernikeAberrations(nn.Module):
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
         return phase_change(field, phase)
+
