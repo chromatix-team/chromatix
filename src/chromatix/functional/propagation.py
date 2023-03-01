@@ -127,7 +127,11 @@ def exact_propagate(
         n: A float that defines the refractive index of the medium.
         N_pad: A keyword argument integer defining the pad length for the
             propagation FFT (NOTE: should not be a Jax array, otherwise a
-            ConcretizationError will arise when traced!).
+            ConcretizationError will arise when traced!). Use padding calculator
+            utilities from ``chromatix.functional.propagation`` to calculate the
+            padding.
+        kykx: If provided, defines the orientation of the propagation. Should be an
+            array of shape `[2,]` in the format [ky, kx].
     """
     # Calculating propagator
     if kykx is None:
