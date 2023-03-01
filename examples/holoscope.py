@@ -4,6 +4,7 @@ from chromatix.ops.noise import approximate_shot_noise
 import jax.numpy as jnp
 from jax import jit
 from jax import random
+from jax.tree_util import tree_map
 import flax.linen as nn
 from typing import Callable, Optional, Tuple
 from chromatix.utils import center_crop
@@ -92,4 +93,4 @@ assert model.apply(params, z, method=model.output_field).dx.squeeze() == 0.325 /
 forward = jit(model.apply)
 print(forward(params, data, z, rngs={"noise": key}))
 print(forward(params, data, z, rngs={"noise": key}).shape)
-print(params)
+print(tree_map(lambda x: x.shape, params))
