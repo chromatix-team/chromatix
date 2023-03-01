@@ -165,12 +165,12 @@ def gaussian_kernel(
 
 
 def create_grid(shape, spacing):
-    '''
+    """
     Args:
         shape: The shape of the grid, described as a tuple of
             integers of the form (1 H W 1).
         spacing: The spacing of each pixel in the grid.
-    '''
+    """
     half_size = jnp.array(shape[1:3]) / 2
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
