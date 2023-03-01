@@ -358,3 +358,13 @@ class PolarizedField(Field):
         )
         grid = rearrange(grid, "d h w -> d 1 1 h w 1")
         return self.dx * grid
+
+    @property
+    def intensity(self) -> jnp.ndarray:
+        """Intensity of the complex vector field, shape `[B H W 1]`."""
+        # summing over the spectrum and vector field components
+        return jnp.sum(
+            self.spectral_density * jnp.abs(self.u) ** 2,
+            axis=(-1, -4),
+            keepdims=True,
+        )
