@@ -275,7 +275,7 @@ class VectorPlaneWave(nn.Module):
 
     def setup(self):
         self.empty_field = empty_field(
-            self.shape, self.dx, self.spectrum, self.spectral_density
+            self.shape, self.dx, self.spectrum, self.spectral_density, True
         )
         self._phase = (
             self.param("_phase", self.phase)
@@ -286,6 +286,8 @@ class VectorPlaneWave(nn.Module):
         self._Ep = self.param("_Ep", self.Ep) if isinstance(self.Ep, Callable) else self.Ep
         
         FullK = get_full_k(self.spectrum,self.k,self.n)
+        print("k vector", FullK, "E field", self._Ep)
+
         ValuesEpk = jnp.dot(self._Ep,FullK[::-1])  
         assert(ValuesEpk == 0), "Isotropic media, the polarization vector should be orthogonal to the propagation vector."
 
