@@ -122,18 +122,11 @@ def seidel_aberrations(
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
-    half_size = jnp.array(shape[1:3]) / 2
-    grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
-        indexing="ij",
-    )
-    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
-    R = (wavelength * f) / n
-    grid = (grid / R) / (NA / wavelength)
+    grid = grid_spatial_to_pupil(grid, f, NA, n)
     Y, X = grid
-
+    
     rot_angle = jnp.arctan2(v, u)
 
     obj_rad = jnp.sqrt(u**2 + v**2)
