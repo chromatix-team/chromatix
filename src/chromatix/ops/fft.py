@@ -49,9 +49,9 @@ def optical_fft(
 
     # Doing the FFT
     if inverse:
-        u = norm * ifftshift(ifft(field.u, loop_axis))
+        u = norm * ifftshift(ifft(fftshift(field.u), loop_axis))
     else:
-        u = norm * fftshift(fft(field.u, loop_axis))
+        u = norm * ifftshift(fft(fftshift(field.u), loop_axis))
     return -1j * field.replace(u=u, dx=du)
 
 
