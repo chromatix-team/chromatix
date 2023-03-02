@@ -114,7 +114,8 @@ def exact_propagate(
     n: float,
     *,
     N_pad: int,
-    kykx: Array = jnp.zeros(2),
+    cval: float = 0,
+    kykx: Array = jnp.zeros((2,)),
     loop_axis: Optional[int] = None,
     mode: str = "full",
 ) -> Field:
@@ -130,12 +131,11 @@ def exact_propagate(
             ConcretizationError will arise when traced!). Use padding calculator
             utilities from ``chromatix.functional.propagation`` to calculate the
             padding.
+        cval: The value for the padding, 0 by default
         kykx: If provided, defines the orientation of the propagation. Should be an
             array of shape `[2,]` in the format [ky, kx].
     """
     # Calculating propagator
-    if kykx is None:
-        kykx = jnp.zeros(2)
     f = []
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
@@ -146,7 +146,7 @@ def exact_propagate(
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
 
     # Propagating field
-    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0], cval=cval)
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
@@ -167,8 +167,9 @@ def calculate_padding_transform(
     """
     Automatically calculate the padding required for transform propagation.
 
+    #TODO: works only for square fields
     Args:
-        height: Shape of the field
+        height: Height of the field
         spectrum: spectrum of the field
         dx: spacing of the field
         z: A float that defines the distance to propagate.
@@ -191,7 +192,7 @@ def calculate_padding_transfer(
     Automatically calculate the padding required for transfer propagation.
 
     Args:
-        height: Shape of the field
+        height: Height of the field
         spectrum: spectrum of the field
         dx: spacing of the field
         z: A float that defines the distance to propagate.
@@ -212,7 +213,7 @@ def calculate_padding_exact(height: int, spectrum: float, dx: float, z: float) -
     Automatically calculate the padding required for exact propagation.
 
     Args:
-        height: Shape of the field
+        height: Height of the field
         spectrum: spectrum of the field
         dx: spacing of the field
         z: A float that defines the distance to propagate.
