@@ -88,3 +88,18 @@ def test_exact_propagation():
     # Exact is a bit worse here since it requires a lot of padding.
     # TODO: Find better test case.
     assert rel_error < 1e-2
+
+
+def test_transform_multiple():
+    empty_field = cf.empty_field((512, 512), 0.3, 0.532, 1.0)
+    field_after_first_lens = cf.objective_point_source(
+        empty_field, 0, f=10.0, n=1.0, NA=0.8
+    )
+    field_after_first_propagation = cf.transform_propagate(
+        field_after_first_lens, z=10.0, n=1, N_pad=256
+    )
+    field_after_second_propagation = cf.transform_propagate(
+        field_after_first_propagation, z=10.0, n=1, N_pad=256
+    )
+
+    assert field_after_second_propagation.intensity.squeeze()[256, 256] != 0.0
