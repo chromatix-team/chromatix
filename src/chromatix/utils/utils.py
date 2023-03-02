@@ -105,14 +105,14 @@ def next_order(val: int) -> int:
 
 
 def center_pad(
-    u: jnp.ndarray, pad_width: Sequence[int], pad_value: float = 0
+    u: jnp.ndarray, pad_width: Sequence[int], cval: float = 0
 ) -> jnp.ndarray:
     """
     Symmetrically pads ``u`` with lengths specified per axis in ``n_padding``,
     which should be iterable and have the same size as ``u.ndims``.
     """
     pad = [(n, n) for n in pad_width]
-    return jnp.pad(u, pad, constant_values=pad_value)
+    return jnp.pad(u, pad, constant_values=cval)
 
 
 def center_crop(u: jnp.ndarray, crop_length: Sequence[int]) -> jnp.ndarray:
