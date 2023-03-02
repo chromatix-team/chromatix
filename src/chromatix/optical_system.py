@@ -1,11 +1,8 @@
 from flax import linen as nn
-from jax import vmap
-
-from .ops import fourier_convolution
-
-from .field import Field
 from chex import Array, PRNGKey
-from typing import Any, Callable, Self, Sequence, Optional, Union
+from typing import Any, Callable, Optional, Self, Sequence, Tuple, Union
+from .field import Field
+from .elements import FFLens, ObjectivePointSource, PhaseMask
 
 
 class Microscope(nn.Module):
@@ -66,25 +63,38 @@ class Microscope(nn.Module):
     ```
 
     Attributes:
-        psf_fn: A function or ``Module`` that will compute the ``Field`` just
-            before the sensor plane due to a point source for this imaging
+        system_psf: A function or ``Module`` that will compute the ``Field``
+            just before the sensor plane due to a point source for this imaging
             system. Must take a ``Microscope`` as the first argument to read
             any relevant optical properties of the system. Can take any other
             arguments passed during a call to this ``Microscope`` (e.g. z
             values to compute a 3D PSF at for imaging).
-        sensor_fn: A function or ``Module`` that simulates an imaging sensor,
+        sensor: A function or ``Module`` that simulates an imaging sensor,
             producing a image (or batch of images) using the specified PSF and
             sample. Potentially, this sensor_fn also simulates noise (in which
             case a `flax` RNG stream is created with key "noise").
+        f: Focal length of the objective.
+        n: Refractive index of the objective.
+        NA: The numerical aperture of the objective. By default, no pupil is
+            applied to the incoming ``Field``.
+        spectrum: The wavelengths included in the simulation.
+        spectral_density: The weights of each wavelength in the simulation.
     """
-    psf_spacing: float
-    n: float
-    f: float
-    NA: float
+
+    system_psf: Callable[[Self], Field]
+    sensor: Callable[[Array, Array, Optional[PRNGKey]], Array]
+    f: Union[float, Callable[[PRNGKey], float]]
+    n: Union[float, Callable[[PRNGKey], float]]
+    NA: Union[float, Callable[[PRNGKey], float]]
     spectrum: Array
     spectral_density: Array
-    psf_fn: Callable[[Self], Field]
-    sensor_fn: Callable[[Array, Array, Optional[PRNGKey]], Array]
+
+    def setup(self):
+        self._f = self.param("f", self.f) if isinstance(self.f, Callable) else self.f
+        self._n = self.param("n", self.n) if isinstance(self.n, Callable) else self.n
+        self._NA = (
+            self.param("NA", self.NA) if isinstance(self.NA, Callable) else self.NA
+        )
 
     def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
         """
@@ -100,11 +110,11 @@ class Microscope(nn.Module):
 
     def psf_field(self, *args: Any, **kwargs: Any) -> Field:
         """Computes PSF complex field, taking any necessary arguments."""
-        return self.psf_fn(self, *args, **kwargs)
+        return self.system_psf(self, *args, **kwargs)
 
     def psf_intensity(self, *args: Any, **kwargs: Any) -> Array:
         """Computes PSF intensity, taking any necessary arguments."""
-        return self.psf_fn(self, *args, **kwargs).intensity
+        return self.system_psf(self, *args, **kwargs).intensity
 
     def image(self, sample: Array, psf: Array) -> Array:
         """
@@ -118,7 +128,7 @@ class Microscope(nn.Module):
             psf: The PSF intensity volume to image with, has shape `[B H W C]`.
             data: The sample volume to image with, has shape `[B H W C]`.
         """
-        return self.sensor_fn(sample, psf)
+        return self.sensor(sample, psf)
 
 
 class OpticalSystem(nn.Module):
@@ -147,3 +157,29 @@ class OpticalSystem(nn.Module):
         for element in self.elements[1:]:
             field = element(field)
         return field
+
+
+class Optical4FSystemPSF(nn.Module):
+    shape: Tuple[int, int]
+    spacing: float
+    downsample: int
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+
+    @nn.compact
+    def __call__(self, microscope: Microscope, z: Array) -> Field:
+        system = OpticalSystem(
+            [
+                ObjectivePointSource(
+                    self.shape,
+                    self.spacing,
+                    microscope.spectrum,
+                    microscope.spectral_density,
+                    microscope.f,
+                    microscope.n,
+                    microscope.NA,
+                ),
+                PhaseMask(self.phase),
+                FFLens(microscope.f, microscope.n, microscope.NA),
+            ]
+        )
+        return system(z)
