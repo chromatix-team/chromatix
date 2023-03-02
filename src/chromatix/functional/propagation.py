@@ -115,7 +115,7 @@ def exact_propagate(
     *,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = jnp.zeros(2),
+    kykx: Array = jnp.zeros((2,)),
     loop_axis: Optional[int] = None,
     mode: str = "full",
 ) -> Field:
@@ -137,7 +137,7 @@ def exact_propagate(
     """
     # Calculating propagator
     if kykx is None:
-        kykx = jnp.zeros(2)
+        kykx = jnp.zeros((2,))
     f = []
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
@@ -169,8 +169,9 @@ def calculate_padding_transform(
     """
     Automatically calculate the padding required for transform propagation.
 
+    #TODO: works only for square fields
     Args:
-        height: Shape of the field
+        height: Height of the field
         spectrum: spectrum of the field
         dx: spacing of the field
         z: A float that defines the distance to propagate.
@@ -193,7 +194,7 @@ def calculate_padding_transfer(
     Automatically calculate the padding required for transfer propagation.
 
     Args:
-        height: Shape of the field
+        height: Height of the field
         spectrum: spectrum of the field
         dx: spacing of the field
         z: A float that defines the distance to propagate.
@@ -214,7 +215,7 @@ def calculate_padding_exact(height: int, spectrum: float, dx: float, z: float) -
     Automatically calculate the padding required for exact propagation.
 
     Args:
-        height: Shape of the field
+        height: Height of the field
         spectrum: spectrum of the field
         dx: spacing of the field
         z: A float that defines the distance to propagate.
