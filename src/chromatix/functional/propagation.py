@@ -79,7 +79,7 @@ def transfer_propagate(
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
-    fx, fy = rearrange(f, "h c -> 1 h 1 c 1"), rearrange(f, "w c -> 1 1 w c 1")
+    fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
     phase = -jnp.pi * L**2 * (fx**2 + fy**2)
 
     # Propagating field
