@@ -213,6 +213,7 @@ def zernike_aberrations(
     grid = grid_spatial_to_pupil(grid, f, NA, n).squeeze()
 
     rho = jnp.sum(grid**2, axis=0)  # radial coordinate
+
     mask = rho <= 1
     rho = rho * mask
     theta = jnp.arctan2(*grid) * mask  # angle coordinate
