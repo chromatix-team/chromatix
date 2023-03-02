@@ -97,12 +97,11 @@ def objective_point_source(
 def plane_wave(
     field: Field,
     power: float = 1.0,
-    phase: float = 0.0,
+    kykx: Array = jnp.zeros(2),
     pupil: Optional[Callable[[Field], Field]] = None,
-    k: Optional[Array] = None,
 ) -> Field:
     """
-    Generates plane wave of given ``phase`` and ``power``.
+    Generates plane wave of given ``power``.
 
     Can also be given ``pupil`` and ``k`` vector.
 
@@ -111,16 +110,11 @@ def plane_wave(
             wave (should be empty).
         power: The total power that the result should be normalized to,
             defaults to 1.0.
-        phase: The phase of the plane wave in radians, defaults to 0.0.
+        kykx: Defines the orientation of the plane wave. Should be an
+            array of shape `[2,]` in the format [ky, kx].
         pupil: If provided, will be called on the field to apply a pupil.
-        k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
     """
-    # Field values
-    if k is None:
-        u = jnp.exp(1j * jnp.full(field.shape, phase))
-    else:
-        u = jnp.exp(1j * 2 * jnp.pi * jnp.dot(k[::-1], jnp.moveaxis(field.grid, 0, -2)))
+    u = jnp.exp(1j * (jnp.einsum("v, vbhwc->bhwc", kykx, field.grid)))
 
     field = field.replace(u=u)
 
