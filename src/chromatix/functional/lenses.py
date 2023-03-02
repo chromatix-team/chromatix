@@ -57,8 +57,10 @@ def ff_lens(
     if NA is not None:
         D = 2 * f * NA / n  # Expression for NA yields width of pupil
         field = circular_pupil(field, D)
-
-    return optical_fft(field, f, n, loop_axis, inverse)
+    if inverse:
+        # if inverse, propagate over negative distance
+        f = -f
+    return optical_fft(field, f, n, loop_axis)
 
 
 def df_lens(
@@ -84,14 +86,19 @@ def df_lens(
     Returns:
         The ``Field`` propagated a distance ``f`` after the lens.
     """
-    # Preliminaries
-    L = jnp.sqrt(field.spectrum * f / n)  # Lengthscale L
-
-    # Phase factor due to distance d from lens
-    phase = jnp.pi * (1 - d / f) * field.l2_sq_grid / L**2
-
     if NA is not None:
         D = 2 * f * NA / n  # Expression for NA yields width of pupil
         field = circular_pupil(field, D)
 
-    return optical_fft(field, f, n, loop_axis, inverse) * jnp.exp(1j * phase)
+    if inverse:
+        # if inverse, propagate over negative distance
+        f = -d
+        d = -f
+
+    # Preliminaries
+    L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
+
+    # Phase factor due to distance d from lens
+    phase = jnp.pi * (1 - d / f) * field.l2_sq_grid / jnp.abs(L) ** 2
+
+    return optical_fft(field, f, n, loop_axis) * jnp.exp(1j * phase)

@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
 from ..utils import center_pad, center_crop
-from ..ops.fft import fftshift, fft, ifft
+from ..ops.fft import fftshift, fft, ifft, ifftshift
 from typing import Optional
 
 __all__ = ["propagate", "transform_propagate", "transfer_propagate", "exact_propagate"]
@@ -41,7 +41,7 @@ def transform_propagate(
     # Determining new field
     u = field.u * jnp.exp(1j * input_phase)
     u = center_pad(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-    u = fftshift(fft(u, loop_axis))
+    u = fftshift(fft(ifftshift(u), loop_axis))
     u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
 
     # Final normalization and phase
