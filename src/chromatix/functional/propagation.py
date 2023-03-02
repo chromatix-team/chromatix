@@ -114,7 +114,7 @@ def exact_propagate(
     n: float,
     *,
     N_pad: int,
-    pad_value: float = 0,
+    cval: float = 0,
     kykx: Array = jnp.zeros(2),
     loop_axis: Optional[int] = None,
     mode: str = "full",
@@ -131,6 +131,7 @@ def exact_propagate(
             ConcretizationError will arise when traced!). Use padding calculator
             utilities from ``chromatix.functional.propagation`` to calculate the
             padding.
+        cval: The value for the padding, 0 by default
         kykx: If provided, defines the orientation of the propagation. Should be an
             array of shape `[2,]` in the format [ky, kx].
     """
