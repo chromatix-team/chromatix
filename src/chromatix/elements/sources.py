@@ -273,7 +273,7 @@ class VectorPlaneWave(nn.Module):
     spectrum: float
     spectral_density: float
     k: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0])
-    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0, 1.0])
+    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([1, 1, 0])
     phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
     pupil: Optional[Callable[[Field], Field]] = None
 
