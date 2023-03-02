@@ -145,11 +145,10 @@ class SeidelAberrations(nn.Module):
     ratio of other wavelengths in the ``spectrum`` to the central wavelength
     appropriately.
 
-    The ``coefficients`` can be learned (pixel by pixel) by using
-    ``chromatix.utils.trainable``.
+    The ``coefficients`` can be learned by using ``chromatix.utils.trainable``.
 
     Attributes:
-        coefficients: The phase to be applied. Should have shape `[5,]`.
+        coefficients: The Seidel coefficients. Should have shape `[5,]`.
         f: The focal length.
         n: The refractive index.
         NA: The numerical aperture. The applied phase will be 0 outside NA.
@@ -203,7 +202,7 @@ class ZernikeAberrations(nn.Module):
     appropriately.
 
     Attributes:
-        ansi_indices:
+        ansi_indices: indices of Zernike polynomials (ANSI indexing)
         coefficients: length of coefficients
     """
 
