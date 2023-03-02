@@ -16,7 +16,7 @@ from typing import Callable, Optional, Tuple
 key = random.PRNGKey(42)
 
 
-#%% Set parameters
+# %% Set parameters
 
 camera_shape: Tuple[int, int] = (256, 256)
 camera_pixel_pitch: float = 0.125
@@ -39,6 +39,7 @@ print(f"Spacing of simulation: {spacing:.2f}")
 # Specify "ground truth" parameters for Zernike coefficients
 ansi_indices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 coefficients_truth = jnp.array([2.0, 5.0, 3.0, 0, 1, 0, 1, 0, 1, 0])
+
 
 # Specify model
 class ZernikePSF(nn.Module):
@@ -83,6 +84,7 @@ def loss_fn(params, data, z):
 
 grad_fn = jax.jit(jax.grad(loss_fn, has_aux=True))  # jit compiling
 
+
 # The step function takes care of a single optimization step, including updating our coefficient estimate.
 def step_fn(loss_fn, optimizer):
     def step(params, opt_state, *args):
@@ -104,7 +106,7 @@ step = jax.jit(
 )  # jit compiles and makes everything go brrrrr
 
 
-#%% Initial guess
+# %% Initial guess
 params = model.init(key, z=0)  # dummy parameters for init
 psf_init = model.apply(params, z=0).intensity.squeeze()
 
@@ -123,7 +125,7 @@ for iteration in range(max_iterations):
     if iteration % print_every == 0:
         print(iteration, metrics)
 
-#%% Plot results
+# %% Plot results
 
 coefficients_estimated = jnp.abs(
     params["params"]["ZernikeAberrations_0"]["zernike_coefficients"]

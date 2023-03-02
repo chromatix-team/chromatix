@@ -23,7 +23,7 @@ def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> F
         The ``Field`` directly after the lens.
     """
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * field.l2_sq_grid / L ** 2
+    phase = -jnp.pi * field.l2_sq_grid / L**2
 
     if NA is not None:
         D = 2 * f * NA / n  # Expression for NA yields width of pupil
