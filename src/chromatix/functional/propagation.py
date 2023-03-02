@@ -40,9 +40,9 @@ def transform_propagate(
 
     # Determining new field
     u = field.u * jnp.exp(1j * input_phase)
-    u = center_pad(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = center_pad(u, [0, N_pad // 2, N_pad // 2, 0])
     u = fftshift(fft(u, loop_axis))
-    u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = center_crop(u, [0, N_pad // 2, N_pad // 2, 0])
 
     # Final normalization and phase
     u *= norm * jnp.exp(1j * output_phase)
@@ -75,22 +75,28 @@ def transfer_propagate(
     # Calculating propagator
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
     # TODO(dd): This calculation could probably go into Field
+    # Create frequency grid
     f = []
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
+    # Create phase grid
     phase = -jnp.pi * L**2 * (fx**2 + fy**2)
 
     # Propagating field
-    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    # Propagation phase factor of exp(ij*k*z) is omitted to improve the
+    # computation efficiency. This factor does not affect the intensity or
+    # the relative phase within the field. Only the absolute phase of the field
+    # is affected. - gschlafly
+    u = center_pad(field.u, [0, N_pad // 2, N_pad // 2, 0])
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
     if mode == "full":
         field = field.replace(u=u)
     elif mode == "same":
-        u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+        u = center_crop(u, [0, N_pad // 2, N_pad // 2, 0])
         field = field.replace(u=u)
     else:
         raise NotImplementedError('Only "full" and "same" are supported.')
@@ -129,14 +135,14 @@ def exact_propagate(
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
 
     # Propagating field
-    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = center_pad(field.u, [0, N_pad // 2, N_pad // 2, 0])
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
     if mode == "full":
         field = field.replace(u=u)
     elif mode == "same":
-        u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+        u = center_crop(u, [0, N_pad // 2, N_pad // 2, 0])
         field = field.replace(u=u)
     else:
         raise NotImplementedError('Only "full" and "same" are supported.')
