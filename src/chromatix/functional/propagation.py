@@ -78,10 +78,14 @@ def transfer_propagate(
     f = []
     if field.u.ndim > 4:
         for d in range(field.dx.size):
-                f.append(jnp.fft.fftfreq(field.shape[2] + N_pad, d=field.dx[..., d].squeeze()))
+            f.append(
+                jnp.fft.fftfreq(field.shape[2] + N_pad, d=field.dx[..., d].squeeze())
+            )
     else:
         for d in range(field.dx.size):
-                f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze())) 
+            f.append(
+                jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze())
+            )
     f = jnp.stack(f, axis=-1)
 
     if field.u.ndim > 4:
