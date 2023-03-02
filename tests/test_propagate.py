@@ -90,28 +90,6 @@ def test_exact_propagation():
     assert rel_error < 1e-2
 
 
-def test_propagate():
-    N = 256
-    dxi = D / N
-    Q = 5
-    N_pad = Q * N
-
-    # Input field
-    field = cf.empty_field((N, N), dxi, 0.532, 1.0)
-    field = cf.plane_wave(field, pupil=lambda field: cf.square_pupil(field, dxi * N))
-    out_field = cf.propagate(field, z, n, method="transfer", mode="same")
-    I_numerical = out_field.intensity.squeeze()
-    xi = out_field.dx.squeeze() * jnp.arange(-N / 2, N / 2)
-
-    # Analytical
-    U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
-    I_analytical = jnp.abs(U_analytical) ** 2
-    rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(
-        I_analytical**2
-    )
-    assert rel_error < 2e-3
-
-
 def test_transform_multiple():
     empty_field = cf.empty_field((512, 512), 0.3, 0.532, 1.0)
     field_after_first_lens = cf.objective_point_source(

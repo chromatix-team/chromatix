@@ -7,13 +7,13 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "power, size, pupil",
+    "power, phase, size, pupil",
     [
-        (1.0, (512, 512), partial(cf.circular_pupil, w=10.0)),
-        (100.0, (256, 1024), None),
+        (1.0, jnp.pi, (512, 512), partial(cf.circular_pupil, w=10.0)),
+        (100.0, -jnp.pi, (256, 1024), None),
     ],
 )
-def test_plane_wave(power, size, pupil):
+def test_plane_wave(power, phase, size, pupil):
     field = cf.empty_field(size, 0.1, 0.532, 1.0)
     field = cf.plane_wave(field, power, pupil=pupil)
 
