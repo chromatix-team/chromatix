@@ -83,7 +83,7 @@ def transfer_propagate(
     phase = -jnp.pi * L**2 * (fx**2 + fy**2)
 
     # Propagating field
-    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0, 0])
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
@@ -130,7 +130,7 @@ def exact_propagate(
 
     # Propagating field
     u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-    u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
+    u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)  
 
     # Cropping output field
     if mode == "full":
