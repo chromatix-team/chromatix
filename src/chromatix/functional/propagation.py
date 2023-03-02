@@ -136,8 +136,6 @@ def exact_propagate(
             array of shape `[2,]` in the format [ky, kx].
     """
     # Calculating propagator
-    if kykx is None:
-        kykx = jnp.zeros((2,))
     f = []
     for d in range(field.dx.size):
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
