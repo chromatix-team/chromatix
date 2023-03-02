@@ -29,14 +29,14 @@ def transform_propagate(
     norm = (field.dx / L) ** 2
 
     # Calculating input phase change
-    input_phase = jnp.pi * field.l2_sq_grid / L ** 2
+    input_phase = jnp.pi * field.l2_sq_grid / L**2
 
     # Calculating new scaled output coordinates
-    du = L ** 2 / ((field.shape[1] + N_pad) * field.dx)
+    du = L**2 / ((field.shape[1] + N_pad) * field.dx)
 
     # Calculating output phase
     output_grid = field.l2_sq_grid * (du / field.dx) ** 2
-    output_phase = jnp.pi * output_grid / L ** 2
+    output_phase = jnp.pi * output_grid / L**2
 
     # Determining new field
     u = field.u * jnp.exp(1j * input_phase)
@@ -80,7 +80,7 @@ def transfer_propagate(
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    phase = -jnp.pi * L ** 2 * (fx ** 2 + fy ** 2)
+    phase = -jnp.pi * L**2 * (fx**2 + fy**2)
 
     # Propagating field
     u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
@@ -124,7 +124,7 @@ def exact_propagate(
         f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    kernel = 1 - (field.spectrum / n) ** 2 * (fx ** 2 + fy ** 2)
+    kernel = 1 - (field.spectrum / n) ** 2 * (fx**2 + fy**2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
 
@@ -200,7 +200,7 @@ def propagate(
         if N_pad is None:
             scale = jnp.max((field.spectrum / (2 * field.dx)))
             assert scale < 1, "Can't do exact transfer when dx < lambda / 2"
-            Q = Q / jnp.sqrt(1 - scale ** 2)  # minimum pad ratio for exact transfer
+            Q = Q / jnp.sqrt(1 - scale**2)  # minimum pad ratio for exact transfer
             N = int(jnp.ceil((Q * M) / 2) * 2)
             N_pad = int((N - M))
         field = exact_propagate(

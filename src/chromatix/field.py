@@ -119,7 +119,12 @@ class Field(struct.PyTreeNode):
         assert_rank(
             field_u, 4, custom_message="Field must be ndarray of shape `[B H W C]`"
         )
-        field = cls(field_u, field_dx, field_spectrum, field_spectral_density,)
+        field = cls(
+            field_u,
+            field_dx,
+            field_spectrum,
+            field_spectral_density,
+        )
         return field
 
     # Grid properties
@@ -152,12 +157,12 @@ class Field(struct.PyTreeNode):
     @property
     def l2_sq_grid(self) -> jnp.ndarray:
         """Sum of the squared grid over spatial dimensions, i.e. `x**2 + y**2`."""
-        return jnp.sum(self.grid ** 2, axis=0)
+        return jnp.sum(self.grid**2, axis=0)
 
     @property
     def l2_grid(self) -> jnp.ndarray:
         """Square root of ``l2_sq_grid``, i.e. `sqrt(x**2 + y**2)`."""
-        return jnp.sqrt(jnp.sum(self.grid ** 2, axis=0))
+        return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
 
     @property
     def l1_grid(self) -> jnp.ndarray:
@@ -179,13 +184,15 @@ class Field(struct.PyTreeNode):
     def intensity(self) -> jnp.ndarray:
         """Intensity of the complex scalar field, shape `[B H W 1]`."""
         return jnp.sum(
-            self.spectral_density * jnp.abs(self.u) ** 2, axis=-1, keepdims=True,
+            self.spectral_density * jnp.abs(self.u) ** 2,
+            axis=-1,
+            keepdims=True,
         )
 
     @property
     def power(self) -> jnp.ndarray:
         """Power of the complex scalar field, shape `[B 1 1 1]`."""
-        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx ** 2
+        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
 
     @property
     def shape(self) -> Tuple[int, ...]:

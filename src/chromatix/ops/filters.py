@@ -35,7 +35,9 @@ def high_pass_filter(
 
 
 def gaussian_filter(
-    data: Array, sigma: Sequence[float], kernel_shape: Optional[Sequence[int]] = None,
+    data: Array,
+    sigma: Sequence[float],
+    kernel_shape: Optional[Sequence[int]] = None,
 ) -> Array:
     """
     Performs a Gaussian filter on ``data``.
