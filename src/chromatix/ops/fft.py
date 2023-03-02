@@ -19,7 +19,6 @@ def optical_fft(
     z: float,
     n: float,
     loop_axis: Optional[int] = None,
-    inverse: bool = False,
 ) -> Field:
     """
     Computes the optical ``fft`` on an incoming ``Field`` propagated by ``z``.
@@ -35,24 +34,19 @@ def optical_fft(
         field: The ``Field`` to be propagated by ``fft``.
         z: The distance the ``Field`` will be propagated.
         n: Refractive index.
-        inverse: If ``True``, performs an ``ifft`` instead of an ``fft``.
 
     Returns:
         The propagated ``Field``, transformed by ``fft``/``ifft``.
     """
     # Preliminaries
-    L = jnp.sqrt(field.spectrum * z / n)  # Lengthscale L
-    norm = (field.dx / L) ** 2  # normalization factor
+    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # Lengthscale L
+    norm = jnp.abs(field.dx / L) ** 2  # normalization factor
 
     # finding new coordinates
-    du = L**2 / (field.shape[1] * field.dx)
+    du = jnp.abs(L) ** 2 / (field.shape[1] * field.dx)
 
-    # Doing the FFT
-    if inverse:
-        u = norm * ifftshift(ifft(field.u, loop_axis))
-    else:
-        u = norm * fftshift(fft(field.u, loop_axis))
-    return -1j * field.replace(u=u, dx=du)
+    u = -1j * norm * fftshift(fft(ifftshift(field.u), loop_axis))
+    return field.replace(u=u, dx=du)
 
 
 def fft(x: Array, loop_axis=None) -> Array:
