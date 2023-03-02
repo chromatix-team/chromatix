@@ -107,7 +107,6 @@ def transfer_propagate(
     # computation efficiency. This factor does not affect the intensity or
     # the relative phase within the field. Only the absolute phase of the field
     # is affected. - gschlafly
-    u = center_pad(field.u, [0, N_pad // 2, N_pad // 2, 0])
     u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
 
     # Cropping output field
