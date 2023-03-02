@@ -181,6 +181,11 @@ class Field(struct.PyTreeNode):
         return jnp.angle(self.u)
 
     @property
+    def amplitude(self) -> jnp.ndarray:
+        """Amplitude of the complex scalar field, shape `[B H W C]`."""
+        return jnp.abs(self.u)
+
+    @property
     def intensity(self) -> jnp.ndarray:
         """Intensity of the complex scalar field, shape `[B H W 1]`."""
         return jnp.sum(
