@@ -87,10 +87,10 @@ def potato_chip(
     grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n)
-    l2_sq_grid = jnp.sum(grid**2, axis=0)
+    l2_sq_grid = jnp.sum(grid ** 2, axis=0)
     theta = jnp.arctan2(*grid)
     k = n / wavelength
-    phase = theta * (d * jnp.sqrt(k**2 - l2_sq_grid) + C0)
+    phase = theta * (d * jnp.sqrt(k ** 2 - l2_sq_grid) + C0)
     phase *= l2_sq_grid < 1
     return phase
 
@@ -135,7 +135,7 @@ def seidel_aberrations(
 
     rot_angle = jnp.arctan2(v, u)
 
-    obj_rad = jnp.sqrt(u**2 + v**2)
+    obj_rad = jnp.sqrt(u ** 2 + v ** 2)
 
     X_rot = X * jnp.cos(rot_angle) + Y * jnp.sin(rot_angle)
     Y_rot = -X * jnp.sin(rot_angle) + Y * jnp.cos(rot_angle)
@@ -144,12 +144,12 @@ def seidel_aberrations(
     phase = (
         wavelength * coefficients[0] * jnp.square(pupil_radii)
         + wavelength * coefficients[1] * obj_rad * pupil_radii * X_rot
-        + wavelength * coefficients[2] * (obj_rad**2) * jnp.square(X_rot)
-        + wavelength * coefficients[3] * (obj_rad**2) * pupil_radii
-        + wavelength * coefficients[4] * (obj_rad**3) * X_rot
+        + wavelength * coefficients[2] * (obj_rad ** 2) * jnp.square(X_rot)
+        + wavelength * coefficients[3] * (obj_rad ** 2) * pupil_radii
+        + wavelength * coefficients[4] * (obj_rad ** 3) * X_rot
     )
 
-    l2_sq_grid = X**2 + Y**2
+    l2_sq_grid = X ** 2 + Y ** 2
 
     phase *= l2_sq_grid < 1
     return phase
@@ -212,7 +212,7 @@ def zernike_aberrations(
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n).squeeze()
 
-    rho = jnp.sum(grid**2, axis=0)  # radial coordinate
+    rho = jnp.sum(grid ** 2, axis=0)  # radial coordinate
 
     mask = rho <= 1
     rho = rho * mask
@@ -293,7 +293,7 @@ def defocused_ramps(
     grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n)
-    l2_sq_grid = jnp.sum(grid**2, axis=0)
+    l2_sq_grid = jnp.sum(grid ** 2, axis=0)
     theta = jnp.arctan2(*grid)
     edges = jnp.linspace(-jnp.pi, jnp.pi, num_ramps + 1)
     centers = (edges[:-1] + edges[1:]) / 2

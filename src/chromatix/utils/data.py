@@ -11,7 +11,7 @@ def siemens_star(num_pixels=512, num_spokes=32):
     will alternate between black and white (0.0 and 1.0).
     """
     X, Y = np.mgrid[0:num_pixels, num_pixels:0:-1] - (num_pixels / 2.0)
-    R = np.sqrt(X**2 + Y**2)
+    R = np.sqrt(X ** 2 + Y ** 2)
     theta = np.arctan2(X, Y) + np.pi
     S = np.zeros_like(R)
     for spoke in range(num_spokes):
