@@ -1,6 +1,7 @@
+from __future__ import annotations
 from flax import linen as nn
 from chex import Array, PRNGKey
-from typing import Any, Callable, Optional, Self, Sequence, Tuple, Union
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 from .field import Field
 from .elements import FFLens, ObjectivePointSource, PhaseMask
 
@@ -81,7 +82,7 @@ class Microscope(nn.Module):
         spectral_density: The weights of each wavelength in the simulation.
     """
 
-    system_psf: Callable[[Self], Field]
+    system_psf: Callable[[Microscope], Field]
     sensor: Callable[[Array, Array, Optional[PRNGKey]], Array]
     f: Union[float, Callable[[PRNGKey], float]]
     n: Union[float, Callable[[PRNGKey], float]]
