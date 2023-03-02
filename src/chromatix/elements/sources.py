@@ -273,7 +273,7 @@ class VectorPlaneWave(nn.Module):
     spectrum: float
     spectral_density: float
     k: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0])
-    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0, 1.0])
+    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([1, 1, 0])
     phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
     pupil: Optional[Callable[[Field], Field]] = None
 
@@ -291,8 +291,8 @@ class VectorPlaneWave(nn.Module):
             self.param("_Ep", self.Ep) if isinstance(self.Ep, Callable) else self.Ep
         )
 
-        FullK = get_wave_vector(self.spectrum, self.k, self.n)
-        ValuesEpk = jnp.dot(self._Ep, FullK[::-1])
+        k = get_wave_vector(self.spectrum, self.k, self.n)
+        ValuesEpk = jnp.dot(self._Ep, k[::-1])
         assert (
             ValuesEpk == 0
         ), "Isotropic media, the polarization vector should be orthogonal to the propagation vector."
