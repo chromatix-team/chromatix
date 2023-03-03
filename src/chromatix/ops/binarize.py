@@ -19,7 +19,8 @@ def binarize_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
     """
     Custom gradient for ``binarize``.
 
-    We approximate the gradient of ``binarize`` function with the gradient of the sigmoid function
+    We approximate the gradient of ``binarize`` function with the gradient of
+    the sigmoid function.
     """
     alpha = 1
     sig = 1 / (1 + jnp.exp((-alpha * primals[0]) + 0.5 * alpha))
