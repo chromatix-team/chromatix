@@ -4,6 +4,7 @@ from ..field import Field
 from einops import rearrange
 from chex import Array, assert_rank
 from typing import Optional, Sequence, Tuple
+from chromatix.utils import create_grid, grid_spatial_to_pupil
 
 __all__ = [
     "phase_change",
@@ -78,16 +79,9 @@ def potato_chip(
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
-    half_size = jnp.array(shape[1:3]) / 2
-    grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
-        indexing="ij",
-    )
-    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
-    R = (wavelength * f) / n
-    grid = (grid / R) / (NA / wavelength)
+    grid = grid_spatial_to_pupil(grid, f, NA, n)
     l2_sq_grid = jnp.sum(grid**2, axis=0)
     theta = jnp.arctan2(*grid)
     k = n / wavelength
@@ -140,18 +134,9 @@ def defocused_ramps(
         defocus: Controls the defocus of each pencil axially (should be in
             same units as ``wavelength``).
     """
-    # @copypaste(Field): We must use meshgrid instead of mgrid here
-    # in order to be jittable
-    half_size = jnp.array(shape[1:3]) / 2
-    grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
-        indexing="ij",
-    )
-    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
-    R = (wavelength * f) / n
-    grid = (grid / R) / (NA / wavelength)
+    grid = grid_spatial_to_pupil(grid, f, NA, n)
     l2_sq_grid = jnp.sum(grid**2, axis=0)
     theta = jnp.arctan2(*grid)
     edges = jnp.linspace(-jnp.pi, jnp.pi, num_ramps + 1)

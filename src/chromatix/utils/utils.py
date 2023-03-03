@@ -3,7 +3,10 @@ from jax.nn.initializers import lecun_normal
 from jax.lax import complex
 from jax.random import PRNGKey
 import numpy as np
+import flax.linen as nn
+from chromatix import Field
 
+from einops import rearrange
 from typing import Any, Sequence, Callable, Optional
 
 
@@ -82,10 +85,11 @@ def trainable(x: Any) -> Callable:
     also accept a ``jax.random.PRNGKey`` and a shape.
 
     Args:
-        ``x``: The value that will be used to initialize the trainable parameter.
+        ``x``: The value that will be used to initialize the trainable
+            parameter.
 
     Returns:
-        A function that accepts a ``jax.random.PRNGKey`` as its first parameter.
+        A function that takes a ``jax.random.PRNGKey`` as its first parameter.
     """
 
     def init_fn(key: PRNGKey, *args, **kwargs) -> Any:
@@ -141,8 +145,8 @@ def gaussian_kernel(
             the standard deviation of the Gaussian distribution in each
             dimension.
         truncate: If ``shape`` is not provided, then this float is the number
-            of standard deviations for which to calculate the Gaussian. This
-            is then used to determine the shape of the kernel in each dimension.
+            of standard deviations for which to calculate the Gaussian. This is
+            then used to determine the shape of the kernel in each dimension.
         shape: If provided, determines the ``shape`` of the kernel. This will
             cause ``truncate`` to be ignored.
 
@@ -160,3 +164,36 @@ def gaussian_kernel(
     x = jnp.mgrid[tuple(slice(-r, r + 1) for r in radius)]
     phi = jnp.exp(-0.5 * jnp.sum((x.T / _sigma) ** 2, axis=-1))  # type: ignore
     return phi / phi.sum()
+
+
+def create_grid(shape, spacing):
+    """
+    Args:
+        shape: The shape of the grid, described as a tuple of
+            integers of the form (1 H W 1).
+        spacing: The spacing of each pixel in the grid.
+    """
+    half_size = jnp.array(shape[1:3]) / 2
+    # @copypaste(Field): We must use meshgrid instead of mgrid here
+    # in order to be jittable
+    grid = jnp.meshgrid(
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
+        indexing="ij",
+    )
+    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    return grid
+
+
+def grid_spatial_to_pupil(grid, f, NA, n):
+    R = f * NA / n  # pupil radius
+    return grid / R
+
+
+def get_wave_vector(spectrum, k, n):
+    """
+    Generate kz from kx, ky and the wave numbers and return a full wave vectors
+    """
+    kykx_norm = jnp.linalg.norm(k)
+    kz = jnp.sqrt((n * 2 * jnp.pi / spectrum) ** 2 - kykx_norm**2)
+    return jnp.insert(k, 0, kz)
