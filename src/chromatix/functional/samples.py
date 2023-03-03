@@ -85,6 +85,6 @@ def Jones_sample(field: Field, absorption: Array, dn: Array) -> Field:
         "ijklmn, ijlmn -> ijlmn", sample_jones, field.u[:, 1:3, :, :, :]
     )  # the field is in y-x order
     # assume the light travel in z direction, therefore, Ez = 0
-    u = jnp.concatenate(jnp.zeros((1, 1, u.shape[-3], u.shape[-2], 1)), u, axis=1)
+    u = jnp.concatenate((jnp.zeros((1,1, u.shape[-3], u.shape[-2], 1)), u), axis=1)
 
     return field.replace(u=u)
