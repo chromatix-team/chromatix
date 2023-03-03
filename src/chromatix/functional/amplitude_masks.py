@@ -3,9 +3,8 @@ from chex import Array, assert_rank
 
 from ..field import Field
 
-__all__ = [
-    "amplitude_change"
-]
+__all__ = ["amplitude_change"]
+
 
 # Field function
 def amplitude_change(field: Field, amplitude: Array) -> Field:
@@ -20,5 +19,3 @@ def amplitude_change(field: Field, amplitude: Array) -> Field:
     """
     assert_rank(amplitude, 4, custom_message="Phase must be array of shape [1 H W 1]")
     return field * amplitude.astype(jnp.complex64)
-
-

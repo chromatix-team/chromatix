@@ -21,12 +21,12 @@ class AmplitudeMask(nn.Module):
 
     Attributes:
         amplitude: The amplitude to be applied. Should have shape `[1 H W 1]`.
-        is_binary: binarize the amplitude mask if True. 
+        is_binary: binarize the amplitude mask if True.
     """
 
     amplitude: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
-    is_binary: bool 
-    
+    is_binary: bool
+
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``amplitude`` mask to incoming ``Field``."""
@@ -35,11 +35,10 @@ class AmplitudeMask(nn.Module):
             if callable(self.amplitude)
             else self.amplitude
         )
-        
-        assert_rank(amplitude, 4, custom_message="Amplitude must be array of shape [1 H W 1]")
+
+        assert_rank(
+            amplitude, 4, custom_message="Amplitude must be array of shape [1 H W 1]"
+        )
         if self.is_binary:
             amplitude = binarize(amplitude)
         return amplitude_change(field, amplitude)
-
-
-    
