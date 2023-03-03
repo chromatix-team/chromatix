@@ -248,7 +248,7 @@ class VectorPlaneWave(nn.Module):
     """
     Generates plane wave of given ``phase`` and ``power``.
 
-    Can also be given ``pupil`` and ``k`` vector.
+    Can also be given ``pupil`` and ``k`` vector in a ky, kx order.
 
     The attributes ``power``, ``phase``, and ``k`` can be learned by using
     ``chromatix.utils.trainable``.
@@ -264,7 +264,10 @@ class VectorPlaneWave(nn.Module):
         phase: The phase of the plane wave in radians, defaults to 0.0.
         pupil: If provided, will be called on the field to apply a pupil.
         k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+            array of [ky, kx]. If provided, ``phase`` is ignored. The default one
+            is [z, 0, 0]
+        Ep: If provided, defines the initial polarization state of the polarization
+            light. The default one is [0, 1, 1] which is a linear polarized light
     """
 
     shape: Tuple[int, int]
@@ -273,7 +276,7 @@ class VectorPlaneWave(nn.Module):
     spectrum: float
     spectral_density: float
     k: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0.0, 0.0])
-    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([1, 1, 0])
+    Ep: Optional[Union[Array, Callable[[PRNGKey], float]]] = jnp.array([0, 1, 1])
     phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
     pupil: Optional[Callable[[Field], Field]] = None
 
@@ -292,7 +295,7 @@ class VectorPlaneWave(nn.Module):
         )
 
         k = get_wave_vector(self.spectrum, self.k, self.n)
-        ValuesEpk = jnp.dot(self._Ep, k[::-1])
+        ValuesEpk = jnp.dot(self._Ep, k)
         assert (
             ValuesEpk == 0
         ), "Isotropic media, the polarization vector should be orthogonal to the propagation vector."

@@ -75,7 +75,6 @@ def transfer_propagate(
     # Calculating propagator
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
     # TODO(dd): This calculation could probably go into Field
-    # Create frequency grid
     f = []
     if field.u.ndim > 4:
         for d in range(field.dx.size):
@@ -94,13 +93,10 @@ def transfer_propagate(
         u = center_pad(field.u, [0, 0, int(N_pad / 2), int(N_pad / 2), 0])
         print("fx shape is:", fx.shape)
         phase = -jnp.pi * L**2 * (fx**2 + fy**2)
-        print(phase.shape)
     else:
         fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
         u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-        # Create phase grid
         phase = -jnp.pi * L**2 * (fx**2 + fy**2)
-        print(phase.shape)
 
     # Propagating field
     # Propagation phase factor of exp(ij*k*z) is omitted to improve the
