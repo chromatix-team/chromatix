@@ -13,19 +13,19 @@ def field_after_polarizer(field: Field, J00, J01, J10, J11):
     return field.replace(u=u)
 
 
-def linear_polarizer(field: Field, p_angle: float) -> Field:
+def linear_polarizer(field: Field, polarizer_angle: float) -> Field:
     """
     Applies a thin polarizer placed directly after the incoming ``Field``.
 
     Args:
         field: The ``Field`` to which the polarizer will be applied.
-        p_angle: linear polarizers oriented to pass light polarized at p_angle
+        p_angle: linear polarizers oriented to pass light polarized at polarizer_angle
 
     Returns:
         The ``Field`` directly after the polarizer.
     """
-    c = jnp.cos(p_angle)
-    s = jnp.sin(p_angle)
+    c = jnp.cos(polarizer_angle)
+    s = jnp.sin(polarizer_angle)
     J00 = c**2
     J11 = s**2
     J01 = s * c

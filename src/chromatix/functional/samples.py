@@ -78,8 +78,6 @@ def jones_sample(field: Field, absorption: Array, dn: Array) -> Field:
     # Thickness is the same for four elements in Jones Matrix
     sample_jones = jnp.exp(1j * 2 * jnp.pi * (dn + 1j * absorption) / field.spectrum)
     sample_jones = sample_jones[::-1, ::-1]
-    print(sample_jones.shape)
-    print(field.u.shape)
 
     u = jnp.einsum(
         "ijklmn, ijlmn -> ijlmn", sample_jones, field.u[:, 1:3, :, :, :]
