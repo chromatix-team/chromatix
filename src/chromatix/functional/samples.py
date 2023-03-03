@@ -43,7 +43,7 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
     return field * sample_func
 
 
-def Jones_sample(field: Field, absorption: Array, dn: Array) -> Field:
+def jones_sample(field: Field, absorption: Array, dn: Array) -> Field:
     """
     Perturbs a ``field`` as if it went through a thin sample object with a given
     ``absorption`` and refractive index change ``dn`` and of a given
