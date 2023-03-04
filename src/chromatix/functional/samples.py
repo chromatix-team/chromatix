@@ -11,7 +11,9 @@ from ..utils import center_crop, center_pad
 from .propagation import exact_propagate, calculate_exact_kernel
 
 
-def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) -> Field:
+def thin_sample(
+    field: Field, absorption: Array, dn: Array, thickness: Union[float, Array]
+) -> Field:
     """
     Perturbs a ``field`` as if it went through a thin sample object with a given
     ``absorption`` and refractive index change ``dn`` and of a given
@@ -34,11 +36,6 @@ def thin_sample(field: Field, absorption: Array, dn: Array, thickness: Array) ->
     )
     assert_rank(
         dn, 4, custom_message="Refractive index must be array of shape [1 H W 1]"
-    )
-    assert_rank(
-        thickness,
-        4,
-        custom_message="Thickness must be array of shape [1 H W 1]",
     )
 
     sample_func = jnp.exp(
@@ -83,7 +80,7 @@ def multislice_thick_sample(
         # Propagate the field
         absorption = (absorption)[jnp.newaxis, :, :, jnp.newaxis]
         dn = (dn)[jnp.newaxis, :, :, jnp.newaxis]
-        
+
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         # Propagating field
         u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
