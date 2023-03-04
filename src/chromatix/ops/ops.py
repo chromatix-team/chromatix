@@ -34,7 +34,7 @@ def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> A
 
 
 def init_plane_resample(
-    out_shape: Tuple[int, ...], out_spacing: float, resampling_method: str = 'linear'
+    out_shape: Tuple[int, ...], out_spacing: float, resampling_method: str = "linear"
 ) -> Callable:
     def op(x: Array, in_spacing: float) -> Array:
         _in_shape, _out_shape = jnp.array(x.shape[:-1]), jnp.array(out_shape[:-1])

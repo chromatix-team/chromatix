@@ -7,12 +7,17 @@ from chex import Array, PRNGKey
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 from .field import Field
 from .elements import FFLens, ObjectivePointSource, PhaseMask
-from .ops import fourier_convolution, shot_noise, approximate_shot_noise, init_plane_resample
+from .ops import (
+    fourier_convolution,
+    shot_noise,
+    approximate_shot_noise,
+    init_plane_resample,
+)
 
 
 class Microscope(nn.Module):
     """
-    Microscope with a point spread function (spatially invariant in each plane).
+    Microscope with a point spread function (planewise spatially invariant).
 
     This ``Microscope`` is a ``flax`` ``Module`` that accepts a function or
     ``Module`` that computes the point spread function (PSF) of the microscope.
@@ -27,12 +32,14 @@ class Microscope(nn.Module):
             any relevant optical properties of the system. Can take any other
             arguments passed during a call to this ``Microscope`` (e.g. z
             values to compute a 3D PSF at for imaging).
-        f: Focal length of the objective.
-        n: Refractive index of the objective.
-        NA: The numerical aperture of the objective. By default, no pupil is
-            applied to the incoming ``Field``.
-        spectrum: The wavelengths included in the simulation.
-        spectral_density: The weights of each wavelength in the simulation.
+        f: Focal length of the system's objective.
+        n: Refractive index of the system's objective.
+        NA: The numerical aperture of the system's objective. By
+            default, no pupil is applied to the incoming ``Field``.
+        spectrum: The wavelengths included in the simulation of the system's
+            PSF.
+        spectral_density: The weights of each wavelength in the simulation of
+            the system's PSF.
         shot_noise_mode: A string of either 'approximate' or 'poisson' that
             determines how to add noise to the image. Defaults to None, in
             which case no noise is applied.
@@ -52,8 +59,8 @@ class Microscope(nn.Module):
     NA: Union[float, Callable[[PRNGKey], float]]
     spectrum: Array
     spectral_density: Array
-    shot_noise_mode: Optional[Literal['approximate', 'poisson']] = None
-    psf_resampling_method: Optional[Literal['linear', 'cubic']] = None
+    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
+    psf_resampling_method: Optional[Literal["linear", "cubic"]] = None
     reduce_axis: Optional[int] = None
     reduce_parallel_axis_name: Optional[str] = None
 
@@ -65,9 +72,7 @@ class Microscope(nn.Module):
         )
         if self.psf_resampling_method is not None:
             self.resample = init_plane_resample(
-                (*self.sensor_shape, 1),
-                self.sensor_spacing,
-                self.psf_resampling_method
+                (*self.sensor_shape, 1), self.sensor_spacing, self.psf_resampling_method
             )
 
     def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
@@ -108,10 +113,10 @@ class Microscope(nn.Module):
         if self.reduce_parallel_axis_name is not None:
             image = psum(image, axis_name=self.reduce_parallel_axis_name)
         if self.shot_noise_mode is not None:
-            noise_key = self.make_rng('noise')
-            if self.shot_noise_mode == 'approximate':
+            noise_key = self.make_rng("noise")
+            if self.shot_noise_mode == "approximate":
                 image = approximate_shot_noise(noise_key, image)
-            elif self.shot_noise_mode == 'poisson':
+            elif self.shot_noise_mode == "poisson":
                 image = shot_noise(noise_key, image)
         return image
 

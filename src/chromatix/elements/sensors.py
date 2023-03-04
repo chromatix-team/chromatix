@@ -8,11 +8,11 @@ from chromatix import Field
 from ..ops import init_plane_resample, approximate_shot_noise, shot_noise
 
 
-class ShotNoiseSensor(nn.Module):
+class NoisyIntensitySensor(nn.Module):
     shape: Tuple[int, ...]
     spacing: float
-    shot_noise_mode: Optional[Literal['approximate', 'poisson']] = None
-    resampling_method: Optional[str] = 'linear'
+    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
+    resampling_method: Optional[str] = "linear"
     reduce_axis: Optional[int] = None
     reduce_parallel_axis_name: Optional[str] = None
 
@@ -30,8 +30,8 @@ class ShotNoiseSensor(nn.Module):
             image = jnp.sum(image, axis=self.reduce_axis)
         if self.reduce_parallel_axis_name is not None:
             image = psum(image, axis_name=self.reduce_parallel_axis_name)
-        if self.shot_noise_mode == 'approximate':
+        if self.shot_noise_mode == "approximate":
             image = approximate_shot_noise(noise_key, image)
-        elif self.shot_noise_mode == 'poisson':
+        elif self.shot_noise_mode == "poisson":
             image = shot_noise(noise_key, image)
         return image
