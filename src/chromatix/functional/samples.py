@@ -52,6 +52,7 @@ def multislice_thick_sample(
     n: float,
     thickness_per_slice: float,
     N_pad: int,
+    propagator: Array,
     kykx: Array = jnp.zeros((2,)),
     loop_axis: Optional[int] = None,
 ) -> Field:
@@ -73,7 +74,9 @@ def multislice_thick_sample(
         thickness: thickness at each sample location [B H W C] array
     """
     # Calculating propagator
-    propagator = calculate_exact_kernel(field, thickness_per_slice, n, N_pad, kykx)
+    # propagator = calculate_exact_kernel(
+    #     field.u.shape, field.dx, field.spectrum, thickness_per_slice, n, N_pad, kykx
+    # )
 
     def _update_per_slice(field: Field, slice: Tuple[Array, Array]):
         absorption, dn = slice
