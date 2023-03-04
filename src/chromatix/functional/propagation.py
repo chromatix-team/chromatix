@@ -4,7 +4,7 @@ from ..field import Field
 from einops import rearrange
 from ..utils import center_pad, center_crop
 from ..ops.fft import fftshift, fft, ifft, ifftshift
-from typing import Optional
+from typing import Optional, Tuple
 from chex import Array
 import numpy as np
 from functools import partial
@@ -162,20 +162,23 @@ def exact_propagate(
 
 
 def calculate_exact_kernel(
-    field: Field,
+    shape: Tuple,
+    dx: Array,
+    spectrum,
     z: float,
     n: float,
     N_pad: int,
     kykx: Array = jnp.zeros((2,)),
 ):
     f = []
-    for d in range(field.dx.size):
-        f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
+    dx = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
+    for d in range(dx.size):
+        f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    kernel = 1 - (field.spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
+    kernel = 1 - (spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
+    phase = 2 * jnp.pi * (z * n / spectrum) * jnp.sqrt(kernel)
 
     return jnp.exp(1j * phase)
 
