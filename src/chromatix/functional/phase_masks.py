@@ -3,8 +3,7 @@ import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
 from chex import Array, assert_rank
-from typing import Optional, Sequence, Tuple
-import pdb
+from typing import Sequence, Tuple
 from chromatix.utils import create_grid, grid_spatial_to_pupil
 from scipy.special import comb
 import math
@@ -102,7 +101,7 @@ def seidel_aberrations(
     n: float,
     f: float,
     NA: float,
-    coefficients: Array,
+    coefficients: Sequence[float],
     u: float = 0,
     v: float = 0,
 ) -> Array:
@@ -162,8 +161,8 @@ def zernike_aberrations(
     n: float,
     f: float,
     NA: float,
-    ansi_indices: list[int, ...],
-    coefficients: list,
+    ansi_indices: Sequence[int],
+    coefficients: Sequence[float],
 ) -> Array:
     """
     Computes Zernike aberrations
