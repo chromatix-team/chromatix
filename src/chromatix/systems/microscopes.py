@@ -4,16 +4,19 @@ from jax import vmap
 from jax.lax import psum
 from flax import linen as nn
 from chex import Array, PRNGKey
-from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
-from .field import Field
-from .elements import FFLens, ObjectivePointSource, PhaseMask
-from .ops import (
+from typing import Any, Callable, Literal, Optional, Tuple, Union
+from ..field import Field
+from ..elements import FFLens, ObjectivePointSource, PhaseMask
+from ..ops import (
     fourier_convolution,
     shot_noise,
     approximate_shot_noise,
     init_plane_resample,
 )
-from .utils import center_crop
+from ..utils import center_crop
+from .optical_system import OpticalSystem
+
+__all__ = ["Microscope", "Optical4FSystemPSF"]
 
 
 class Microscope(nn.Module):
@@ -128,35 +131,6 @@ class Microscope(nn.Module):
         return image
 
 
-class OpticalSystem(nn.Module):
-    """
-    Combines a sequence of optical elements into a single ``Module``.
-
-    Takes a sequence of functions or ``Module``s (any ``Callable``) and calls
-    them in sequence, assuming each element of the sequence only accepts a
-    ``Field`` as input and returns a ``Field`` as output, with the exception of
-    the first element of the sequence, which can take any arguments necessary
-    (e.g. to allow an element from ``chromatix.elements.sources`` to initialize
-    a ``Field``) and the last element of the sequence, which may return an
-    ``Array``. This is intended to mirror the style of deep learning libraries
-    that describe a neural network as a sequence of layers, allowing for an
-    optical system to be described conveniently as a list of elements.
-
-    Attributes:
-        elements: A sequence of optical elements describing the system.
-    """
-
-    elements: Sequence[Callable]
-
-    @nn.compact
-    def __call__(self, *args: Any, **kwargs: Any) -> Union[Field, Array]:
-        """Returns the result of calling all elements in sequence."""
-        field = self.elements[0](*args, **kwargs)  # allow field to be initialized
-        for element in self.elements[1:]:
-            field = element(field)
-        return field
-
-
 class Optical4FSystemPSF(nn.Module):
     """
     Simulates the point spread function (PSF) of a 4f system with a phase mask.
@@ -178,6 +152,7 @@ class Optical4FSystemPSF(nn.Module):
             (1 H W 1) where (H W) match the shape of the simulation, or an
             initialization function (e.g. using trainable).
     """
+
     shape: Tuple[int, int]
     spacing: float
     padding_ratio: float

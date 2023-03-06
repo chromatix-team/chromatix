@@ -4,7 +4,7 @@ from jax import random
 from jax.tree_util import tree_map
 from functools import partial
 
-from chromatix.optical_system import Microscope, Optical4FSystemPSF
+from chromatix.systems import Microscope, Optical4FSystemPSF
 from chromatix.utils import trainable
 from chromatix.functional.phase_masks import defocused_ramps
 
