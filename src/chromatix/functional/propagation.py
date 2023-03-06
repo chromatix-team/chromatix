@@ -161,7 +161,7 @@ def exact_propagate(
     return field
 
 
-def calculate_exact_kernel(
+def calculate_exact_propagator(
     shape: Tuple,
     dx: Union[float, Array],
     spectrum,
