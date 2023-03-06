@@ -4,7 +4,7 @@ from ..field import Field
 from einops import rearrange
 from ..utils import center_pad, center_crop
 from ..ops.fft import fftshift, fft, ifft, ifftshift
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 from chex import Array
 import numpy as np
 from functools import partial
@@ -163,7 +163,7 @@ def exact_propagate(
 
 def calculate_exact_kernel(
     shape: Tuple,
-    dx: Array,
+    dx: Union[float, Array],
     spectrum,
     z: float,
     n: float,
@@ -171,7 +171,8 @@ def calculate_exact_kernel(
     kykx: Array = jnp.zeros((2,)),
 ):
     f = []
-    dx = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
+    if isinstance(dx, float):
+        dx = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
     for d in range(dx.size):
         f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
