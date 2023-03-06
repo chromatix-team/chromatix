@@ -13,11 +13,12 @@ from .ops import (
     approximate_shot_noise,
     init_plane_resample,
 )
+from .utils import center_crop
 
 
 class Microscope(nn.Module):
     """
-    Microscope with a point spread function (planewise spatially invariant).
+    Microscope with a planewise spatially invariant point spread function.
 
     This ``Microscope`` is a ``flax`` ``Module`` that accepts a function or
     ``Module`` that computes the point spread function (PSF) of the microscope.
@@ -60,7 +61,7 @@ class Microscope(nn.Module):
     spectrum: Array
     spectral_density: Array
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
-    psf_resampling_method: Optional[Literal["linear", "cubic"]] = None
+    psf_resampling_method: Optional[Literal["pool", "linear", "cubic"]] = None
     reduce_axis: Optional[int] = None
     reduce_parallel_axis_name: Optional[str] = None
 
@@ -86,7 +87,9 @@ class Microscope(nn.Module):
         """
         if self.psf_resampling_method is not None:
             psf = self.psf(*args, **kwargs)
-            vmap(self.resample, in_axes=(0, None))(psf.intensity, psf.dx)
+            psf = vmap(self.resample, in_axes=(0, None))(
+                psf.intensity, psf.dx[..., 0].squeeze()
+            )
         else:
             psf = self.psf(*args, **kwargs).intensity
         return self.image(sample, psf)
@@ -109,7 +112,7 @@ class Microscope(nn.Module):
         """
         image = vmap(fourier_convolution, in_axes=(0, 0))(sample, psf)
         if self.reduce_axis is not None:
-            image = jnp.sum(image, axis=self.reduce_axis)
+            image = jnp.sum(image, axis=self.reduce_axis, keepdims=True)
         if self.reduce_parallel_axis_name is not None:
             image = psum(image, axis_name=self.reduce_parallel_axis_name)
         if self.shot_noise_mode is not None:
@@ -153,16 +156,25 @@ class OpticalSystem(nn.Module):
 class Optical4FSystemPSF(nn.Module):
     shape: Tuple[int, int]
     spacing: float
-    downsample: int
+    padding_ratio: float
     phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
 
     @nn.compact
     def __call__(self, microscope: Microscope, z: Array) -> Field:
+        padding = tuple(int(s * self.padding_ratio) for s in self.shape)
+        padded_shape = tuple(s + p for s, p in zip(self.shape, padding))
+        required_spacing = self.compute_required_spacing(
+            padded_shape[0],
+            self.spacing,
+            microscope.f,
+            microscope.n,
+            jnp.atleast_1d(microscope.spectrum),
+        )
         system = OpticalSystem(
             [
                 ObjectivePointSource(
-                    self.shape,
-                    self.spacing,
+                    padded_shape,
+                    required_spacing,
                     microscope.spectrum,
                     microscope.spectral_density,
                     microscope.f,
@@ -173,4 +185,14 @@ class Optical4FSystemPSF(nn.Module):
                 FFLens(microscope.f, microscope.n, microscope.NA),
             ]
         )
-        return system(z)
+        psf = system(z)
+        psf = psf.replace(
+            u=center_crop(psf.u, (0, padding[0] // 2, padding[1] // 2, 0))
+        )
+        return psf
+
+    @staticmethod
+    def compute_required_spacing(
+        height: int, output_spacing: float, f: float, n: float, wavelength: float
+    ) -> float:
+        return f * wavelength / (n * height * output_spacing)

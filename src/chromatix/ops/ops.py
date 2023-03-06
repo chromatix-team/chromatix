@@ -43,7 +43,7 @@ def init_plane_resample(
                 f"(hf h) (wf w) ... -> h w ...",
                 "sum",
                 h=out_shape[0],
-                w=out_shape[1]
+                w=out_shape[1],
             )
         else:
             _in_shape, _out_shape = jnp.array(x.shape[:-1]), jnp.array(out_shape[:-1])

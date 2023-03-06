@@ -53,7 +53,7 @@ class PhaseMask(nn.Module):
                 self.phase,
                 (1, *field.shape[1:3], 1),
                 field.dx[..., 0].squeeze(),
-                field.spectrum[..., 0].squeeze()
+                field.spectrum[..., 0].squeeze(),
             )
             if callable(self.phase)
             else self.phase
@@ -120,7 +120,7 @@ class SpatialLightModulator(nn.Module):
                 self.phase,
                 (1, *self.shape, 1),
                 self.spacing,
-                field.spectrum[..., 0].squeeze()
+                field.spectrum[..., 0].squeeze(),
             )
             if callable(self.phase)
             else self.phase
