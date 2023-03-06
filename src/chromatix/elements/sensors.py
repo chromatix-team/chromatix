@@ -23,7 +23,8 @@ class NoisyIntensitySensor(nn.Module):
             )
 
     def __call__(self, field: Field) -> Array:
-        noise_key = self.make_rng("noise")
+        if self.shot_noise_mode is not None:
+            noise_key = self.make_rng("noise")
         if self.resampling_method is not None:
             image = vmap(self.resample, in_axes=(0, None))(field.intensity, field.dx)
         if self.reduce_axis is not None:
