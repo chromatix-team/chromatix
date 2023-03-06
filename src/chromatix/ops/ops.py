@@ -40,7 +40,7 @@ def init_plane_resample(
         if resampling_method == "pool":
             return reduce(
                 x,
-                f"(hf h) (wf w) ... -> h w ...",
+                "(hf h) (wf w) ... -> h w ...",
                 "sum",
                 h=out_shape[0],
                 w=out_shape[1],
