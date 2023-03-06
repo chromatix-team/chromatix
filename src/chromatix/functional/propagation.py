@@ -170,6 +170,24 @@ def calculate_exact_propagator(
     N_pad: int,
     kykx: Array = jnp.zeros((2,)),
 ):
+    """Calculate a proapgator which can be used in the exact propagate method.
+
+    Returns an array that can be multiplied with the fourier transform of the field.
+
+    Args:
+        shape: shape of the propagator
+        dx: the field spacing,
+        spectrum: the wavelength of the light used
+        z: A float that defines the distance to propagate.
+        n: A float that defines the refractive index of the medium.
+        N_pad: A keyword argument integer defining the pad length for the
+            propagation FFT (NOTE: should not be a Jax array, otherwise a
+            ConcretizationError will arise when traced!). Use padding calculator
+            utilities from ``chromatix.functional.propagation`` to calculate the
+            padding.
+        kykx: If provided, defines the orientation of the propagation. Should be an
+            array of shape `[2,]` in the format [ky, kx].
+    """
     f = []
     if isinstance(dx, float):
         dx = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
