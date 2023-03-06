@@ -100,13 +100,15 @@ def multislice_thick_sample(
 
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         # Propagating field
-        u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-        u = ifft(fft(u, loop_axis) * propagator, loop_axis)
-
-        # Cropping output field
-        u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
-        field = field.replace(u=u)
-        return field
+        return exact_propagate(
+            field,
+            thickness_per_slice,
+            n,
+            N_pad=N_pad,
+            kykx=kykx,
+            propagator=propagator,
+            mode="same",
+        )
 
     # python loop unrolling is the fastest method
     for i in range(absorption_stack.shape[0]):
