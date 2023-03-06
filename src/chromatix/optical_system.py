@@ -22,9 +22,12 @@ class Microscope(nn.Module):
 
     This ``Microscope`` is a ``flax`` ``Module`` that accepts a function or
     ``Module`` that computes the point spread function (PSF) of the microscope.
-    ``Microscope`` then uses this PSF to simulate imaging via a convolution
-    of the sample with the specified PSF. Optionally, the sensor can also
-    simulate noise.
+    ``Microscope`` then uses this PSF to simulate imaging via a convolution of
+    the sample with the specified PSF. Optionally, the sensor can also simulate
+    noise. Parameters of the provided PSF are allowed to be trainable (using
+    ``chromatix.utils.trainable``). Further, this system's objective focal
+    length, objective refractive index, and objective numerical aperture can
+    also be trainable.
 
     Attributes:
         system_psf: A function or ``Module`` that will compute the ``Field``
@@ -33,10 +36,11 @@ class Microscope(nn.Module):
             any relevant optical properties of the system. Can take any other
             arguments passed during a call to this ``Microscope`` (e.g. z
             values to compute a 3D PSF at for imaging).
+        sensor_shape: A tuple of form (H W) defining the camera sensor shape.
+        sensor_spacing: A float defining the pixel pitch of the camera sensor.
         f: Focal length of the system's objective.
         n: Refractive index of the system's objective.
-        NA: The numerical aperture of the system's objective. By
-            default, no pupil is applied to the incoming ``Field``.
+        NA: The numerical aperture of the system's objective.
         spectrum: The wavelengths included in the simulation of the system's
             PSF.
         spectral_density: The weights of each wavelength in the simulation of
@@ -46,7 +50,7 @@ class Microscope(nn.Module):
             which case no noise is applied.
         psf_resampling_method: A string of either 'linear' or 'cubic' that
             determines how the PSF is resampled to the shape of the sensor.
-        reduce_axis: If provided, the input will be reduced along this
+        reduce_axis: If provided, the input will be summed along this
             dimension.
         reduce_parallel_axis_name: If provided, psum along the axis with this
             name.
@@ -154,6 +158,26 @@ class OpticalSystem(nn.Module):
 
 
 class Optical4FSystemPSF(nn.Module):
+    """
+    Simulates the point spread function (PSF) of a 4f system with a phase mask.
+
+    The ``phase`` can be learned (pixel by pixel) by using
+    ``chromatix.utils.trainable``.
+
+    Attributes:
+        shape: A tuple of form (H W) defining the number of pixels used to
+            simulate the PSF.
+        spacing: The desired output spacing of the PSF once it is simulated,
+            i.e. the spacing at the camera plane when the PSF is measured. Note
+            that this **does not** need to match the actual spacing of the
+            sensor, and often should be a finer spacing than the camera.
+        padding: The proportion of the original shape that will be added to
+            simulate the PSF. That means the final shape will be shape * (1.0 +
+            padding) in each dimension.
+        phase: The phase mask for the 4f simulation. Must be an array of shape
+            (1 H W 1) where (H W) match the shape of the simulation, or an
+            initialization function (e.g. using trainable).
+    """
     shape: Tuple[int, int]
     spacing: float
     padding_ratio: float
