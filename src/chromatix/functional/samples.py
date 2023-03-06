@@ -6,9 +6,9 @@ from chex import Array, assert_rank
 from einops import rearrange
 
 from ..field import Field
-from ..ops.fft import fft, fftshift, ifft, ifftshift
+from ..ops.fft import fft, ifft
 from ..utils import center_crop, center_pad
-from .propagation import exact_propagate, calculate_exact_kernel
+from .propagation import exact_propagate, calculate_exact_propagator
 
 
 def thin_sample(
@@ -89,7 +89,7 @@ def multislice_thick_sample(
 
     if propagator is None:
         # Calculating propagator
-        propagator = calculate_exact_kernel(
+        propagator = calculate_exact_propagator(
             field.u.shape, field.dx, field.spectrum, thickness_per_slice, n, N_pad, kykx
         )
 
