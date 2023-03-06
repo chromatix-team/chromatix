@@ -52,7 +52,7 @@ def multislice_thick_sample(
     n: float,
     thickness_per_slice: float,
     N_pad: int,
-    propagator: Array,
+    propagator: Array = None,
     kykx: Array = jnp.zeros((2,)),
     loop_axis: Optional[int] = None,
 ) -> Field:
@@ -73,16 +73,16 @@ def multislice_thick_sample(
         dn: sample refractive index change [B H W C] array
         thickness: thickness at each sample location [B H W C] array
     """
-    # Calculating propagator
-    # propagator = calculate_exact_kernel(
-    #     field.u.shape, field.dx, field.spectrum, thickness_per_slice, n, N_pad, kykx
-    # )
+    if propagator is None:
+        # Calculating propagator
+        propagator = calculate_exact_kernel(
+            field.u.shape, field.dx, field.spectrum, thickness_per_slice, n, N_pad, kykx
+        )
 
-    def _update_per_slice(field: Field, slice: Tuple[Array, Array]):
-        absorption, dn = slice
+    def _update_per_slice(i: int, field: Field):
         # Propagate the field
-        absorption = (absorption)[jnp.newaxis, :, :, jnp.newaxis]
-        dn = (dn)[jnp.newaxis, :, :, jnp.newaxis]
+        absorption = (absorption_stack[i])[jnp.newaxis, :, :, jnp.newaxis]
+        dn = (dn_stack[i])[jnp.newaxis, :, :, jnp.newaxis]
 
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         # Propagating field
@@ -92,18 +92,12 @@ def multislice_thick_sample(
         # Cropping output field
         u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
         field = field.replace(u=u)
-        return field, None
+        return field
 
-    # Reshape to have scan axis 0
-    scan = jax.checkpoint(
-        lambda field, xs: jax.lax.scan(
-            jax.checkpoint(_update_per_slice),
-            field,
-            xs,
-            length=absorption_stack.shape[0],
-        )[0]
-    )
-    field = scan(field, (absorption_stack, dn_stack))
+    # python loop unrolling is the fastest method
+    for i in range(absorption_stack.shape[0]):
+        field = _update_per_slice(i, field)
+
     # propagate field backwards to the middle
     half_stack_thikness = thickness_per_slice * absorption_stack.shape[0] / 2
 
