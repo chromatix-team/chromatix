@@ -137,14 +137,6 @@ def exact_propagate(
             array of shape `[2,]` in the format [ky, kx].
     """
     # # Calculating propagator
-    # f = []
-    # for d in range(field.dx.size):
-    #     f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
-    # f = jnp.stack(f, axis=-1)
-    # fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    # kernel = 1 - (field.spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
-    # kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
-    # phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
     if propagator is None:
         # Calculating propagator
         propagator = calculate_exact_propagator(
