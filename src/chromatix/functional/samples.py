@@ -115,11 +115,11 @@ def multislice_thick_sample(
         field = _update_per_slice(i, field)
 
     # propagate field backwards to the middle
-    half_stack_thikness = thickness_per_slice * absorption_stack.shape[0] / 2
+    half_stack_thickness = thickness_per_slice * absorption_stack.shape[0] / 2
 
     field = exact_propagate(
         field,
-        z=-half_stack_thikness,
+        z=-half_stack_thickness,
         n=n,
         kykx=kykx,
         mode="same",
