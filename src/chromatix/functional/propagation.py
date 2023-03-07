@@ -4,7 +4,7 @@ from ..field import Field
 from einops import rearrange
 from ..utils import center_pad, center_crop
 from ..ops.fft import fftshift, fft, ifft, ifftshift
-from typing import Optional
+from typing import Optional, Tuple, Union
 from chex import Array
 import numpy as np
 from functools import partial
@@ -116,6 +116,7 @@ def exact_propagate(
     N_pad: int,
     cval: float = 0,
     kykx: Array = jnp.zeros((2,)),
+    propagator: Array = None,
     loop_axis: Optional[int] = None,
     mode: str = "full",
 ) -> Field:
@@ -135,19 +136,16 @@ def exact_propagate(
         kykx: If provided, defines the orientation of the propagation. Should be an
             array of shape `[2,]` in the format [ky, kx].
     """
-    # Calculating propagator
-    f = []
-    for d in range(field.dx.size):
-        f.append(jnp.fft.fftfreq(field.shape[1] + N_pad, d=field.dx[..., d].squeeze()))
-    f = jnp.stack(f, axis=-1)
-    fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    kernel = 1 - (field.spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
-    kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
+    # # Calculating propagator
+    if propagator is None:
+        # Calculating propagator
+        propagator = calculate_exact_propagator(
+            field.u.shape, field.dx, field.spectrum, z, n, N_pad, kykx
+        )
 
     # Propagating field
     u = center_pad(field.u, [0, int(N_pad / 2), int(N_pad / 2), 0], cval=cval)
-    u = ifft(fft(u, loop_axis) * jnp.exp(1j * phase), loop_axis)
+    u = ifft(fft(u, loop_axis) * propagator, loop_axis)
 
     # Cropping output field
     if mode == "full":
@@ -159,6 +157,47 @@ def exact_propagate(
         raise NotImplementedError('Only "full" and "same" are supported.')
 
     return field
+
+
+def calculate_exact_propagator(
+    shape: Tuple,
+    dx: Union[float, Array],
+    spectrum,
+    z: float,
+    n: float,
+    N_pad: int,
+    kykx: Array = jnp.zeros((2,)),
+):
+    """Calculate a propagator which can be used in the exact propagate method.
+
+    Returns an array that can be multiplied with the fourier transform of the field.
+
+    Args:
+        shape: shape of the propagator
+        dx: the field spacing,
+        spectrum: the wavelength of the light used
+        z: A float that defines the distance to propagate.
+        n: A float that defines the refractive index of the medium.
+        N_pad: A keyword argument integer defining the pad length for the
+            propagation FFT (NOTE: should not be a Jax array, otherwise a
+            ConcretizationError will arise when traced!). Use padding calculator
+            utilities from ``chromatix.functional.propagation`` to calculate the
+            padding.
+        kykx: If provided, defines the orientation of the propagation. Should be an
+            array of shape `[2,]` in the format [ky, kx].
+    """
+    f = []
+    if isinstance(dx, float):
+        dx = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
+    for d in range(dx.size):
+        f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
+    f = jnp.stack(f, axis=-1)
+    fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
+    kernel = 1 - (spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
+    kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
+    phase = 2 * jnp.pi * (z * n / spectrum) * jnp.sqrt(kernel)
+
+    return jnp.exp(1j * phase)
 
 
 def calculate_padding_transform(
