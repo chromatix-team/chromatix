@@ -1,4 +1,3 @@
-import jax
 import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
@@ -7,7 +6,6 @@ from ..ops.fft import fftshift, fft, ifft, ifftshift
 from typing import Optional
 from chex import Array
 import numpy as np
-from functools import partial
 
 __all__ = [
     "transform_propagate",
