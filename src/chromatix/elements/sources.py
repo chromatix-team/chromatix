@@ -77,7 +77,6 @@ class ObjectivePointSource(nn.Module):
         spectrum: The wavelengths included in the ``Field`` to be created.
         spectral_density: The weights of each wavelength in the ``Field`` to
             be created.
-        z: The distance of the point source.
         f: Focal length of the objective lens.
         n: Refractive index.
         NA: The numerical aperture of the objective lens.

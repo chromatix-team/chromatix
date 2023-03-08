@@ -8,12 +8,11 @@ from ..functional.phase_masks import (
     seidel_aberrations,
     zernike_aberrations,
 )
-from typing import Callable, Union, Tuple
+from typing import Callable, Optional, Tuple, Union
 from einops import rearrange
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
-import pdb
 
 __all__ = [
     "PhaseMask",
@@ -39,17 +38,41 @@ class PhaseMask(nn.Module):
     The ``phase`` can be learned (pixel by pixel) by using
     ``chromatix.utils.trainable``.
 
-    Attributes:
+    Since phase mask initializations might require information about the
+    pupil of a system, the extra parameters ``n``, ``f``, and ``NA`` can
+    be specified. These will be passed as arguments to the phase mask
+    initialization function if ``phase`` is trainable. Note that if any of
+    these is None, none of them will be passed to the initialization function
+    and you will get an error.
+
+        Attributes:
         phase: The phase to be applied. Should have shape `[1 H W 1]`.
+        f: Focal length of the system's objective. Defaults to None.
+        n: Refractive index of the system's objective. Defaults to None.
+        NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...], float, float], Array]]
+    f: Optional[float] = None
+    n: Optional[float] = None
+    NA: Optional[float] = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
+        if all(x is not None for x in [self.n, self.f, self.NA]):
+            pupil_args = (self.n, self.f, self.NA)
+        else:
+            pupil_args = ()
         phase = (
-            self.param("phase_pixels", self.phase, (1, *field.shape[1:3], 1))
+            self.param(
+                "phase_pixels",
+                self.phase,
+                (1, *field.shape[1:3], 1),
+                field.dx[..., 0].squeeze(),
+                field.spectrum[..., 0].squeeze(),
+                *pupil_args,
+            )
             if callable(self.phase)
             else self.phase
         )
@@ -93,22 +116,41 @@ class SpatialLightModulator(nn.Module):
     Attributes:
         phase: The phase to be applied. Should have shape `[1 H W 1]`.
         shape: The shape of the SLM, provided as (H W).
+        spacing: The pitch of the SLM pixels.
         phase_range: The phase range that the SLM can simulate, provided as
             (min, max).
         interpolation_order: The order of interpolation for the SLM pixels to
             the shape of the incoming ``Field``. Can be 0 or 1. Defaults to 0.
+        f: Focal length of the system's objective. Defaults to None.
+        n: Refractive index of the system's objective. Defaults to None.
+        NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...], float, float], Array]]
     shape: Tuple[int, int]
+    spacing: float
     phase_range: Tuple[float, float]
     interpolation_order: int = 0
+    f: Optional[float] = None
+    n: Optional[float] = None
+    NA: Optional[float] = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies simulated SLM ``phase`` mask to incoming ``Field``."""
+        if all(x is not None for x in [self.n, self.f, self.NA]):
+            pupil_args = (self.n, self.f, self.NA)
+        else:
+            pupil_args = ()
         phase = (
-            self.param("slm_pixels", self.phase, (1, *self.shape, 1))
+            self.param(
+                "slm_pixels",
+                self.phase,
+                (1, *self.shape, 1),
+                self.spacing,
+                field.spectrum[..., 0].squeeze(),
+                *pupil_args,
+            )
             if callable(self.phase)
             else self.phase
         )
