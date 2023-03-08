@@ -9,5 +9,11 @@
 ## Phase Masks
 ::: chromatix.functional.phase_masks
 
+## Samples
+::: chromatix.functional.samples
+
+## Sensors
+::: chromatix.functional.sensors
+
 ## Propagation
 ::: chromatix.functional.propagation

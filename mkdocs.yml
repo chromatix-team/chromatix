@@ -17,7 +17,7 @@ nav:
     - Field: api/field.md
     - Functional: api/functional.md
     - Elements: api/elements.md
-    - Optical System: api/optical_system.md
+    - Systems: api/systems.md
     - Operations: api/ops.md
     - Utilities: api/utils.md
 

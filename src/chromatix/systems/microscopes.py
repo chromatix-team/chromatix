@@ -122,10 +122,6 @@ class Microscope(nn.Module):
         """
         Computes image or batch of images using the specified PSF and sample.
 
-        Potentially, this sensor function is a ``Module`` that can declare a
-        `flax` RNG stream in order to simulate noise (e.g. shot noise), in
-        which case a `flax` RNG stream is created with key "noise."
-
         Args:
             sample: The sample volume to image with, has shape `[B H W 1]`.
             psf: The PSF intensity volume to image with, has shape `[B H W 1]`.
