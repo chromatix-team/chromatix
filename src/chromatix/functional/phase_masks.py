@@ -35,7 +35,7 @@ def phase_change(field: Field, phase: Array) -> Field:
 
 
 # Phase mask initializations
-def flat_phase(shape: Tuple[int, ...], value: float = 0.0) -> Array:
+def flat_phase(shape: Tuple[int, ...], *args, value: float = 0.0) -> Array:
     """
     Computes a flat phase mask (one with constant value).
 
