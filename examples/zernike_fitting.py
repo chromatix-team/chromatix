@@ -21,8 +21,8 @@ key = random.PRNGKey(42)
 camera_shape: Tuple[int, int] = (256, 256)
 camera_pixel_pitch: float = 0.125
 f: float = 100
-NA: float = 0.8
 n: float = 1.33
+NA: float = 0.8
 wavelength: float = 0.532
 wavelength_ratio: float = 1.0
 upsample: int = 4
@@ -49,7 +49,7 @@ class ZernikePSF(nn.Module):
             shape, spacing, wavelength, wavelength_ratio, f, n, NA, power=1e7
         )(z)
         field = ZernikeAberrations(
-            n, f, NA, ansi_indices, trainable(jnp.array([0.0] * len(ansi_indices)))
+            trainable(jnp.array([0.0] * len(ansi_indices))), f, n, NA, ansi_indices
         )(field)
         field = FFLens(f, n)(field)  # TODO: Add padding to FFLens
         return field

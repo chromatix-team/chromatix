@@ -244,15 +244,19 @@ class ZernikeAberrations(nn.Module):
     appropriately.
 
     Attributes:
-        ansi_indices: indices of Zernike polynomials (ANSI indexing)
-        coefficients: length of coefficients
+        coefficients: The Zernike coefficients as a 1D array.
+        f: The focal length.
+        n: The refractive index.
+        NA: The numerical aperture. The applied phase will be 0 outside NA.
+        ansi_indices: Indices of Zernike polynomials (ANSI indexing). Should
+            have same length as coefficients.
     """
 
-    n: float
+    coefficients: Union[Array, Callable[[PRNGKey], Array]]
     f: float
+    n: float
     NA: float
     ansi_indices: Array
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

@@ -24,14 +24,13 @@ class Microscope(nn.Module):
     """
     Microscope with a planewise spatially invariant point spread function.
 
-    This ``Microscope`` is a ``flax`` ``Module`` that accepts a function or
-    ``Module`` that computes the point spread function (PSF) of the microscope.
-    ``Microscope`` then uses this PSF to simulate imaging via a convolution of
-    the sample with the specified PSF. Optionally, the sensor can also simulate
-    noise. Parameters of the provided PSF are allowed to be trainable (using
-    ``chromatix.utils.trainable``). Further, this system's objective focal
-    length, objective refractive index, and objective numerical aperture can
-    also be trainable.
+    This ``Microscope`` is a ``flax`` ``Module`` that accepts a function
+    or ``Module`` that computes the point spread function (PSF) of the
+    microscope. ``Microscope`` then uses this PSF to simulate imaging via a
+    convolution of the sample with the specified PSF. Optionally, the sensor
+    can also simulate noise. Parameters of the provided PSF are allowed to be
+    trainable (using ``chromatix.utils.trainable``), e.g. the phase mask of the
+    Optical4FSystemPSF.
 
     Attributes:
         system_psf: A function or ``Module`` that will compute the ``Field``
@@ -50,8 +49,8 @@ class Microscope(nn.Module):
             edge artifacts in the image if the PSF has edge artifacts.
         sensor_shape: A tuple of form (H W) defining the camera sensor shape.
         sensor_spacing: A float defining the pixel pitch of the camera sensor.
-        n: Refractive index of the system's objective.
         f: Focal length of the system's objective.
+        n: Refractive index of the system's objective.
         NA: The numerical aperture of the system's objective.
         spectrum: The wavelengths included in the simulation of the system's
             PSF.
@@ -75,9 +74,9 @@ class Microscope(nn.Module):
     taper_width: float
     sensor_shape: Tuple[int, int]
     sensor_spacing: float
-    n: Union[float, Callable[[PRNGKey], float]]
-    f: Union[float, Callable[[PRNGKey], float]]
-    NA: Union[float, Callable[[PRNGKey], float]]
+    f: float
+    n: float
+    NA: float
     spectrum: Array
     spectral_density: Array
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
@@ -86,11 +85,6 @@ class Microscope(nn.Module):
     reduce_parallel_axis_name: Optional[str] = None
 
     def setup(self):
-        self._f = self.param("f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("n", self.n) if isinstance(self.n, Callable) else self.n
-        self._NA = (
-            self.param("NA", self.NA) if isinstance(self.NA, Callable) else self.NA
-        )
         if self.psf_resampling_method is not None:
             self.resample = init_plane_resample(
                 (*self.sensor_shape, 1), self.sensor_spacing, self.psf_resampling_method
