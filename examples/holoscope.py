@@ -2,7 +2,6 @@ import jax.numpy as jnp
 from jax import jit
 from jax import random
 from jax.tree_util import tree_map
-from functools import partial
 
 from chromatix.systems import Microscope, Optical4FSystemPSF
 from chromatix.utils import trainable
@@ -12,9 +11,10 @@ holoscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=(2560, 2560),
         spacing=0.325,
-        padding_ratio=0.5,
-        phase=trainable(partial(defocused_ramps, n=1.33, f=100.0, NA=0.8)),
+        phase=trainable(defocused_ramps),
     ),
+    padding_ratio=0.5,
+    taper_width=5.0,
     sensor_shape=(512, 512),
     sensor_spacing=1.625,
     f=100.0,
