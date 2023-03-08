@@ -18,6 +18,21 @@ def shot_noise_intensity_sensor(
     reduce_parallel_axis_name: Optional[str] = None,
     noise_key: Optional[PRNGKey] = None,
 ) -> Field:
+    """
+    Produces an intensity image from an incoming ``Field`` with shot noise.
+
+    Attributes:
+        shape: The shape in pixels of the sensor. Should be of the form (H W).
+        spacing: The pitch of the sensor pixels.
+        shot_noise_mode: What type of shot noise simulation to use. Defaults to
+            None, in which case no shot noise is simulated.
+        resample: If provided, will be called to resample the incoming
+            ``Field`` to the given ``shape``.
+        reduce_axis: If provided, the result will be summed along this
+            dimension.
+        reduce_parallel_axis_name: If provided, psum along the axis with this
+            name.
+    """
     if resample is not None:
         image = vmap(resample, in_axes=(0, None))(
             field.intensity, field.dx[..., 0].squeeze()
