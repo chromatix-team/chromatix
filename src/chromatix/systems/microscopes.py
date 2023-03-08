@@ -10,6 +10,7 @@ from ..elements import FFLens, ObjectivePointSource, PhaseMask
 from ..ops import (
     fourier_convolution,
     shot_noise,
+    sigmoid_taper,
     approximate_shot_noise,
     init_plane_resample,
 )
@@ -39,10 +40,18 @@ class Microscope(nn.Module):
             any relevant optical properties of the system. Can take any other
             arguments passed during a call to this ``Microscope`` (e.g. z
             values to compute a 3D PSF at for imaging).
+        padding_ratio: The proportion of the original PSF shape that will be
+            added to simulate the PSF. That means the final shape will be shape
+            * (1.0 + padding) in each dimension. This will then automatically
+            be cropped to the original desired shape after simulation, and a
+            taper will be applied to the result.
+        taper_width: The width in pixels of the sigmoid that will be used to
+            smoothly bring the edges of the PSF to 0. This helps to prevent
+            edge artifacts in the image if the PSF has edge artifacts.
         sensor_shape: A tuple of form (H W) defining the camera sensor shape.
         sensor_spacing: A float defining the pixel pitch of the camera sensor.
-        f: Focal length of the system's objective.
         n: Refractive index of the system's objective.
+        f: Focal length of the system's objective.
         NA: The numerical aperture of the system's objective.
         spectrum: The wavelengths included in the simulation of the system's
             PSF.
@@ -53,6 +62,8 @@ class Microscope(nn.Module):
             which case no noise is applied.
         psf_resampling_method: A string of either 'linear' or 'cubic' that
             determines how the PSF is resampled to the shape of the sensor.
+            Note that this assumes that the PSF that is computed has the same
+            field of view as the sensor.
         reduce_axis: If provided, the input will be summed along this
             dimension.
         reduce_parallel_axis_name: If provided, psum along the axis with this
@@ -60,10 +71,12 @@ class Microscope(nn.Module):
     """
 
     system_psf: Callable[[Microscope], Field]
-    sensor_shape: Tuple[int, ...]
+    padding_ratio: float
+    taper_width: float
+    sensor_shape: Tuple[int, int]
     sensor_spacing: float
-    f: Union[float, Callable[[PRNGKey], float]]
     n: Union[float, Callable[[PRNGKey], float]]
+    f: Union[float, Callable[[PRNGKey], float]]
     NA: Union[float, Callable[[PRNGKey], float]]
     spectrum: Array
     spectral_density: Array
@@ -92,13 +105,13 @@ class Microscope(nn.Module):
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
+        psf = self.psf(*args, **kwargs)
+        spacing = psf.dx[..., 0].squeeze()
+        padding = tuple(int(self.padding_ratio * s) for s in self.system_psf.shape)
+        psf = center_crop(psf.intensity, (None, padding[0] // 2, padding[1] // 2, None))
+        psf = psf * sigmoid_taper(self.system_psf.shape, self.taper_width)
         if self.psf_resampling_method is not None:
-            psf = self.psf(*args, **kwargs)
-            psf = vmap(self.resample, in_axes=(0, None))(
-                psf.intensity, psf.dx[..., 0].squeeze()
-            )
-        else:
-            psf = self.psf(*args, **kwargs).intensity
+            psf = vmap(self.resample, in_axes=(0, None))(psf, spacing)
         return self.image(sample, psf)
 
     def psf(self, *args: Any, **kwargs: Any) -> Field:
@@ -117,7 +130,7 @@ class Microscope(nn.Module):
             sample: The sample volume to image with, has shape `[B H W 1]`.
             psf: The PSF intensity volume to image with, has shape `[B H W 1]`.
         """
-        image = vmap(fourier_convolution, in_axes=(0, 0))(sample, psf)
+        image = vmap(fourier_convolution, in_axes=(0, 0))(psf, sample)
         if self.reduce_axis is not None:
             image = jnp.sum(image, axis=self.reduce_axis, keepdims=True)
         if self.reduce_parallel_axis_name is not None:
@@ -145,9 +158,6 @@ class Optical4FSystemPSF(nn.Module):
             i.e. the spacing at the camera plane when the PSF is measured. Note
             that this **does not** need to match the actual spacing of the
             sensor, and often should be a finer spacing than the camera.
-        padding: The proportion of the original shape that will be added to
-            simulate the PSF. That means the final shape will be shape * (1.0 +
-            padding) in each dimension.
         phase: The phase mask for the 4f simulation. Must be an array of shape
             (1 H W 1) where (H W) match the shape of the simulation, or an
             initialization function (e.g. using trainable).
@@ -155,12 +165,11 @@ class Optical4FSystemPSF(nn.Module):
 
     shape: Tuple[int, int]
     spacing: float
-    padding_ratio: float
     phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
 
     @nn.compact
     def __call__(self, microscope: Microscope, z: Array) -> Field:
-        padding = tuple(int(s * self.padding_ratio) for s in self.shape)
+        padding = tuple(int(s * microscope.padding_ratio) for s in self.shape)
         padded_shape = tuple(s + p for s, p in zip(self.shape, padding))
         required_spacing = self.compute_required_spacing(
             padded_shape[0],
@@ -180,18 +189,15 @@ class Optical4FSystemPSF(nn.Module):
                     microscope.n,
                     microscope.NA,
                 ),
-                PhaseMask(self.phase),
+                PhaseMask(self.phase, microscope.f, microscope.n, microscope.NA),
                 FFLens(microscope.f, microscope.n, microscope.NA),
             ]
         )
         psf = system(z)
-        psf = psf.replace(
-            u=center_crop(psf.u, (0, padding[0] // 2, padding[1] // 2, 0))
-        )
         return psf
 
     @staticmethod
     def compute_required_spacing(
-        height: int, output_spacing: float, f: float, n: float, wavelength: float
+        height: int, output_spacing: float, f: float, n: float, wavelength: Array
     ) -> float:
         return f * wavelength / (n * height * output_spacing)
