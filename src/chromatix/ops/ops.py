@@ -1,8 +1,9 @@
 from einops import reduce
 from functools import partial
-from typing import Tuple
+from typing import Callable, Tuple
 from ..utils import next_order
 from jax import lax
+from jax.image import scale_and_translate
 from chex import Array
 import jax.numpy as jnp
 
@@ -30,6 +31,32 @@ def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> A
         h_size=window_size[0],
         w_size=window_size[1],
     )
+
+
+def init_plane_resample(
+    out_shape: Tuple[int, ...], out_spacing: float, resampling_method: str = "linear"
+) -> Callable[[Array, float], Array]:
+    def op(x: Array, in_spacing: float) -> Array:
+        if resampling_method == "pool":
+            return reduce(
+                x,
+                "(h hf) (w wf) ... -> h w ...",
+                "sum",
+                h=out_shape[0],
+                w=out_shape[1],
+            )
+        else:
+            _in_shape, _out_shape = jnp.array(x.shape[:-1]), jnp.array(out_shape[:-1])
+            scale = jnp.full((2,), in_spacing / out_spacing)
+            translation = -0.5 * (_in_shape * scale - _out_shape)
+            total = x.sum(axis=(0, 1))
+            x = scale_and_translate(
+                x, out_shape, (0, 1), scale, translation, method=resampling_method
+            )
+            x = x * (total / x.sum(axis=(0, 1)))
+            return x
+
+    return op
 
 
 def fourier_convolution(

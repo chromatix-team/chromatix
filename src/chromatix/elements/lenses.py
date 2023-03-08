@@ -30,10 +30,10 @@ class ThinLens(nn.Module):
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
 
     def setup(self):
-        self._f = self.param("f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("n", self.n) if isinstance(self.n, Callable) else self.n
+        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
+        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
         self._NA = (
-            self.param("NA", self.NA) if isinstance(self.NA, Callable) else self.NA
+            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
         )
 
     def __call__(self, field: Field) -> Field:
@@ -65,10 +65,10 @@ class FFLens(nn.Module):
     inverse: bool = False
 
     def setup(self):
-        self._f = self.param("f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("n", self.n) if isinstance(self.n, Callable) else self.n
+        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
+        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
         self._NA = (
-            self.param("NA", self.NA) if isinstance(self.NA, Callable) else self.NA
+            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
         )
 
     def __call__(self, field: Field) -> Field:
@@ -102,11 +102,11 @@ class DFLens(nn.Module):
     inverse: bool = False
 
     def setup(self):
-        self._d = self.param("d", self.d) if isinstance(self.d, Callable) else self.d
-        self._f = self.param("f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("n", self.n) if isinstance(self.n, Callable) else self.n
+        self._d = self.param("_d", self.d) if isinstance(self.d, Callable) else self.d
+        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
+        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
         self._NA = (
-            self.param("NA", self.NA) if isinstance(self.NA, Callable) else self.NA
+            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
         )
 
     def __call__(self, field: Field) -> Field:
