@@ -152,3 +152,69 @@ class Propagate(nn.Module):
             raise NotImplementedError(
                 "Method must be one of 'transform', 'transfer', or 'exact'."
             )
+
+
+class KernelPropagate(nn.Module):
+    """
+    Free space propagation with a precomputed propagation kernel.
+
+    This element takes a ``Field`` as input and outputs a ``Field`` that has
+    been propagated by a distance that is already defined by a propagation
+    kernel. Optionally, this kernel can be a learned parameter using
+    ``chromatix.utils.trainable``.
+
+    All attributes other than the ``propagator`` and ``mode`` will be
+    sent as arguments to the propagation kernel initialization function if
+    ``propagator`` is trainable.
+
+    Attributes:
+        propagator: The propagation kernel to use. Can be trainable.
+        z: Distance(s) to propagate. Defaults to None.
+        n: Refractive index. Defaults to None.
+        N_pad: The padding for propagation (will be used as both height and
+            width padding). To automatically calculate the padding, use padding
+            calculation functions from  ``chromatix.functional``. This must be
+            passesd outside of a ``jax.jit``. Defaults to 0 (no padding), which
+            will cause circular convolutions (edge artifacts) when propagating.
+        cval: The value to pad with if ``N_pad`` is greater than 0. Defaults
+            to 0.
+        kykx: If provided, defines the orientation of the propagation. Should
+            be an array of shape `[2,]` in the format [ky, kx].
+        mode: Defines the cropping of the output if the method is "transfer" or
+            "exact". Defaults to "same", which returns a ``Field`` of the same
+            shape, unlike the functional methods.
+    """
+
+    propagator: Union[Array, Callable[[PRNGKey], Array]]
+    z: Optional[Union[float, Array]] = None
+    n: Optional[float] = None
+    N_pad: int = 0
+    cval: float = 0
+    kykx: Array = jnp.zeros((2,))
+    mode: Literal["full", "same"] = "same"
+    loop_axis: Optional[int] = None
+
+    @nn.compact
+    def __call__(self, field: Field) -> Field:
+        if isinstance(self.propagator, Callable):
+            propagator = self.param(
+                "_propagator",
+                self.propagator,
+                field.shape,
+                field.dx,
+                field.spectrum,
+                self.z,
+                self.n,
+                self.N_pad,
+                self.kykx,
+            )
+        else:
+            propagator = self.propagator
+        return kernel_propagate(
+            field,
+            propagator,
+            self.N_pad,
+            self.cval,
+            self.loop_axis,
+            self.mode,
+        )
