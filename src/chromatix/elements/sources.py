@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 import flax.linen as nn
 from chromatix import Field
 from ..functional.sources import (
@@ -133,9 +134,9 @@ class PlaneWave(nn.Module):
         power: The total power that the result should be normalized to,
             defaults to 1.0.
         phase: The phase of the plane wave in radians, defaults to 0.0.
+        kykx: Defines the orientation of the plane wave. Should be an
+            array of shape `[2,]` in the format [ky, kx].
         pupil: If provided, will be called on the field to apply a pupil.
-        k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
     """
 
     shape: Tuple[int, int]
@@ -143,9 +144,8 @@ class PlaneWave(nn.Module):
     spectrum: float
     spectral_density: float
     power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
-    phase: Optional[Union[float, Callable[[PRNGKey], float]]] = 0.0
+    kykx: Array = jnp.zeros((2,))
     pupil: Optional[Callable[[Field], Field]] = None
-    k: Optional[Union[Array, Callable[[PRNGKey], Array]]] = None
 
     def setup(self):
         self.empty_field = empty_field(
@@ -156,17 +156,14 @@ class PlaneWave(nn.Module):
             if isinstance(self.power, Callable)
             else self.power
         )
-        self._phase = (
-            self.param("_phase", self.phase)
-            if isinstance(self.phase, Callable)
-            else self.phase
+        self._kykx = (
+            self.param("_kykx", self.kykx)
+            if isinstance(self.kykx, Callable)
+            else self.kykx
         )
-        self._k = self.param("_k", self.k) if isinstance(self.k, Callable) else self.k
 
     def __call__(self) -> Field:
-        return plane_wave(
-            self.empty_field, self._power, self._phase, self.pupil, self._k
-        )
+        return plane_wave(self.empty_field, self._power, self._kykx, self.pupil)
 
 
 class GenericBeam(nn.Module):
