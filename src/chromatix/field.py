@@ -7,8 +7,6 @@ from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
 
-from jax.scipy.ndimage import map_coordinates
-
 
 class Field(struct.PyTreeNode):
     """
@@ -59,18 +57,18 @@ class Field(struct.PyTreeNode):
             sum to 1.0.
     """
 
-    u: jnp.ndarray  # [B H W C]
-    dx: jnp.ndarray
-    spectrum: jnp.ndarray
-    spectral_density: jnp.ndarray
+    u: Array  # [B H W C]
+    dx: Array
+    spectrum: Array
+    spectral_density: Array
 
     @classmethod
     def create(
         cls,
         dx: float,
-        spectrum: Union[float, jnp.ndarray],
-        spectral_density: Union[float, jnp.ndarray],
-        u: Optional[jnp.ndarray] = None,
+        spectrum: Union[float, Array],
+        spectral_density: Union[float, Array],
+        u: Optional[Array] = None,
         shape: Optional[Tuple[int, int]] = None,
     ) -> Field:
         """
@@ -96,11 +94,11 @@ class Field(struct.PyTreeNode):
                 must be provided.
         """
         # Getting everything into right shape
-        field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
-        field_spectrum: jnp.ndarray = rearrange(
+        field_dx: Array = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
+        field_spectrum: Array = rearrange(
             jnp.atleast_1d(spectrum), "c -> 1 1 1 c"
         )
-        field_spectral_density: jnp.ndarray = rearrange(
+        field_spectral_density: Array = rearrange(
             jnp.atleast_1d(spectral_density), "c -> 1 1 1 c"
         )
         field_spectral_density = field_spectral_density / jnp.sum(
@@ -111,7 +109,7 @@ class Field(struct.PyTreeNode):
             # NOTE(dd): when jitting this function, shape must be a
             # static argument --- possibly requiring multiple traces
             assert shape is not None, "Must specify shape if u is None"
-            field_u: jnp.ndarray = jnp.empty(
+            field_u: Array = jnp.empty(
                 (1, *shape, field_spectrum.size), dtype=jnp.complex64
             )
         else:
@@ -129,7 +127,7 @@ class Field(struct.PyTreeNode):
 
     # Grid properties
     @property
-    def grid(self) -> jnp.ndarray:
+    def grid(self) -> Array:
         """
         The grid for each spatial dimension as an array of shape `[2 1 H W 1]`.
         The 2 entries along the first dimension represent the y and x grids,
@@ -155,38 +153,38 @@ class Field(struct.PyTreeNode):
         return self.dx * grid
 
     @property
-    def l2_sq_grid(self) -> jnp.ndarray:
+    def l2_sq_grid(self) -> Array:
         """Sum of the squared grid over spatial dimensions, i.e. `x**2 + y**2`."""
         return jnp.sum(self.grid**2, axis=0)
 
     @property
-    def l2_grid(self) -> jnp.ndarray:
+    def l2_grid(self) -> Array:
         """Square root of ``l2_sq_grid``, i.e. `sqrt(x**2 + y**2)`."""
         return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
 
     @property
-    def l1_grid(self) -> jnp.ndarray:
+    def l1_grid(self) -> Array:
         """Sum absolute value over spatial dimensions, i.e. `|x| + |y|`."""
         return jnp.sum(jnp.abs(self.grid), axis=0)
 
     @property
-    def linf_grid(self) -> jnp.ndarray:
+    def linf_grid(self) -> Array:
         """Max absolute value over spatial dimensions, i.e. `max(|x|, |y|)`."""
         return jnp.max(jnp.abs(self.grid), axis=0)
 
     # Field properties
     @property
-    def phase(self) -> jnp.ndarray:
+    def phase(self) -> Array:
         """Phase of the complex scalar field, shape `[B H W C]`."""
         return jnp.angle(self.u)
 
     @property
-    def amplitude(self) -> jnp.ndarray:
+    def amplitude(self) -> Array:
         """Amplitude of the complex scalar field, shape `[B H W C]`."""
         return jnp.abs(self.u)
 
     @property
-    def intensity(self) -> jnp.ndarray:
+    def intensity(self) -> Array:
         """Intensity of the complex scalar field, shape `[B H W 1]`."""
         return jnp.sum(
             self.spectral_density * jnp.abs(self.u) ** 2,
@@ -195,7 +193,7 @@ class Field(struct.PyTreeNode):
         )
 
     @property
-    def power(self) -> jnp.ndarray:
+    def power(self) -> Array:
         """Power of the complex scalar field, shape `[B 1 1 1]`."""
         return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
 
@@ -205,8 +203,8 @@ class Field(struct.PyTreeNode):
         return self.u.shape
 
     # Math operations
-    def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
+    def __add__(self, other: Union[Number, Array, Field]) -> Field:
+        if isinstance(other, Array) or isinstance(other, Number):
             return self.replace(u=self.u + other)
         elif isinstance(other, Field):
             return self.replace(u=self.u + other.u)
@@ -216,8 +214,8 @@ class Field(struct.PyTreeNode):
     def __radd__(self, other: Any) -> Field:
         return self + other
 
-    def __sub__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
+    def __sub__(self, other: Union[Number, Array, Field]) -> Field:
+        if isinstance(other, Array) or isinstance(other, Number):
             return self.replace(u=self.u - other)
         elif isinstance(other, Field):
             return self.replace(u=self.u - other.u)
@@ -227,8 +225,8 @@ class Field(struct.PyTreeNode):
     def __rsub__(self, other: Any) -> Field:
         return (-1 * self) + other
 
-    def __mul__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
+    def __mul__(self, other: Union[Number, Array, Field]) -> Field:
+        if isinstance(other, Array) or isinstance(other, Number):
             return self.replace(u=self.u * other)
         elif isinstance(other, Field):
             return self.replace(u=self.u * other.u)
@@ -238,8 +236,8 @@ class Field(struct.PyTreeNode):
     def __rmul__(self, other: Any) -> Field:
         return self * other
 
-    def __truediv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
+    def __truediv__(self, other: Union[Number, Array, Field]) -> Field:
+        if isinstance(other, Array) or isinstance(other, Number):
             return self.replace(u=self.u / other)
         elif isinstance(other, Field):
             return self.replace(u=self.u / other.u)
@@ -249,8 +247,8 @@ class Field(struct.PyTreeNode):
     def __rtruediv__(self, other: Any) -> Field:
         return self.replace(u=other / self.u)
 
-    def __floordiv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
+    def __floordiv__(self, other: Union[Number, Array, Field]) -> Field:
+        if isinstance(other, Array) or isinstance(other, Number):
             return self.replace(u=self.u // other)
         elif isinstance(other, Field):
             return self.replace(u=self.u // other.u)
@@ -260,8 +258,8 @@ class Field(struct.PyTreeNode):
     def __rfloordiv__(self, other: Any) -> Field:
         return self.replace(u=other // self.u)
 
-    def __mod__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
+    def __mod__(self, other: Union[Number, Array, Field]) -> Field:
+        if isinstance(other, Array) or isinstance(other, Number):
             return self.replace(u=self.u % other)
         elif isinstance(other, Field):
             return self.replace(u=self.u % other.u)
