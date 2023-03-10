@@ -29,7 +29,11 @@ def phase_change(field: Field, phase: Array) -> Field:
         field: The complex field to be perturbed.
         phase: The phase to apply.
     """
-    assert_rank(phase, field.rank, custom_message="Phase must have same rank as incoming ``Field``.")
+    assert_rank(
+        phase,
+        field.rank,
+        custom_message="Phase must have same rank as incoming ``Field``.",
+    )
     return field * jnp.exp(1j * phase)
 
 
@@ -358,7 +362,11 @@ def spectrally_modulate_phase(
     phase: Array, spectrum: Array, central_wavelength: float
 ) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
-    assert_rank(spectrum, len(phase.shape), custom_message="Spectrum must have same rank as phase")
+    assert_rank(
+        spectrum,
+        len(phase.shape),
+        custom_message="Spectrum must have same rank as phase",
+    )
 
     spectral_modulation = central_wavelength / spectrum
     return phase * spectral_modulation

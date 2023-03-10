@@ -56,7 +56,14 @@ def transform_propagate(
     for d in field.spatial_dims:
         pad[d] = N_pad // 2
     u = center_pad(u, pad, cval=cval)
-    u = fftshift(fft(ifftshift(u, axes=field.spatial_dims), axes=field.spatial_dims, loop_axis=loop_axis), axes=(field.spatial_dims))
+    u = fftshift(
+        fft(
+            ifftshift(u, axes=field.spatial_dims),
+            axes=field.spatial_dims,
+            loop_axis=loop_axis,
+        ),
+        axes=(field.spatial_dims),
+    )
     u = center_crop(u, pad)
     # Final normalization and phase
     u *= norm * jnp.exp(1j * output_phase)
@@ -90,7 +97,14 @@ def transfer_propagate(
             to "full", in which case the output shape will include padding.
     """
     propagator = compute_transfer_propagator(
-        field.shape, field.dx, field.spectrum, z, n, N_pad, kykx=kykx, spatial_dims=field.spatial_dims
+        field.shape,
+        field.dx,
+        field.spectrum,
+        z,
+        n,
+        N_pad,
+        kykx=kykx,
+        spatial_dims=field.spatial_dims,
     )
     return kernel_propagate(field, propagator, N_pad, cval, loop_axis, mode)
 
@@ -124,7 +138,14 @@ def exact_propagate(
             to "full", in which case the output shape will include padding.
     """
     propagator = compute_exact_propagator(
-        field.u.shape, field.dx, field.spectrum, z, n, N_pad, kykx=kykx, spatial_dims=field.spatial_dims
+        field.u.shape,
+        field.dx,
+        field.spectrum,
+        z,
+        n,
+        N_pad,
+        kykx=kykx,
+        spatial_dims=field.spatial_dims,
     )
     return kernel_propagate(field, propagator, N_pad, cval, loop_axis, mode)
 
@@ -142,7 +163,11 @@ def kernel_propagate(
     for d in field.spatial_dims:
         pad[d] = N_pad // 2
     u = center_pad(field.u, pad, cval=cval)
-    u = ifft(fft(u, axes=field.spatial_dims, loop_axis=loop_axis) * propagator, axes=field.spatial_dims, loop_axis=loop_axis)
+    u = ifft(
+        fft(u, axes=field.spatial_dims, loop_axis=loop_axis) * propagator,
+        axes=field.spatial_dims,
+        loop_axis=loop_axis,
+    )
     # Cropping output field
     if mode == "full":
         field = field.replace(u=u)
@@ -158,14 +183,16 @@ def _frequency_grid(
     shape: Tuple[int, ...],
     dx: Union[float, Array],
     N_pad: int,
-    spatial_dims: Tuple[int, int]
+    spatial_dims: Tuple[int, int],
 ) -> Tuple[Array, Array]:
     rank = len(shape)
     dx = jnp.atleast_1d(dx)
     # TODO(dd): This calculation could probably go into Field
     f = []
     for d in range(dx.size):
-        f.append(jnp.fft.fftfreq(shape[spatial_dims[0]] + N_pad, d=dx[..., d].squeeze()))
+        f.append(
+            jnp.fft.fftfreq(shape[spatial_dims[0]] + N_pad, d=dx[..., d].squeeze())
+        )
     f = jnp.stack(f, axis=-1)
     fx = rearrange(f, "h c -> " + "1 " * (rank - 3) + "h 1 c")
     fy = rearrange(f, "w c -> " + "1 " * (rank - 3) + "1 w c")
@@ -180,7 +207,7 @@ def compute_transfer_propagator(
     n: float,
     N_pad: int,
     kykx: Array = jnp.zeros((2,)),
-    spatial_dims: Tuple[int, int] = (1, 2)
+    spatial_dims: Tuple[int, int] = (1, 2),
 ):
     """Compute propagation kernel for Fresnel propagation.
 
@@ -225,7 +252,7 @@ def compute_exact_propagator(
     n: float,
     N_pad: int,
     kykx: Array = jnp.zeros((2,)),
-    spatial_dims: Tuple[int, int] = (1, 2)
+    spatial_dims: Tuple[int, int] = (1, 2),
 ):
     """Compute propagation kernel for propagation with no Fresnel approximation.
 

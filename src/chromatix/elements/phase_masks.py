@@ -165,9 +165,7 @@ class SpatialLightModulator(nn.Module):
             jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,
             indexing="ij",
         )
-        phase = map_coordinates(
-            phase, field_pixel_grid, self.interpolation_order
-        )
+        phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
         phase = rearrange(phase, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()

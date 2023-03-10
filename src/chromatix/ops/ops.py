@@ -84,11 +84,14 @@ def fourier_convolution(
         fast_fft_shape: Determines whether inputs should be further padded for
             increased FFT performance. Defaults to ``True``.
     """
-    assert axes[1] == (axes[0] + 1), (
-        "Axes to convolve over must be contiguous"
-    )
+    assert axes[1] == (axes[0] + 1), "Axes to convolve over must be contiguous"
     # Get padded shape to prevent circular convolution
-    padded_shape = [k1 + k2 - 1 for k1, k2 in zip(image.shape[axes[0]:axes[1] + 1], kernel.shape[axes[0]:axes[1] + 1])]
+    padded_shape = [
+        k1 + k2 - 1
+        for k1, k2 in zip(
+            image.shape[axes[0] : axes[1] + 1], kernel.shape[axes[0] : axes[1] + 1]
+        )
+    ]
     if fast_fft_shape:
         fast_shape = [next_order(k) for k in padded_shape]
     else:

@@ -5,7 +5,10 @@ from chex import Array
 
 
 def high_pass_filter(
-    data: Array, sigma: Sequence[float], axes: Tuple[int, int] = (1, 2), kernel_shape: Optional[Sequence[int]] = None
+    data: Array,
+    sigma: Sequence[float],
+    axes: Tuple[int, int] = (1, 2),
+    kernel_shape: Optional[Sequence[int]] = None,
 ) -> Array:
     """
     Performs a high pass filter on ``data``.
@@ -25,9 +28,9 @@ def high_pass_filter(
     Returns:
         The high pass filtered array.
     """
-    assert len(axes) == len(sigma), (
-        "Must specify same number of axes to convolve as elements in sigma"
-    )
+    assert len(axes) == len(
+        sigma
+    ), "Must specify same number of axes to convolve as elements in sigma"
     low_pass_kernel = gaussian_kernel(sigma, shape=kernel_shape)
     # NOTE(gj): 1e-3 effectively gives delta kernel
     delta_kernel = gaussian_kernel((1e-3,) * len(sigma), shape=low_pass_kernel.shape)
@@ -54,8 +57,8 @@ def gaussian_filter(
     Returns:
         The Gaussian filtered array.
     """
-    assert len(axes) == len(sigma), (
-        "Must specify same number of axes to convolve as elements in sigma"
-    )
+    assert len(axes) == len(
+        sigma
+    ), "Must specify same number of axes to convolve as elements in sigma"
     kernel = gaussian_kernel(sigma, shape=kernel_shape)
     return fourier_convolution(data, kernel, axes=axes)

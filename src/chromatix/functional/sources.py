@@ -149,9 +149,13 @@ def generic_field(
         pupil: If provided, will be called on the field to apply a pupil.
     """
     assert_rank(
-        amplitude, field.rank, custom_message="Amplitude must have same rank as ``Field``."
+        amplitude,
+        field.rank,
+        custom_message="Amplitude must have same rank as ``Field``.",
     )
-    assert_rank(phase, field.rank, custom_message="Phase must have same rank as ``Field``.")
+    assert_rank(
+        phase, field.rank, custom_message="Phase must have same rank as ``Field``."
+    )
     field = field.replace(u=amplitude * jnp.exp(1j * phase))
 
     if pupil is not None:

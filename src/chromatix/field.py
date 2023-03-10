@@ -102,19 +102,15 @@ class Field(struct.PyTreeNode):
             # NOTE(dd): when jitting this function, shape must be a
             # static argument --- possibly requiring multiple traces
             assert shape is not None, "Must specify shape if u is None"
-            field_u: Array = jnp.empty(
-                (1, *shape, spectrum.size), dtype=jnp.complex64
-            )
+            field_u: Array = jnp.empty((1, *shape, spectrum.size), dtype=jnp.complex64)
         else:
             field_u = u
         rank = len(field_u.shape)
-        assert rank >= 4, (
-            "Field must be Array of rank at least 4: (B H W C)."
-        )
+        assert rank >= 4, "Field must be Array of rank at least 4: (B H W C)."
         if rank > 4:
-            assert spatial_dims is not None, (
-                "Fields with rank > 4 must specify spatial dimensions."
-            )
+            assert (
+                spatial_dims is not None
+            ), "Fields with rank > 4 must specify spatial dimensions."
         if spatial_dims is None:
             field_spatial_dims = (1, 2)
         else:
@@ -122,9 +118,7 @@ class Field(struct.PyTreeNode):
         shape_spec = "c -> " + ("1 " * (rank - 1)) + "c"
         field_dx: Array = rearrange(dx, shape_spec)
         field_spectrum: Array = rearrange(spectrum, shape_spec)
-        field_spectral_density: Array = rearrange(
-            spectral_density, shape_spec
-        )
+        field_spectral_density: Array = rearrange(spectral_density, shape_spec)
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )
@@ -134,7 +128,7 @@ class Field(struct.PyTreeNode):
             field_dx,
             field_spectrum,
             field_spectral_density,
-            field_spatial_dims
+            field_spatial_dims,
         )
         return field
 
@@ -158,8 +152,10 @@ class Field(struct.PyTreeNode):
         half_size = jnp.array(self.spatial_shape) / 2
         # We must use meshgrid instead of mgrid here in order to be jittable
         grid = jnp.meshgrid(
-            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.spatial_shape[0]) + 0.5,
-            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.spatial_shape[1]) + 0.5,
+            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.spatial_shape[0])
+            + 0.5,
+            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.spatial_shape[1])
+            + 0.5,
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.rank - 3)) + "h w 1")
@@ -217,7 +213,7 @@ class Field(struct.PyTreeNode):
     @property
     def spatial_shape(self) -> Tuple[int, int]:
         """Only the height and width of the complex field."""
-        return self.u.shape[self.spatial_dims[0]:self.spatial_dims[1] + 1]
+        return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
 
     @property
     def rank(self) -> int:

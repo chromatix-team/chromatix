@@ -35,7 +35,18 @@ def optical_fft(
     # finding new coordinates
     du = jnp.abs(L) ** 2 / (field.shape[field.spatial_dims[1]] * field.dx)
 
-    u = -1j * norm * fftshift(fft(ifftshift(field.u, axes=field.spatial_dims), axes=field.spatial_dims, loop_axis=loop_axis), axes=field.spatial_dims)
+    u = (
+        -1j
+        * norm
+        * fftshift(
+            fft(
+                ifftshift(field.u, axes=field.spatial_dims),
+                axes=field.spatial_dims,
+                loop_axis=loop_axis,
+            ),
+            axes=field.spatial_dims,
+        )
+    )
     return field.replace(u=u, dx=du)
 
 
@@ -49,7 +60,9 @@ def ifftshift(x: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
     return jnp.fft.ifftshift(x, axes=axes)
 
 
-def fft(x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = None) -> Array:
+def fft(
+    x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = None
+) -> Array:
     """Computes ``fft2`` for input of shape `(B H W C)`."""
     if loop_axis is None:
         return jnp.fft.fft2(x, axes=axes)
@@ -57,7 +70,9 @@ def fft(x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = Non
         return looped_fft(x, axes, loop_axis)
 
 
-def ifft(x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = None) -> Array:
+def ifft(
+    x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = None
+) -> Array:
     """Computes ``ifft2`` for input of shape `(B H W C)`."""
     if loop_axis is None:
         return jnp.fft.ifft2(x, axes=axes)

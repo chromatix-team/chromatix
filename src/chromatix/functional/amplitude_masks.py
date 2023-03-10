@@ -16,5 +16,9 @@ def amplitude_change(field: Field, amplitude: Array) -> Field:
         field: The complex field to be perturbed.
         amplitude: The amplitude to apply.
     """
-    assert_rank(amplitude, field.rank, custom_message="Amplitude must have same rank as incoming ``Field``.")
+    assert_rank(
+        amplitude,
+        field.rank,
+        custom_message="Amplitude must have same rank as incoming ``Field``.",
+    )
     return field * amplitude.astype(jnp.complex64)
