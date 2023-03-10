@@ -4,7 +4,6 @@ from ..field import Field
 from typing import Optional, Callable, Tuple
 from chex import Array, assert_rank
 from .pupils import circular_pupil
-import jax
 
 __all__ = [
     "empty_field",
@@ -43,7 +42,8 @@ def point_source(
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    z = rearrange(jnp.atleast_1d(z), "d -> d 1 1 1")
+    z = jnp.atleast_1d(z)
+    z = rearrange(z, "z ->" + " 1" * (field.rank - 4) + " z 1 1 1")
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * z / n)
@@ -77,7 +77,8 @@ def objective_point_source(
         power: The total power that the result should be normalized to,
             defaults to 1.0.
     """
-    z = rearrange(jnp.atleast_1d(z), "d -> d 1 1 1")
+    z = jnp.atleast_1d(z)
+    z = rearrange(z, "z ->" + " 1" * (field.rank - 4) + " z 1 1 1")
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * f / n)
@@ -114,7 +115,7 @@ def plane_wave(
             array of shape `[2,]` in the format [ky, kx].
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    u = jnp.exp(1j * (jnp.einsum("v, vbhwc->bhwc", kykx, field.grid)))
+    u = jnp.exp(1j * (kykx[0] * field.grid[0] + kykx[1] * field.grid[1]))
 
     field = field.replace(u=u)
 
@@ -141,16 +142,16 @@ def generic_field(
     Args:
         field: The ``Field`` which will be filled with the result of the
             arbitrary phase perturbation (should be empty).
-        amplitude: The amplitude of the field with shape `[B H W C]`.
-        phase: The phase of the field with shape `[B H W C]`.
+        amplitude: The amplitude of the field with shape `(B H W C)`.
+        phase: The phase of the field with shape `(B H W C)`.
         power: The total power that the result should be normalized to,
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
     """
     assert_rank(
-        amplitude, 4, custom_message="Amplitude must be array of shape [B, H, W, C]"
+        amplitude, field.rank, custom_message="Amplitude must have same rank as ``Field``."
     )
-    assert_rank(phase, 4, custom_message="Phase must be array of shape [B, H, W, C]")
+    assert_rank(phase, field.rank, custom_message="Phase must have same rank as ``Field``.")
     field = field.replace(u=amplitude * jnp.exp(1j * phase))
 
     if pupil is not None:

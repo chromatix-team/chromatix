@@ -1,4 +1,5 @@
 from typing import Callable, Union, Tuple
+from einops import rearrange
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 
@@ -20,25 +21,26 @@ class AmplitudeMask(nn.Module):
     ``chromatix.utils.trainable``.
 
     Attributes:
-        amplitude: The amplitude to be applied. Should have shape `[1 H W 1]`.
+        amplitude: The amplitude to be applied. Should have shape `(H W)`.
         is_binary: binarize the amplitude mask if True.
     """
 
-    amplitude: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+    amplitude: Union[Array, Callable[[PRNGKey, Tuple[int, int]], Array]]
     is_binary: bool
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``amplitude`` mask to incoming ``Field``."""
         amplitude = (
-            self.param("amplitude_pixels", self.amplitude, (1, *field.shape[1:3], 1))
+            self.param("amplitude_pixels", self.amplitude, field.spatial_shape)
             if callable(self.amplitude)
             else self.amplitude
         )
 
         assert_rank(
-            amplitude, 4, custom_message="Amplitude must be array of shape [1 H W 1]"
+            amplitude, 2, custom_message="Amplitude must be array of shape (H W)"
         )
         if self.is_binary:
             amplitude = binarize(amplitude)
+        amplitude = rearrange(amplitude, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
         return amplitude_change(field, amplitude)

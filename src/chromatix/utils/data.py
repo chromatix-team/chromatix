@@ -5,7 +5,7 @@ import os
 
 def siemens_star(num_pixels=512, num_spokes=32):
     """
-    Generates a 2D Siemens star image of shape ``[num_pixels num_pixels]``.
+    Generates a 2D Siemens star image of shape ``(num_pixels num_pixels)``.
 
     Number of spokes in the star can be controlled with ``num_spokes``. Spokes
     will alternate between black and white (0.0 and 1.0).

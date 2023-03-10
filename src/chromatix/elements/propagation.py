@@ -97,6 +97,7 @@ class Propagate(nn.Module):
                 n,
                 self.N_pad,
                 self.kykx,
+                field.spatial_dims
             )
             if self.method == "transfer":
                 propagator = self.variable(

@@ -1,13 +1,11 @@
-from typing import Sequence, Optional
+from typing import Optional, Sequence, Tuple
 from ..utils.utils import gaussian_kernel
-from . import fourier_convolution
-from einops import repeat
-from jax import vmap
+from .ops import fourier_convolution
 from chex import Array
 
 
 def high_pass_filter(
-    data: Array, sigma: float, kernel_shape: Optional[Sequence[int]] = None
+    data: Array, sigma: Sequence[float], axes: Tuple[int, int] = (1, 2), kernel_shape: Optional[Sequence[int]] = None
 ) -> Array:
     """
     Performs a high pass filter on ``data``.
@@ -27,16 +25,20 @@ def high_pass_filter(
     Returns:
         The high pass filtered array.
     """
-    low_pass_kernel = gaussian_kernel((sigma, sigma), shape=kernel_shape)
-    # 1e-3 effetively gives delta kernel
-    delta_kernel = gaussian_kernel((1e-3, 1e-3), shape=low_pass_kernel.shape)
-    kernel = repeat(delta_kernel - low_pass_kernel, "h w -> n h w 1", n=data.shape[0])
-    return vmap(fourier_convolution)(data, kernel)
+    assert len(axes) == len(sigma), (
+        "Must specify same number of axes to convolve as elements in sigma"
+    )
+    low_pass_kernel = gaussian_kernel(sigma, shape=kernel_shape)
+    # NOTE(gj): 1e-3 effectively gives delta kernel
+    delta_kernel = gaussian_kernel((1e-3,) * len(sigma), shape=low_pass_kernel.shape)
+    kernel = delta_kernel - low_pass_kernel
+    return fourier_convolution(data, kernel, axes=axes)
 
 
 def gaussian_filter(
     data: Array,
     sigma: Sequence[float],
+    axes: Tuple[int, int] = (1, 2),
     kernel_shape: Optional[Sequence[int]] = None,
 ) -> Array:
     """
@@ -52,5 +54,8 @@ def gaussian_filter(
     Returns:
         The Gaussian filtered array.
     """
+    assert len(axes) == len(sigma), (
+        "Must specify same number of axes to convolve as elements in sigma"
+    )
     kernel = gaussian_kernel(sigma, shape=kernel_shape)
-    return fourier_convolution(data, kernel)
+    return fourier_convolution(data, kernel, axes=axes)

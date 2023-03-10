@@ -95,32 +95,38 @@ class Microscope(nn.Module):
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
         Args:
-            sample: The sample to be imaged of shape `[B H W 1]`.
+            sample: The sample to be imaged of shape `(B H W 1)`.
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
         psf = self.psf(*args, **kwargs)
+        spatial_dims = psf.spatial_dims
+        rank = psf.rank
+        # WARNING(dd): Assumes that field has same spacing at all wavelengths
+        # when calculating intensity!
         spacing = psf.dx[..., 0].squeeze()
         padding = tuple(int(self.padding_ratio * s) for s in self.system_psf.shape)
         psf = center_crop(psf.intensity, (None, padding[0] // 2, padding[1] // 2, None))
         psf = psf * sigmoid_taper(self.system_psf.shape, self.taper_width)
         if self.psf_resampling_method is not None:
-            psf = vmap(self.resample, in_axes=(0, None))(psf, spacing)
-        return self.image(sample, psf)
+            for i in range(rank - 3):
+                resample = vmap(self.resample, in_axes=(0, None))
+            psf = resample(psf, spacing)
+        return self.image(sample, psf, axes=spatial_dims)
 
     def psf(self, *args: Any, **kwargs: Any) -> Field:
         """Computes PSF complex field, taking any necessary arguments."""
         return self.system_psf(self, *args, **kwargs)
 
-    def image(self, sample: Array, psf: Array) -> Array:
+    def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
         """
         Computes image or batch of images using the specified PSF and sample.
 
         Args:
-            sample: The sample volume to image with, has shape `[B H W 1]`.
-            psf: The PSF intensity volume to image with, has shape `[B H W 1]`.
+            sample: The sample volume to image with, has shape `(B H W 1)`.
+            psf: The PSF intensity volume to image with, has shape `(B H W 1)`.
         """
-        image = vmap(fourier_convolution, in_axes=(0, 0))(psf, sample)
+        image = fourier_convolution(psf, sample, axes=axes)
         if self.reduce_axis is not None:
             image = jnp.sum(image, axis=self.reduce_axis, keepdims=True)
         if self.reduce_parallel_axis_name is not None:
@@ -143,13 +149,13 @@ class Optical4FSystemPSF(nn.Module):
 
     Attributes:
         shape: A tuple of form (H W) defining the number of pixels used to
-            simulate the PSF.
+            simulate the PSF at each plane.
         spacing: The desired output spacing of the PSF once it is simulated,
             i.e. the spacing at the camera plane when the PSF is measured. Note
             that this **does not** need to match the actual spacing of the
             sensor, and often should be a finer spacing than the camera.
-        phase: The phase mask for the 4f simulation. Must be an array of shape
-            (1 H W 1) where (H W) match the shape of the simulation, or an
+        phase: The phase mask for the 4f simulation. Must be an array of
+            shape (H W) where (H W) match the shape of the simulation, or an
             initialization function (e.g. using trainable).
     """
 

@@ -1,11 +1,11 @@
 import jax.numpy as jnp
 from jax.nn.initializers import lecun_normal
 from jax.lax import complex
-from jax.random import PRNGKey
 import numpy as np
 
 from einops import rearrange
-from typing import Any, Sequence, Callable, Optional
+from chex import Array, PRNGKey
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 
 def trainable(x: Any) -> Callable:
@@ -106,7 +106,7 @@ def next_order(val: int) -> int:
 
 def center_pad(
     u: jnp.ndarray, pad_width: Sequence[int], cval: float = 0
-) -> jnp.ndarray:
+) -> Array:
     """
     Symmetrically pads ``u`` with lengths specified per axis in ``n_padding``,
     which should be iterable and have the same size as ``u.ndims``.
@@ -115,7 +115,7 @@ def center_pad(
     return jnp.pad(u, pad, constant_values=cval)
 
 
-def center_crop(u: jnp.ndarray, crop_length: Sequence[int]) -> jnp.ndarray:
+def center_crop(u: jnp.ndarray, crop_length: Sequence[int]) -> Array:
     """
     Symmetrically crops ``u`` with lengths specified per axis in
     ``crop_length``, which should be iterable with same size as ``u.ndims``.
@@ -127,7 +127,7 @@ def center_crop(u: jnp.ndarray, crop_length: Sequence[int]) -> jnp.ndarray:
 
 def gaussian_kernel(
     sigma: Sequence[float], truncate: float = 4.0, shape: Optional[Sequence[int]] = None
-) -> jnp.ndarray:
+) -> Array:
     """
     Creates ND Gaussian kernel of given ``sigma``.
 
@@ -166,25 +166,25 @@ def gaussian_kernel(
     return phi / phi.sum()
 
 
-def create_grid(shape, spacing):
+def create_grid(shape: Tuple[int, int], spacing: float) -> Array:
     """
     Args:
         shape: The shape of the grid, described as a tuple of
-            integers of the form (1 H W 1).
+            integers of the form (H W).
         spacing: The spacing of each pixel in the grid.
     """
-    half_size = jnp.array(shape[1:3]) / 2
+    half_size = jnp.array(shape) / 2
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
     grid = jnp.meshgrid(
-        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[1]) + 0.5,
-        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[2]) + 0.5,
+        jnp.linspace(-half_size[0], half_size[0] - 1, num=shape[0]) + 0.5,
+        jnp.linspace(-half_size[1], half_size[1] - 1, num=shape[1]) + 0.5,
         indexing="ij",
     )
-    grid = spacing * rearrange(grid, "d h w -> d 1 h w 1")
+    grid = spacing * jnp.array(grid)
     return grid
 
 
-def grid_spatial_to_pupil(grid, f, NA, n):
+def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
     R = f * NA / n  # pupil radius
     return grid / R

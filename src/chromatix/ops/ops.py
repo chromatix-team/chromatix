@@ -10,7 +10,7 @@ import jax.numpy as jnp
 
 def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> Array:
     """
-    Wrapper for downsampling input of shape `[B H W C]` along `[H W]`.
+    Wrapper for downsampling input of shape `(B H W C)` along `(H W)`.
 
     By default, downsampling is performed as a 2D average pooling. Also
     accepts various reduction functions that will be applied with the given
@@ -18,15 +18,15 @@ def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> A
     default `'mean'`.
 
     Args:
-        data: The data to be downsampled of shape `[B H W C]`.
+        data: The data to be downsampled of shape `(B H W C)`.
         window_size: A tuple of 2 elements defining the window shape (height
-            and width) for downsampling along `[H W]`.
+            and width) for downsampling along `(H W)`.
         reduction: A string defining the reduction function applied with the
             given ``window_size``.
     """
     return reduce(
         data,
-        "d (h h_size) (w w_size) c -> d h w c",
+        "... (h h_size) (w w_size) c -> ... h w c",
         reduction,
         h_size=window_size[0],
         w_size=window_size[1],
@@ -60,10 +60,13 @@ def init_plane_resample(
 
 
 def fourier_convolution(
-    image: Array, kernel: Array, *, fast_fft_shape: bool = True
+    image: Array, kernel: Array, *, axes=(0, 1), fast_fft_shape: bool = True
 ) -> Array:
     """
-    Fourier convolution in 2D over first two axes of an ``Array``.
+    Fourier convolution in 2D over the specified axes of an ``Array``.
+
+    The default axes to perform 2D convolution over are (0, 1), or the first
+    two axes of the input.
 
     This function computes the convolution ``kernel * image`` by employing the
     Fourier convolution theorem. The inputs are padded appropriately to avoid
@@ -81,34 +84,31 @@ def fourier_convolution(
         fast_fft_shape: Determines whether inputs should be further padded for
             increased FFT performance. Defaults to ``True``.
     """
-
+    assert axes[1] == (axes[0] + 1), (
+        "Axes to convolve over must be contiguous"
+    )
     # Get padded shape to prevent circular convolution
-    padded_shape = [k1 + k2 - 1 for k1, k2 in zip(image.shape[:2], kernel.shape[:2])]
+    padded_shape = [k1 + k2 - 1 for k1, k2 in zip(image.shape[axes[0]:axes[1] + 1], kernel.shape[axes[0]:axes[1] + 1])]
     if fast_fft_shape:
         fast_shape = [next_order(k) for k in padded_shape]
     else:
         fast_shape = padded_shape
-
-    # If real we can do with the real fourier transform
+    # Save memory with rfft if inputs are not complex
     is_complex = (image.dtype.kind == "c") or (kernel.dtype.kind == "c")
     if is_complex:
-        fft = partial(jnp.fft.fft2, s=fast_shape, axes=[0, 1])
-        ifft = partial(jnp.fft.ifft2, s=fast_shape, axes=[0, 1])
+        fft = partial(jnp.fft.fft2, s=fast_shape, axes=axes)
+        ifft = partial(jnp.fft.ifft2, s=fast_shape, axes=axes)
     else:
-        fft = partial(jnp.fft.rfft2, s=fast_shape, axes=[0, 1])
-        ifft = partial(jnp.fft.irfft2, s=fast_shape, axes=[0, 1])
-
-    # Transform signals and gettin back to unpadded shape
+        fft = partial(jnp.fft.rfft2, s=fast_shape, axes=axes)
+        ifft = partial(jnp.fft.irfft2, s=fast_shape, axes=axes)
     conv = ifft(fft(image) * fft(kernel))
-    conv = conv[tuple([slice(sz) for sz in [*padded_shape, *image.shape[2:]]])]
-
     # Returning same mode
     start_idx = [
-        (k1 - k2) // 2 if idx < 2 else 0
+        (k1 - k2) // 2 if idx in axes else 0
         for idx, (k1, k2) in enumerate(zip(conv.shape, image.shape))
     ]
     stop_idx = [
-        k1 + k2 if idx < 2 else k2
+        k1 + k2 if idx in axes else k2
         for idx, (k1, k2) in enumerate(zip(start_idx, image.shape))
     ]
     conv_image = lax.slice(conv, start_idx, stop_idx)
