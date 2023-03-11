@@ -105,7 +105,12 @@ def fourier_convolution(
         fft = partial(jnp.fft.rfft2, s=fast_shape, axes=axes)
         ifft = partial(jnp.fft.irfft2, s=fast_shape, axes=axes)
     conv = ifft(fft(image) * fft(kernel))
-    # Returning same mode
+    # Remove padding
+    full_padded_shape = list(image.shape)
+    for i, a in enumerate(axes):
+        full_padded_shape[a] = padded_shape[i]
+    conv = conv[tuple([slice(sz) for sz in full_padded_shape])]
+    # Remove extra padding if any
     start_idx = [
         (k1 - k2) // 2 if idx in axes else 0
         for idx, (k1, k2) in enumerate(zip(conv.shape, image.shape))
