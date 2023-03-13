@@ -71,7 +71,6 @@ class Field(struct.PyTreeNode):
         spectral_density: Union[float, Array],
         u: Optional[Array] = None,
         shape: Optional[Tuple[int, int]] = None,
-        spatial_dims: Optional[Tuple[int, int]] = None,
     ) -> Field:
         """
         Create a ``Field`` object in a convenient way.
@@ -107,14 +106,7 @@ class Field(struct.PyTreeNode):
             field_u = u
         rank = len(field_u.shape)
         assert rank >= 4, "Field must be Array of rank at least 4: (B H W C)."
-        if rank > 4:
-            assert (
-                spatial_dims is not None
-            ), "Fields with rank > 4 must specify spatial dimensions."
-        if spatial_dims is None:
-            field_spatial_dims = (1, 2)
-        else:
-            field_spatial_dims = spatial_dims
+        field_spatial_dims = (1 + rank - 4, 2 + rank - 4)
         shape_spec = "c -> " + ("1 " * (rank - 1)) + "c"
         field_dx: Array = rearrange(dx, shape_spec)
         field_spectrum: Array = rearrange(spectrum, shape_spec)
