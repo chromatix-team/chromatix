@@ -1,4 +1,8 @@
 import jax.numpy as jnp
+from flax import linen as nn
+from chex import Array, PRNGKey, assert_rank
+from jax.scipy.ndimage import map_coordinates
+from typing import Callable, Optional, Tuple, Union
 
 from ..field import Field
 from ..functional.phase_masks import (
@@ -8,11 +12,7 @@ from ..functional.phase_masks import (
     seidel_aberrations,
     zernike_aberrations,
 )
-from typing import Callable, Optional, Tuple, Union
-from einops import rearrange
-from flax import linen as nn
-from chex import Array, PRNGKey, assert_rank
-from jax.scipy.ndimage import map_coordinates
+from ..utils import _broadcast_2d_to_spatial
 
 __all__ = [
     "PhaseMask",
@@ -77,7 +77,7 @@ class PhaseMask(nn.Module):
             else self.phase
         )
         assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
-        phase = rearrange(phase, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
+        phase = _broadcast_2d_to_spatial(phase, field.rank)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
@@ -166,7 +166,7 @@ class SpatialLightModulator(nn.Module):
             indexing="ij",
         )
         phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
-        phase = rearrange(phase, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
+        phase = _broadcast_2d_to_spatial(phase, field.rank)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
@@ -223,7 +223,7 @@ class SeidelAberrations(nn.Module):
             self.u,
             self.v,
         )
-        phase = rearrange(phase, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
+        phase = _broadcast_2d_to_spatial(phase, field.rank)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )
@@ -277,7 +277,7 @@ class ZernikeAberrations(nn.Module):
             self.ansi_indices,
             coefficients,
         )
-        phase = rearrange(phase, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
+        phase = _broadcast_2d_to_spatial(phase, field.rank)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0].squeeze()
         )

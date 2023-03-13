@@ -7,6 +7,8 @@ from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
 
+from .utils import _broadcast_1d_to_channels
+
 
 class Field(struct.PyTreeNode):
     """
@@ -51,7 +53,7 @@ class Field(struct.PyTreeNode):
 
     Attributes:
         u: The scalar field of shape `(B H W C)`.
-        dx: The spacing of the samples in ``u`` discretizing a continuous field.
+        dx: The spacing of samples in ``u`` discretizing a continuous field.
         spectrum: The wavelengths sampled by the field, in any units specified.
         spectral_density: The weights of the wavelengths in the spectrum. Must
             sum to 1.0.
@@ -107,10 +109,9 @@ class Field(struct.PyTreeNode):
         rank = len(field_u.shape)
         assert rank >= 4, "Field must be Array of rank at least 4: (B H W C)."
         field_spatial_dims = (1 + rank - 4, 2 + rank - 4)
-        shape_spec = "c -> " + ("1 " * (rank - 1)) + "c"
-        field_dx: Array = rearrange(dx, shape_spec)
-        field_spectrum: Array = rearrange(spectrum, shape_spec)
-        field_spectral_density: Array = rearrange(spectral_density, shape_spec)
+        field_dx = _broadcast_1d_to_channels(dx, rank)
+        field_spectrum = _broadcast_1d_to_channels(spectrum, rank)
+        field_spectral_density = _broadcast_1d_to_channels(spectral_density, rank)
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )
@@ -124,7 +125,6 @@ class Field(struct.PyTreeNode):
         )
         return field
 
-    # Grid properties
     @property
     def grid(self) -> Array:
         """

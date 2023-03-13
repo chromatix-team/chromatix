@@ -1,9 +1,9 @@
 import jax.numpy as jnp
-from einops import rearrange
 from ..field import Field
 from typing import Optional, Callable, Tuple
 from chex import Array, assert_rank
 from .pupils import circular_pupil
+from ..utils import _broadcast_1d_to_innermost_batch
 
 __all__ = [
     "empty_field",
@@ -43,7 +43,7 @@ def point_source(
         pupil: If provided, will be called on the field to apply a pupil.
     """
     z = jnp.atleast_1d(z)
-    z = rearrange(z, "z ->" + " 1" * (field.rank - 4) + " z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, field.rank)
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * z / n)
@@ -78,7 +78,7 @@ def objective_point_source(
             defaults to 1.0.
     """
     z = jnp.atleast_1d(z)
-    z = rearrange(z, "z ->" + " 1" * (field.rank - 4) + " z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, field.rank)
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * f / n)

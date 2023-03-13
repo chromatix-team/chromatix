@@ -1,11 +1,11 @@
 from typing import Callable, Union, Tuple
-from einops import rearrange
 from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 
 from ..field import Field
 from ..functional.amplitude_masks import amplitude_change
 from ..ops.binarize import binarize
+from ..utils import _broadcast_2d_to_spatial
 
 __all__ = ["AmplitudeMask"]
 
@@ -42,5 +42,5 @@ class AmplitudeMask(nn.Module):
         )
         if self.is_binary:
             amplitude = binarize(amplitude)
-        amplitude = rearrange(amplitude, "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
+        amplitude = _broadcast_2d_to_spatial(amplitude, field.rank)
         return amplitude_change(field, amplitude)

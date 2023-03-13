@@ -1,9 +1,9 @@
 from typing import Optional, Union
-from einops import rearrange
 import jax.numpy as jnp
 from chex import Array, assert_rank
 
 from ..field import Field
+from ..utils import _broadcast_2d_to_spatial
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 
 
@@ -91,12 +91,8 @@ def multislice_thick_sample(
         )
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
     for i in range(absorption_stack.shape[0]):
-        # absorption = (absorption_stack[i])[jnp.newaxis, :, :, jnp.newaxis]
-        absorption = rearrange(
-            absorption_stack[i], "h w ->" + ("1 " * (field.rank - 3)) + "h w 1"
-        )
-        # dn = (dn_stack[i])[jnp.newaxis, :, :, jnp.newaxis]
-        dn = rearrange(dn_stack[i], "h w ->" + ("1 " * (field.rank - 3)) + "h w 1")
+        absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.rank)
+        dn = _broadcast_2d_to_spatial(dn_stack[i], field.rank)
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         field = kernel_propagate(
             field,

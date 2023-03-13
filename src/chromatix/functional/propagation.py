@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
-from ..utils import center_pad, center_crop
+from ..utils import center_pad, center_crop, _broadcast_1d_to_innermost_batch
 from ..ops.fft import fftshift, fft, ifft, ifftshift
 from typing import Literal, Optional, Tuple, Union
 from chex import Array
@@ -39,7 +39,7 @@ def transform_propagate(
         propagation FFT
     """
     z = jnp.atleast_1d(z)
-    z = rearrange(z, "z ->" + " 1" * (field.rank - 4) + " z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, field.rank)
     # Fourier normalization factor
     L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
     norm = (field.dx / L) ** 2
@@ -230,16 +230,9 @@ def compute_transfer_propagator(
     """
     rank = len(shape)
     z = jnp.atleast_1d(z)
-    # z = rearrange(z, "z -> z" + " 1" * (rank - 1))
-    z = rearrange(z, "z ->" + " 1" * (rank - 4) + " z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, rank)
     L = jnp.sqrt(jnp.complex64(spectrum * z / n))  # lengthscale L
     fx, fy = _frequency_grid(shape, dx, N_pad, spatial_dims)
-    # dx = jnp.atleast_1d(dx)
-    # f = []
-    # for d in range(dx.size):
-    #     f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
-    # f = jnp.stack(f, axis=-1)
-    # fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
     phase = -jnp.pi * L**2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     return jnp.exp(1j * phase)
 
@@ -276,16 +269,8 @@ def compute_exact_propagator(
     """
     rank = len(shape)
     z = jnp.atleast_1d(z)
-    z = rearrange(z, "z ->" + " 1" * (rank - 4) + " z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, rank)
     fx, fy = _frequency_grid(shape, dx, N_pad, spatial_dims)
-    # dx = jnp.atleast_1d(dx)
-    # f = []
-    # if isinstance(dx, float):
-    #     dx = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
-    # for d in range(dx.size):
-    #     f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
-    # f = jnp.stack(f, axis=-1)
-    # fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
     kernel = 1 - (spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / spectrum) * jnp.sqrt(kernel)
