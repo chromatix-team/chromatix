@@ -1,7 +1,11 @@
 from einops import rearrange
 from chex import Array
 
-__all__ = ["_broadcast_1d_to_channels", "_broadcast_2d_to_spatial"]
+__all__ = [
+    "_broadcast_1d_to_channels",
+    "_broadcast_1d_to_innermost_batch",
+    "_broadcast_2d_to_spatial",
+]
 
 
 def _broadcast_1d_to_channels(x: Array, rank: int) -> Array:
