@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
 from ..utils import center_pad, center_crop
-from ..ops.fft import fft, ifft
+from ..ops.fft import fft, ifft, optical_fft
 from typing import Literal, Optional, Tuple, Union
 from chromatix.utils.grids import l2_sq_norm
 from chex import Array
@@ -46,24 +46,20 @@ def transform_propagate(
 
     # Fourier normalization factor
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
-    norm = (field.dx / jnp.abs(L)) ** 2
 
     # Calculating input phase change
-    input_phase = jnp.pi * l2_sq_norm(field.grid) / L**2
+    input_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
 
     # Determining new field; optical_fft minus -1j factor
-    u = fft(field.u * jnp.exp(1j * input_phase), shift=True, loop_axis=loop_axis)
+    field = 1j * optical_fft(
+        field * jnp.exp(1j * input_phase), z, n, loop_axis=loop_axis
+    )
 
-    # Calculating new scaled output coordinates
-    du = jnp.abs(L) ** 2 * field.dk
     # Calculating output phase
-    output_grid = l2_sq_norm(field.grid) * (du / field.dx) ** 2
-    output_phase = jnp.pi * output_grid / jnp.abs(L) ** 2
+    output_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
+    field = field * jnp.exp(1j * output_phase)
 
-    # Final normalization and phase
-    u = norm * u * jnp.exp(1j * output_phase)
-
-    return crop(field.replace(u=u, dx=du), N_pad)
+    return crop(field, N_pad)
 
 
 def transfer_propagate(
