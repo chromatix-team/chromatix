@@ -7,7 +7,6 @@ from typing import Literal, Optional, Tuple, Union
 from chromatix.utils.grids import l2_sq_norm
 from chex import Array
 import numpy as np
-from chromatix.utils.shapes import _broadcast_1d_to_innermost_batch
 
 __all__ = [
     "transform_propagate",
