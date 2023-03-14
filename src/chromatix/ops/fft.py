@@ -1,16 +1,10 @@
-from chromatix import Field
 import jax.numpy as jnp
-from typing import Optional
-from chex import Array
+from chromatix import Field
 from functools import partial
+from chex import Array
 
 
-def optical_fft(
-    field: Field,
-    z: float,
-    n: float,
-    loop_axis: Optional[int] = None,
-) -> Field:
+def optical_fft(field: Field, z: float, n: float) -> Field:
     """
     Computes the optical ``fft`` on an incoming ``Field`` propagated by ``z``.
 
@@ -33,48 +27,34 @@ def optical_fft(
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # Lengthscale L
     norm = jnp.abs(field.dx / L) ** 2  # normalization factor
 
-    u = -1j * norm * fft(field.u, shift=True, loop_axis=loop_axis)
+    u = -1j * norm * fft(field.u, shift=True)
     du = field.dk * jnp.abs(L) ** 2  # new spacing
     return field.replace(u=u, dx=du)
 
 
-def fft(x: Array, loop_axis=None, shift: bool = False) -> Array:
+def fft(x: Array, shift: bool = False) -> Array:
     """Computes ``fft2`` for input of shape `[B H W C]`.
     If shift is true, first applies ifftshift, than an fftshift to
     make sure everything stays centered."""
-
-    if loop_axis is None:
-        _fft = partial(jnp.fft.fft2, axes=[1, 2])
-    else:
-        _fft = partial(looped_fft, loop_axis=loop_axis)
+    fft = partial(jnp.fft.fft2, axes=[1, 2])
+    fftshift = partial(jnp.fft.fftshift, axes=[1, 2])
+    ifftshift = partial(jnp.fft.ifftshift, axes=[1, 2])
 
     if shift:
-        return jnp.fft.fftshift(_fft(jnp.fft.ifftshift(x, axes=[1, 2])), axes=[1, 2])
+        return fftshift(fft(ifftshift(x)))
     else:
-        return _fft(x)
+        return fft(x)
 
 
-def ifft(x: Array, loop_axis=None) -> Array:
-    """Computes ``ifft2`` for input of shape `[B H W C]`."""
-    if loop_axis is None:
-        return jnp.fft.ifft2(x, axes=[1, 2])
+def ifft(x: Array, shift: bool = False) -> Array:
+    """Computes ``ifft2`` for input of shape `[B H W C]`.
+    If shift is true, first applies ifftshift, than an fftshift to
+    make sure everything stays centered."""
+    ifft = partial(jnp.fft.ifft2, axes=[1, 2])
+    fftshift = partial(jnp.fft.fftshift, axes=[1, 2])
+    ifftshift = partial(jnp.fft.ifftshift, axes=[1, 2])
+
+    if shift:
+        return fftshift(ifft(ifftshift(x)))
     else:
-        return looped_ifft(x, loop_axis)
-
-
-def looped_fft(x: Array, loop_axis: int) -> Array:
-    # Given array of shape [n, x, y, m], loops over first or last axis
-    # and does fft2 on [x, y].
-    source = (loop_axis, 1, 2)
-    dest = (0, -2, -1)
-    x_fft = jnp.stack([jnp.fft.fft2(y) for y in jnp.moveaxis(x, source, dest)])
-    return jnp.moveaxis(x_fft, dest, source)
-
-
-def looped_ifft(x: Array, loop_axis: int) -> Array:
-    # Given array of shape [n, x, y, m], loops over first or last axis
-    # and does fft2 on [x, y].
-    source = (loop_axis, 1, 2)
-    dest = (0, -2, -1)
-    x_fft = jnp.stack([jnp.fft.ifft2(y) for y in jnp.moveaxis(x, source, dest)])
-    return jnp.moveaxis(x_fft, dest, source)
+        return ifft(x)

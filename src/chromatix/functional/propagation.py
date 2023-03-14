@@ -1,6 +1,5 @@
 import jax.numpy as jnp
 from ..field import Field
-from einops import rearrange
 from ..ops.fft import fft, ifft, optical_fft
 from typing import Literal, Optional, Tuple, Union
 from chromatix.utils.grids import l2_sq_norm
@@ -8,6 +7,7 @@ from chex import Array
 import numpy as np
 from chromatix.utils.shapes import _broadcast_1d_to_innermost_batch
 from chromatix.ops.field import pad, crop
+import jax
 
 __all__ = [
     "transform_propagate",
@@ -28,7 +28,6 @@ def transform_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    loop_axis: Optional[int] = None,
 ) -> Field:
     """
     Fresnel propagate ``field`` for a distance ``z`` using transform method.
@@ -50,7 +49,7 @@ def transform_propagate(
     input_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
 
     # Determining new field; optical_fft minus -1j factor
-    field = 1j * optical_fft(field * jnp.exp(1j * input_phase), z, n, loop_axis)
+    field = 1j * optical_fft(field * jnp.exp(1j * input_phase), z, n)
 
     # Calculating output phase
     output_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
@@ -66,7 +65,6 @@ def transfer_propagate(
     N_pad: int,
     cval: float = 0,
     kykx: Array = jnp.zeros((2,)),
-    loop_axis: Optional[int] = None,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -88,7 +86,7 @@ def transfer_propagate(
     z = _broadcast_1d_to_innermost_batch(z, 4)
     field = pad(field, N_pad, constant_values=cval)
     propagator = compute_transfer_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator, loop_axis)
+    field = kernel_propagate(field, propagator)
     if mode == "same":
         field = crop(field, N_pad)
     return field
@@ -101,7 +99,6 @@ def exact_propagate(
     N_pad: int,
     cval: float = 0,
     kykx: Array = jnp.zeros((2,)),
-    loop_axis: Optional[int] = None,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -125,18 +122,14 @@ def exact_propagate(
     z = _broadcast_1d_to_innermost_batch(z, 4)
     field = pad(field, N_pad, constant_values=cval)
     propagator = compute_exact_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator, loop_axis)
+    field = kernel_propagate(field, propagator)
     if mode == "same":
         field = crop(field, N_pad)
     return field
 
 
-def kernel_propagate(
-    field: Field,
-    propagator: Array,
-    loop_axis: Optional[int] = None,
-) -> Field:
-    u = ifft(fft(field.u, loop_axis) * propagator, loop_axis)
+def kernel_propagate(field: Field, propagator: Array) -> Field:
+    u = ifft(fft(field.u) * propagator)
     return field.replace(u=u)
 
 
@@ -165,6 +158,8 @@ def compute_transfer_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
+    # TODO: fix kykx shape
+    kykx = kykx[:, None, None, None, None]
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
     phase = -jnp.pi * jnp.abs(L) ** 2 * l2_sq_norm(field.k_grid - kykx)
     return jnp.exp(1j * phase)
@@ -196,6 +191,8 @@ def compute_exact_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
+    # TODO: fix kykx shape
+    kykx = kykx[:, None, None, None, None]
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)

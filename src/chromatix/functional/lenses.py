@@ -39,7 +39,6 @@ def ff_lens(
     n: float,
     NA: Optional[float] = None,
     inverse: bool = False,
-    loop_axis: Optional[int] = None,
 ) -> Field:
     """
     Applies a thin lens placed a distance ``f`` after the incoming ``Field``.
@@ -61,7 +60,7 @@ def ff_lens(
     if inverse:
         # if inverse, propagate over negative distance
         f = -f
-    return optical_fft(field, f, n, loop_axis)
+    return optical_fft(field, f, n)
 
 
 def df_lens(
@@ -71,7 +70,6 @@ def df_lens(
     n: float,
     NA: Optional[float] = None,
     inverse: bool = False,
-    loop_axis: Optional[int] = None,
 ) -> Field:
     """
     Applies a thin lens placed a distance ``d`` after the incoming ``Field``.
@@ -95,7 +93,7 @@ def df_lens(
         # if inverse, propagate over negative distance
         f = -d
         d = -f
-    field = optical_fft(field, f, n, loop_axis)
+    field = optical_fft(field, f, n)
 
     # Phase factor due to distance d from lens
     L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
