@@ -6,6 +6,7 @@ import jax.numpy as jnp
 __all__ = [
     "_broadcast_1d_to_channels",
     "_broadcast_1d_to_innermost_batch",
+    "_broadcast_1d_to_grid",
     "_broadcast_2d_to_spatial",
 ]
 
@@ -19,6 +20,13 @@ def _broadcast_1d_to_channels(x: Union[float, Array], rank: int) -> Array:
 def _broadcast_1d_to_innermost_batch(x: Union[float, Array], rank: int) -> Array:
     """Broadcast 1D array of size `B` to left of `(H W)` in `(B... H W C)`."""
     shape_spec = "z ->" + " 1" * (rank - 4) + " z 1 1 1"
+    return rearrange(jnp.atleast_1d(x), shape_spec)
+
+
+def _broadcast_1d_to_grid(x: Array, rank: int) -> Array:
+    """Broadcast 1D array of size `C` to `(C 1 1 1 1).
+    Useful for vectorial ops on grids."""
+    shape_spec = "z ->" + " 1" * (rank - 4) + " z 1 1 1 1"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 

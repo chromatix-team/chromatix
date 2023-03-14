@@ -5,7 +5,10 @@ from typing import Literal, Optional, Tuple, Union
 from chromatix.utils.grids import l2_sq_norm
 from chex import Array
 import numpy as np
-from chromatix.utils.shapes import _broadcast_1d_to_innermost_batch
+from chromatix.utils.shapes import (
+    _broadcast_1d_to_innermost_batch,
+    _broadcast_1d_to_grid,
+)
 from chromatix.ops.field import pad, crop
 import jax
 
@@ -83,7 +86,6 @@ def transfer_propagate(
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
-    z = _broadcast_1d_to_innermost_batch(z, 4)
     field = pad(field, N_pad, constant_values=cval)
     propagator = compute_transfer_propagator(field, z, n, kykx)
     field = kernel_propagate(field, propagator)
@@ -119,7 +121,7 @@ def exact_propagate(
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
-    z = _broadcast_1d_to_innermost_batch(z, 4)
+
     field = pad(field, N_pad, constant_values=cval)
     propagator = compute_exact_propagator(field, z, n, kykx)
     field = kernel_propagate(field, propagator)
@@ -158,11 +160,11 @@ def compute_transfer_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    # TODO: fix kykx shape
-    kykx = kykx[:, None, None, None, None]
+    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
     phase = -jnp.pi * jnp.abs(L) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    return jnp.exp(1j * phase)
+    return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=[1, 2])
 
 
 def compute_exact_propagator(
@@ -191,12 +193,13 @@ def compute_exact_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    # TODO: fix kykx shape
-    kykx = kykx[:, None, None, None, None]
+    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
+
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
-    return jnp.exp(1j * phase)
+    return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=[1, 2])
 
 
 def compute_padding_transform(height: int, spectrum: float, dx: float, z: float) -> int:
