@@ -7,6 +7,7 @@ from typing import Literal, Optional, Tuple, Union
 from chromatix.utils.grids import l2_sq_norm
 from chex import Array
 import numpy as np
+from chromatix.utils.shapes import _broadcast_1d_to_innermost_batch
 
 __all__ = [
     "transform_propagate",
@@ -39,8 +40,7 @@ def transform_propagate(
         N_pad: A keyword argument integer defining the pad length for the
         propagation FFT
     """
-    z = jnp.atleast_1d(z)
-    z = rearrange(z, "z -> z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     # Fourier normalization factor
     L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
     norm = (field.dx / L) ** 2
@@ -177,8 +177,7 @@ def compute_transfer_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    z = jnp.atleast_1d(z)
-    z = rearrange(z, "z -> z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, 4)
     L = jnp.sqrt(jnp.complex64(spectrum * z / n))  # lengthscale L
     # TODO(dd): This calculation could probably go into Field
     dx = jnp.atleast_1d(dx)
@@ -220,8 +219,7 @@ def compute_exact_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    z = jnp.atleast_1d(z)
-    z = rearrange(z, "z -> z 1 1 1")
+    z = _broadcast_1d_to_innermost_batch(z, 4)
     # TODO(dd): This calculation could probably go into Field
     dx = jnp.atleast_1d(dx)
     f = []

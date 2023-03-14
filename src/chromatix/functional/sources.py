@@ -6,6 +6,10 @@ from chex import Array, assert_rank
 from .pupils import circular_pupil
 from chromatix.utils.grids import l2_sq_norm
 import jax
+from chromatix.utils.shapes import (
+    _broadcast_1d_to_innermost_batch,
+    _broadcast_2d_to_spatial,
+)
 
 __all__ = [
     "empty_field",
@@ -44,9 +48,8 @@ def point_source(
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    z = rearrange(jnp.atleast_1d(z), "d -> d 1 1 1")
-
     # Calculating phase and pupil
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     L = jnp.sqrt(field.spectrum * z / n)
     phase = jnp.pi * l2_sq_norm(field.grid) / L**2
     u = -1j / L**2 * jnp.exp(1j * phase)
@@ -78,8 +81,7 @@ def objective_point_source(
         power: The total power that the result should be normalized to,
             defaults to 1.0.
     """
-    z = rearrange(jnp.atleast_1d(z), "d -> d 1 1 1")
-
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * f / n)
     phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid) / L**2
@@ -148,10 +150,8 @@ def generic_field(
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    assert_rank(
-        amplitude, 4, custom_message="Amplitude must be array of shape [B, H, W, C]"
-    )
-    assert_rank(phase, 4, custom_message="Phase must be array of shape [B, H, W, C]")
+    amplitude = _broadcast_2d_to_spatial(amplitude, field.ndim)
+    phase = _broadcast_2d_to_spatial(phase, field.ndim)
     field = field.replace(u=amplitude * jnp.exp(1j * phase))
 
     if pupil is not None:

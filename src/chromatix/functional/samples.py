@@ -4,6 +4,7 @@ from chex import Array, assert_rank
 
 from ..field import Field
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
+from chromatix.utils.shapes import _broadcast_2d_to_spatial
 
 
 def thin_sample(
@@ -26,12 +27,8 @@ def thin_sample(
         dn: sample refractive index change [B H W C] array
         thickness: thickness at each sample location [B H W C] array
     """
-    assert_rank(
-        absorption, 4, custom_message="Absorption must be array of shape [1 H W 1]"
-    )
-    assert_rank(
-        dn, 4, custom_message="Refractive index must be array of shape [1 H W 1]"
-    )
+    absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
+    dn = _broadcast_2d_to_spatial(dn, field.ndim)
     sample = jnp.exp(
         1j * 2 * jnp.pi * (dn + 1j * absorption) * thickness / field.spectrum
     )

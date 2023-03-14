@@ -6,6 +6,10 @@ from flax import struct
 from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
+from chromatix.utils.shapes import (
+    _broadcast_1d_to_channels,
+    _broadcast_1d_to_innermost_batch,
+)
 
 
 class Field(struct.PyTreeNode):
@@ -94,13 +98,10 @@ class Field(struct.PyTreeNode):
                 must be provided.
         """
         # Getting everything into right shape
-        field_dx: jnp.ndarray = rearrange(jnp.atleast_1d(dx), "c -> 1 1 1 c")
-        field_spectrum: jnp.ndarray = rearrange(
-            jnp.atleast_1d(spectrum), "c -> 1 1 1 c"
-        )
-        field_spectral_density: jnp.ndarray = rearrange(
-            jnp.atleast_1d(spectral_density), "c -> 1 1 1 c"
-        )
+        field_dx = _broadcast_1d_to_innermost_batch(dx, 4)
+        field_spectrum = _broadcast_1d_to_channels(spectrum, 4)
+        field_spectral_density = _broadcast_1d_to_channels(spectral_density, 4)
+
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )  # Must sum to 1
@@ -178,6 +179,10 @@ class Field(struct.PyTreeNode):
     @property
     def spatial_shape(self) -> Tuple[int, int]:
         return self.u.shape[1:3]
+
+    @property
+    def ndim(self) -> int:
+        return self.u.ndim
 
     # Math operations
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:

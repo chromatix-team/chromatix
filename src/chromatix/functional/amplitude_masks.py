@@ -1,6 +1,6 @@
 import jax.numpy as jnp
-from chex import Array, assert_rank
-
+from chex import Array
+from chromatix.utils.shapes import _broadcast_2d_to_spatial
 from ..field import Field
 
 __all__ = ["amplitude_change"]
@@ -17,5 +17,5 @@ def amplitude_change(field: Field, amplitude: Array) -> Field:
         field: The complex field to be perturbed.
         amplitude: The amplitude to apply.
     """
-    assert_rank(amplitude, 4, custom_message="Phase must be array of shape [1 H W 1]")
+    amplitude = _broadcast_2d_to_spatial(amplitude, field.ndim)
     return field * amplitude.astype(jnp.complex64)

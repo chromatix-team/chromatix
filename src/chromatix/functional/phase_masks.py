@@ -7,6 +7,7 @@ from typing import Sequence, Tuple
 from chromatix.utils import create_grid, grid_spatial_to_pupil
 from scipy.special import comb
 import math
+from chromatix.utils.shapes import _broadcast_2d_to_spatial, _broadcast_1d_to_channels
 
 __all__ = [
     "phase_change",
@@ -30,7 +31,7 @@ def phase_change(field: Field, phase: Array) -> Field:
         field: The complex field to be perturbed.
         phase: The phase to apply.
     """
-    assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+    phase = _broadcast_2d_to_spatial(phase, field.ndim)
     return field * jnp.exp(1j * phase)
 
 
