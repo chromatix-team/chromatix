@@ -87,7 +87,14 @@ def multislice_thick_sample(
     ), "Absorption stack and phase delay stack should be of the same shape!"
     if propagator is None:
         propagator = compute_exact_propagator(
-            field.u.shape, field.dx, field.spectrum, thickness_per_slice, n, N_pad, kykx, field.spatial_dims
+            field.u.shape,
+            field.dx,
+            field.spectrum,
+            thickness_per_slice,
+            n,
+            N_pad,
+            kykx,
+            field.spatial_dims,
         )
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
     for i in range(absorption_stack.shape[0]):
