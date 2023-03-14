@@ -101,7 +101,7 @@ class Microscope(nn.Module):
         """
         psf = self.psf(*args, **kwargs)
         spatial_dims = psf.spatial_dims
-        rank = psf.rank
+        ndim = psf.ndim
         # WARNING(dd): Assumes that field has same spacing at all wavelengths
         # when calculating intensity!
         spacing = psf.dx[..., 0].squeeze()
@@ -109,7 +109,7 @@ class Microscope(nn.Module):
         psf = center_crop(psf.intensity, (None, padding[0] // 2, padding[1] // 2, None))
         psf = psf * sigmoid_taper(self.system_psf.shape, self.taper_width)
         if self.psf_resampling_method is not None:
-            for i in range(rank - 3):
+            for i in range(ndim - 3):
                 resample = vmap(self.resample, in_axes=(0, None))
             psf = resample(psf, spacing)
         return self.image(sample, psf, axes=spatial_dims)

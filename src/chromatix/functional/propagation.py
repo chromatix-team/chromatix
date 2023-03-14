@@ -39,7 +39,7 @@ def transform_propagate(
         N_pad: A keyword argument integer defining the pad length for the
         propagation FFT
     """
-    z = _broadcast_1d_to_innermost_batch(z, field.rank)
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     # Fourier normalization factor
     L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
     norm = (field.dx / L) ** 2
@@ -185,7 +185,7 @@ def _frequency_grid(
     N_pad: int,
     spatial_dims: Tuple[int, int],
 ) -> Tuple[Array, Array]:
-    rank = len(shape)
+    ndim = len(shape)
     dx = jnp.atleast_1d(dx)
     # TODO(dd): This calculation could probably go into Field
     f = []
@@ -194,8 +194,8 @@ def _frequency_grid(
             jnp.fft.fftfreq(shape[spatial_dims[0]] + N_pad, d=dx[..., d].squeeze())
         )
     f = jnp.stack(f, axis=-1)
-    fx = rearrange(f, "h c -> " + "1 " * (rank - 3) + "h 1 c")
-    fy = rearrange(f, "w c -> " + "1 " * (rank - 3) + "1 w c")
+    fx = rearrange(f, "h c -> " + "1 " * (ndim - 3) + "h 1 c")
+    fy = rearrange(f, "w c -> " + "1 " * (ndim - 3) + "1 w c")
     return fx, fy
 
 
@@ -228,8 +228,8 @@ def compute_transfer_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    rank = len(shape)
-    z = _broadcast_1d_to_innermost_batch(z, rank)
+    ndim = len(shape)
+    z = _broadcast_1d_to_innermost_batch(z, ndim)
     L = jnp.sqrt(jnp.complex64(spectrum * z / n))  # lengthscale L
     fx, fy = _frequency_grid(shape, dx, N_pad, spatial_dims)
     phase = -jnp.pi * L**2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
@@ -266,8 +266,8 @@ def compute_exact_propagator(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    rank = len(shape)
-    z = _broadcast_1d_to_innermost_batch(z, rank)
+    ndim = len(shape)
+    z = _broadcast_1d_to_innermost_batch(z, ndim)
     fx, fy = _frequency_grid(shape, dx, N_pad, spatial_dims)
     kernel = 1 - (spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves

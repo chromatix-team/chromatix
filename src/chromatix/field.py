@@ -108,12 +108,14 @@ class Field(struct.PyTreeNode):
             field_u: Array = jnp.empty((1, *shape, spectrum.size), dtype=jnp.complex64)
         else:
             field_u = u
-        rank = len(field_u.shape)
-        assert rank >= 4, "Field must be Array of rank at least 4: (B... H W C)."
-        field_spatial_dims = (1 + rank - 4, 2 + rank - 4)
-        field_dx = _broadcast_1d_to_channels(dx, rank)
-        field_spectrum = _broadcast_1d_to_channels(spectrum, rank)
-        field_spectral_density = _broadcast_1d_to_channels(spectral_density, rank)
+        ndim = len(field_u.shape)
+        assert (
+            ndim >= 4
+        ), "Field must be Array with at least 4 dimensions: (B... H W C)."
+        field_spatial_dims = (1 + ndim - 4, 2 + ndim - 4)
+        field_dx = _broadcast_1d_to_channels(dx, ndim)
+        field_spectrum = _broadcast_1d_to_channels(spectrum, ndim)
+        field_spectral_density = _broadcast_1d_to_channels(spectral_density, ndim)
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )
@@ -143,7 +145,7 @@ class Field(struct.PyTreeNode):
             jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
             indexing="ij",
         )
-        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.rank - 3)) + "h w 1")
+        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 3)) + "h w 1")
         return self.dx * grid
 
     @property
@@ -181,8 +183,8 @@ class Field(struct.PyTreeNode):
         return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
 
     @property
-    def rank(self) -> int:
-        return len(self.u.shape)
+    def ndim(self) -> int:
+        return self.u.ndim
 
     @property
     def num_batch_dims(self) -> int:

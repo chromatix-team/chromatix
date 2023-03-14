@@ -42,5 +42,5 @@ class AmplitudeMask(nn.Module):
         )
         if self.is_binary:
             amplitude = binarize(amplitude)
-        amplitude = _broadcast_2d_to_spatial(amplitude, field.rank)
+        amplitude = _broadcast_2d_to_spatial(amplitude, field.ndim)
         return amplitude_change(field, amplitude)

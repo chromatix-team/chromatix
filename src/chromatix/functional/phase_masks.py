@@ -31,8 +31,8 @@ def phase_change(field: Field, phase: Array) -> Field:
     """
     assert_rank(
         phase,
-        field.rank,
-        custom_message="Phase must have same rank as incoming ``Field``.",
+        field.ndim,
+        custom_message="Phase must have same number of dimensions as incoming ``Field``.",
     )
     return field * jnp.exp(1j * phase)
 
@@ -364,8 +364,8 @@ def spectrally_modulate_phase(
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
     assert_rank(
         spectrum,
-        len(phase.shape),
-        custom_message="Spectrum must have same rank as phase",
+        phase.ndim,
+        custom_message="Spectrum must have same number of dimensions as phase",
     )
 
     spectral_modulation = central_wavelength / spectrum

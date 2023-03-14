@@ -43,7 +43,7 @@ def point_source(
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    z = _broadcast_1d_to_innermost_batch(z, field.rank)
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
 
     L = jnp.sqrt(field.spectrum * z / n)
     phase = jnp.pi * l2_sq_norm(field.grid) / L**2
@@ -76,7 +76,7 @@ def objective_point_source(
         power: The total power that the result should be normalized to,
             defaults to 1.0.
     """
-    z = _broadcast_1d_to_innermost_batch(z, field.rank)
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * f / n)
@@ -148,11 +148,13 @@ def generic_field(
     """
     assert_rank(
         amplitude,
-        field.rank,
-        custom_message="Amplitude must have same rank as ``Field``.",
+        field.ndim,
+        custom_message="Amplitude must have same number of dimensions as ``Field``.",
     )
     assert_rank(
-        phase, field.rank, custom_message="Phase must have same rank as ``Field``."
+        phase,
+        field.ndim,
+        custom_message="Phase must have same number of dimensions as ``Field``.",
     )
 
     field = field.replace(u=amplitude * jnp.exp(1j * phase))

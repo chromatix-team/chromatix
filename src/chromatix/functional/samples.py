@@ -29,13 +29,13 @@ def thin_sample(
     """
     assert_rank(
         absorption,
-        field.rank,
-        custom_message="Absorption must have same rank as incoming ``Field``.",
+        field.ndim,
+        custom_message="Absorption must have same number of dimensions as incoming ``Field``.",
     )
     assert_rank(
         dn,
-        field.rank,
-        custom_message="Refractive index must have same rank as incoming ``Field`.`",
+        field.ndim,
+        custom_message="Refractive index must have same number of dimensions as incoming ``Field`.`",
     )
     sample = jnp.exp(
         1j * 2 * jnp.pi * (dn + 1j * absorption) * thickness / field.spectrum
@@ -98,8 +98,8 @@ def multislice_thick_sample(
         )
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
     for i in range(absorption_stack.shape[0]):
-        absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.rank)
-        dn = _broadcast_2d_to_spatial(dn_stack[i], field.rank)
+        absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.ndim)
+        dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         field = kernel_propagate(
             field,
