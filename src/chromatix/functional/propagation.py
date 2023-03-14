@@ -2,12 +2,13 @@ import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
 from ..utils import center_pad, center_crop
-from ..ops.fft import fftshift, fft, ifft, ifftshift
+from ..ops.fft import fft, ifft
 from typing import Literal, Optional, Tuple, Union
 from chromatix.utils.grids import l2_sq_norm
 from chex import Array
 import numpy as np
 from chromatix.utils.shapes import _broadcast_1d_to_innermost_batch
+from chromatix.ops.field import pad, crop
 
 __all__ = [
     "transform_propagate",
@@ -41,24 +42,25 @@ def transform_propagate(
         propagation FFT
     """
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
+    field = pad(field, N_pad, constant_values=cval)
+
     # Fourier normalization factor
     L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
     norm = (field.dx / L) ** 2
+
     # Calculating input phase change
     input_phase = jnp.pi * l2_sq_norm(field.grid) / L**2
     # Calculating new scaled output coordinates
-    du = L**2 / ((field.shape[1] + N_pad) * field.dx)
+    du = L**2 / (field.shape[1] * field.dx)
     # Calculating output phase
     output_grid = l2_sq_norm(field.grid) * (du / field.dx) ** 2
     output_phase = jnp.pi * output_grid / L**2
     # Determining new field
-    u = field.u * jnp.exp(1j * input_phase)
-    u = center_pad(u, [0, int(N_pad / 2), int(N_pad / 2), 0], cval=cval)
-    u = fftshift(fft(ifftshift(u), loop_axis))
-    u = center_crop(u, [0, int(N_pad / 2), int(N_pad / 2), 0])
+    u = fft(field.u * jnp.exp(1j * input_phase), shift=True, loop_axis=loop_axis)
     # Final normalization and phase
     u *= norm * jnp.exp(1j * output_phase)
-    return field.replace(u=u, dx=du)
+
+    return crop(field.replace(u=u, dx=du), N_pad)
 
 
 def transfer_propagate(

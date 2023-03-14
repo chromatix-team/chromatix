@@ -2,16 +2,7 @@ from chromatix import Field
 import jax.numpy as jnp
 from typing import Optional
 from chex import Array
-
-
-def fftshift(x: Array) -> Array:
-    """Computes appropriate ``fftshift`` for ``x`` of shape `[B H W C]`."""
-    return jnp.fft.fftshift(x, axes=[1, 2])
-
-
-def ifftshift(x: Array) -> Array:
-    """Computes appropriate ``ifftshift`` for ``x`` of shape `[B H W C]`."""
-    return jnp.fft.ifftshift(x, axes=[1, 2])
+from functools import partial
 
 
 def optical_fft(
@@ -45,16 +36,24 @@ def optical_fft(
     # finding new coordinates
     du = jnp.abs(L) ** 2 / (field.shape[1] * field.dx)
 
-    u = -1j * norm * fftshift(fft(ifftshift(field.u), loop_axis))
+    u = -1j * norm * fft(field.u, shift=True, loop_axis=loop_axis)
     return field.replace(u=u, dx=du)
 
 
-def fft(x: Array, loop_axis=None) -> Array:
-    """Computes ``fft2`` for input of shape `[B H W C]`."""
+def fft(x: Array, loop_axis=None, shift: bool = False) -> Array:
+    """Computes ``fft2`` for input of shape `[B H W C]`.
+    If shift is true, first applies ifftshift, than an fftshift to
+    make sure everything stays centered."""
+
     if loop_axis is None:
-        return jnp.fft.fft2(x, axes=[1, 2])
+        _fft = partial(jnp.fft.fft2, axes=[1, 2])
     else:
-        return looped_fft(x, loop_axis)
+        _fft = partial(looped_fft, loop_axis=loop_axis)
+
+    if shift:
+        return jnp.fft.fftshift(_fft(jnp.fft.ifftshift(x, axes=[1, 2])), axes=[1, 2])
+    else:
+        return _fft(x)
 
 
 def ifft(x: Array, loop_axis=None) -> Array:
