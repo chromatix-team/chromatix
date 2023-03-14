@@ -24,15 +24,17 @@ class Field(struct.PyTreeNode):
     including scalars, arrays, or other ``Field`` objects. These operations
     include: `+`, `-` (including negation), `*`, `/`, `+=`, `-=`, `*=`, `/=`.
 
-    The shape of a base ``Field`` object is `(B H W C)`, where B is batch,
-    H and W are height and width, and C is the channel dimension, which
-    we use for different wavelengths in the spectrum of a ``Field``. The
-    batch dimension can be used for any purpose, such as different samples,
-    depth, or time. If more dimensions are required, we encourage the use of
-    ``jax.vmap``, ``jax.pmap``, or a combination of the two. We intend for this
-    to be a compromise between not having too many dimensions when they are
-    not required, and also not having to litter a program with ``jax.vmap``
-    transformations for common simulations in 3D.
+    The shape of a ``Field`` object is `(B... H W C)`, where B... is an
+    arbitrary number of batch dimensions, H and W are height and width, and
+    C is the channel dimension, which we use for different wavelengths in the
+    spectrum of a ``Field``. The batch dimensions can be used for any purpose,
+    such as different samples, depth, or time. Any propagations using Chromatix
+    elements or functions that produce multiple depths will broadcast to the
+    innermost batch dimension. If more dimensions are required, we encourage
+    the use of ``jax.vmap``, ``jax.pmap``, or a combination of the two. We
+    intend for this to be a compromise between not having too many dimensions
+    when they are not required, and also not having to litter a program with
+    ``jax.vmap`` transformations for common simulations in 3D or 3D over time.
 
     Concretely, this means simulations that are only in 2D and with a single
     wavelength will always have only two distinct singleton dimensions. Any
@@ -52,14 +54,14 @@ class Field(struct.PyTreeNode):
     appropriately reshapes the attributes provided to the correct shapes.
 
     Attributes:
-        u: The scalar field of shape `(B H W C)`.
+        u: The scalar field of shape `(B... H W C)`.
         dx: The spacing of samples in ``u`` discretizing a continuous field.
         spectrum: The wavelengths sampled by the field, in any units specified.
         spectral_density: The weights of the wavelengths in the spectrum. Must
             sum to 1.0.
     """
 
-    u: Array  # [B H W C]
+    u: Array  # (B... H W C)
     dx: Array
     spectrum: Array
     spectral_density: Array
@@ -88,7 +90,7 @@ class Field(struct.PyTreeNode):
             spectrum: The wavelengths sampled by the field, in any units specified.
             spectral_density: The weights of the wavelengths in the spectrum.
                 Will be scaled to sum to 1.0.
-            u: The scalar field of shape `(B H W C)`. If not given,
+            u: The scalar field of shape `(B... H W C)`. If not given,
                 the ``Field`` is allocated with uninitialized values of the
                 given ``shape`` as `(1 H W C)`.
             shape: A tuple defining the shape of only the spatial
@@ -128,7 +130,7 @@ class Field(struct.PyTreeNode):
     @property
     def grid(self) -> Array:
         """
-        The grid for each spatial dimension as an array of shape `(2 1 H W 1)`.
+        The grid for each spatial dimension as an array of shape `(2 1... H W 1)`.
         The 2 entries along the first dimension represent the y and x grids,
         respectively. This grid assumes that the center of the ``Field`` is
         the origin and that the elements are sampling from the center, not
@@ -146,17 +148,17 @@ class Field(struct.PyTreeNode):
 
     @property
     def phase(self) -> Array:
-        """Phase of the complex scalar field, shape `(B H W C)`."""
+        """Phase of the complex scalar field, shape `(B... H W C)`."""
         return jnp.angle(self.u)
 
     @property
     def amplitude(self) -> Array:
-        """Amplitude of the complex scalar field, shape `(B H W C)`."""
+        """Amplitude of the complex scalar field, shape `(B... H W C)`."""
         return jnp.abs(self.u)
 
     @property
     def intensity(self) -> Array:
-        """Intensity of the complex scalar field, shape `(B H W 1)`."""
+        """Intensity of the complex scalar field, shape `(B... H W 1)`."""
         return jnp.sum(
             self.spectral_density * jnp.abs(self.u) ** 2,
             axis=-1,
@@ -165,7 +167,7 @@ class Field(struct.PyTreeNode):
 
     @property
     def power(self) -> Array:
-        """Power of the complex scalar field, shape `(B 1 1 1)`."""
+        """Power of the complex scalar field, shape `(B... 1 1 1)`."""
         return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
 
     @property

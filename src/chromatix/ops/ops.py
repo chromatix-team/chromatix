@@ -10,7 +10,7 @@ import jax.numpy as jnp
 
 def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> Array:
     """
-    Wrapper for downsampling input of shape `(B H W C)` along `(H W)`.
+    Wrapper for downsampling input of shape `(B... H W C)` along `(H W)`.
 
     By default, downsampling is performed as a 2D average pooling. Also
     accepts various reduction functions that will be applied with the given
@@ -18,7 +18,7 @@ def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> A
     default `'mean'`.
 
     Args:
-        data: The data to be downsampled of shape `(B H W C)`.
+        data: The data to be downsampled of shape `(B... H W C)`.
         window_size: A tuple of 2 elements defining the window shape (height
             and width) for downsampling along `(H W)`.
         reduction: A string defining the reduction function applied with the

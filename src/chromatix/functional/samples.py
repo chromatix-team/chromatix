@@ -23,9 +23,9 @@ def thin_sample(
 
     Args:
         field: The complex field to be perturbed.
-        absorption: The sample absorption per micrometre defined as (B H W C) array
-        dn: sample refractive index change (B H W C) array
-        thickness: thickness at each sample location (B H W C) array
+        absorption: The sample absorption per micrometre defined as (B... H W C) array
+        dn: sample refractive index change (B... H W C) array
+        thickness: thickness at each sample location (B... H W C) array
     """
     assert_rank(
         absorption,

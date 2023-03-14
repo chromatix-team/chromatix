@@ -51,19 +51,19 @@ def optical_fft(
 
 
 def fftshift(x: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
-    """Computes appropriate ``fftshift`` for ``x`` of shape `(B H W C)`."""
+    """Computes appropriate ``fftshift`` for ``x`` of shape `(B... H W C)`."""
     return jnp.fft.fftshift(x, axes=axes)
 
 
 def ifftshift(x: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
-    """Computes appropriate ``ifftshift`` for ``x`` of shape `(B H W C)`."""
+    """Computes appropriate ``ifftshift`` for ``x`` of shape `(B... H W C)`."""
     return jnp.fft.ifftshift(x, axes=axes)
 
 
 def fft(
     x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = None
 ) -> Array:
-    """Computes ``fft2`` for input of shape `(B H W C)`."""
+    """Computes ``fft2`` for input of shape `(B... H W C)`."""
     if loop_axis is None:
         return jnp.fft.fft2(x, axes=axes)
     else:
@@ -73,7 +73,7 @@ def fft(
 def ifft(
     x: Array, axes: Tuple[int, int] = (1, 2), loop_axis: Optional[int] = None
 ) -> Array:
-    """Computes ``ifft2`` for input of shape `(B H W C)`."""
+    """Computes ``ifft2`` for input of shape `(B... H W C)`."""
     if loop_axis is None:
         return jnp.fft.ifft2(x, axes=axes)
     else:

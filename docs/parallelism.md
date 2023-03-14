@@ -34,13 +34,14 @@ on) may be lacking.
 ## Explicit parallelization
 
 A common style of parallelism is across a batch dimension. Chromatix already
-describes ``Field`` objects with a batch dimension, such that they have a
-shape `[B H W C]`. This means that across a single device, any computations
-across the batch (`B`) and channel (`C`) dimensions are already performed in
-parallel. It is possible to parallelize additional dimensions using `jax.vmap`
-on a single device. For example, we can look at the widefield PSF example from
-the README (but adjusted so that the workload is large enough to observe some
-benefit from parallelization). Here is the single device version:
+describes ``Field`` objects with arbitrary batch dimensions, such that they
+have a shape `(B... H W C)`. This means that across a single device, any
+computations across the batch (`B`) and channel (`C`) dimensions are already
+performed in parallel. It is possible to parallelize additional dimensions
+using `jax.vmap` on a single device. For example, we can look at the widefield
+PSF example from the README (but adjusted so that the workload is large enough
+to observe some benefit from parallelization). Here is the single device
+version:
 
 ```python
 from chromatix.elements import ObjectivePointSource, PhaseMask, FFLens

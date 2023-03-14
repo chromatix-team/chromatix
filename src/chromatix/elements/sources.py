@@ -181,8 +181,8 @@ class GenericBeam(nn.Module):
         spectrum: The wavelengths included in the ``Field`` to be created.
         spectral_density: The weights of each wavelength in the ``Field`` to
             be created.
-        amplitude: The amplitude of the field with shape `[B H W C]`.
-        phase: The phase of the field with shape `[B H W C]`.
+        amplitude: The amplitude of the field with shape `(B... H W C)`.
+        phase: The phase of the field with shape `(B... H W C)`.
         power: The total power that the result should be normalized to,
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
