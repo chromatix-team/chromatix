@@ -4,6 +4,7 @@ from einops import rearrange
 from ..utils import center_pad, center_crop
 from ..ops.fft import fftshift, fft, ifft, ifftshift
 from typing import Literal, Optional, Tuple, Union
+from chromatix.utils.grids import l2_sq_norm
 from chex import Array
 import numpy as np
 
@@ -44,11 +45,11 @@ def transform_propagate(
     L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
     norm = (field.dx / L) ** 2
     # Calculating input phase change
-    input_phase = jnp.pi * field.l2_sq_grid / L**2
+    input_phase = jnp.pi * l2_sq_norm(field.grid) / L**2
     # Calculating new scaled output coordinates
     du = L**2 / ((field.shape[1] + N_pad) * field.dx)
     # Calculating output phase
-    output_grid = field.l2_sq_grid * (du / field.dx) ** 2
+    output_grid = l2_sq_norm(field.grid) * (du / field.dx) ** 2
     output_phase = jnp.pi * output_grid / L**2
     # Determining new field
     u = field.u * jnp.exp(1j * input_phase)

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from chex import Array, assert_rank, assert_equal_shape
+from chex import assert_rank, assert_equal_shape
 from flax import struct
 from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
-
-from jax.scipy.ndimage import map_coordinates
 
 
 class Field(struct.PyTreeNode):
@@ -127,7 +125,6 @@ class Field(struct.PyTreeNode):
         )
         return field
 
-    # Grid properties
     @property
     def grid(self) -> jnp.ndarray:
         """
@@ -136,54 +133,28 @@ class Field(struct.PyTreeNode):
         respectively. This grid assumes that the center of the ``Field`` is
         the origin and that the elements are sampling from the center, not
         the corner.
-
-        In addition to this actual grid, ``Field`` also provides:
-            - ``l2_sq_grid``
-            - ``l2_grid``
-            - ``l1_grid``
-            - ``linf_grid``
-        each of which are described below.
         """
-        half_size = jnp.array(self.shape[1:3]) / 2
         # We must use meshgrid instead of mgrid here in order to be jittable
+        N_x, N_y = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.shape[1]) + 0.5,
-            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.shape[2]) + 0.5,
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
             indexing="ij",
         )
+
         grid = rearrange(grid, "d h w -> d 1 h w 1")
         return self.dx * grid
 
-    @property
-    def l2_sq_grid(self) -> jnp.ndarray:
-        """Sum of the squared grid over spatial dimensions, i.e. `x**2 + y**2`."""
-        return jnp.sum(self.grid**2, axis=0)
-
-    @property
-    def l2_grid(self) -> jnp.ndarray:
-        """Square root of ``l2_sq_grid``, i.e. `sqrt(x**2 + y**2)`."""
-        return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
-
-    @property
-    def l1_grid(self) -> jnp.ndarray:
-        """Sum absolute value over spatial dimensions, i.e. `|x| + |y|`."""
-        return jnp.sum(jnp.abs(self.grid), axis=0)
-
-    @property
-    def linf_grid(self) -> jnp.ndarray:
-        """Max absolute value over spatial dimensions, i.e. `max(|x|, |y|)`."""
-        return jnp.max(jnp.abs(self.grid), axis=0)
-
     # Field properties
-    @property
-    def phase(self) -> jnp.ndarray:
-        """Phase of the complex scalar field, shape `[B H W C]`."""
-        return jnp.angle(self.u)
-
     @property
     def amplitude(self) -> jnp.ndarray:
         """Amplitude of the complex scalar field, shape `[B H W C]`."""
         return jnp.abs(self.u)
+
+    @property
+    def phase(self) -> jnp.ndarray:
+        """Phase of the complex scalar field, shape `[B H W C]`."""
+        return jnp.angle(self.u)
 
     @property
     def intensity(self) -> jnp.ndarray:
@@ -203,6 +174,10 @@ class Field(struct.PyTreeNode):
     def shape(self) -> Tuple[int, ...]:
         """Shape of the complex scalar field."""
         return self.u.shape
+
+    @property
+    def spatial_shape(self) -> Tuple[int, int]:
+        return self.u.shape[1:3]
 
     # Math operations
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
