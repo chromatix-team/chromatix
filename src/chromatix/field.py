@@ -146,6 +146,15 @@ class Field(struct.PyTreeNode):
         grid = rearrange(grid, "d h w -> d 1 h w 1")
         return self.dx * grid
 
+    @property
+    def k_grid(self) -> jnp.ndarray:
+        return None
+
+    @property
+    def dk(self) -> jnp.ndarray:
+        # NOTE: We only support square grids because of this.
+        return 1 / (self.dx * self.spatial_shape[0])
+
     # Field properties
     @property
     def amplitude(self) -> jnp.ndarray:

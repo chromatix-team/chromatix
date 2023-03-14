@@ -33,10 +33,8 @@ def optical_fft(
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # Lengthscale L
     norm = jnp.abs(field.dx / L) ** 2  # normalization factor
 
-    # finding new coordinates
-    du = jnp.abs(L) ** 2 / (field.shape[1] * field.dx)
-
     u = -1j * norm * fft(field.u, shift=True, loop_axis=loop_axis)
+    du = field.dk * jnp.abs(L) ** 2  # new spacing
     return field.replace(u=u, dx=du)
 
 

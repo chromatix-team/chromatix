@@ -24,6 +24,7 @@ def empty_field(
     shape: Tuple[int, int], dx: float, spectrum: float, spectral_density: float
 ) -> Field:
     """Simple wrapper to create empty field."""
+    assert shape[0] == shape[1], "Currently only square fields are supported."
     return Field.create(dx, spectrum, spectral_density, shape=shape)
 
 

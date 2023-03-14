@@ -45,20 +45,23 @@ def transform_propagate(
     field = pad(field, N_pad, constant_values=cval)
 
     # Fourier normalization factor
-    L = jnp.sqrt(field.spectrum * z / n)  # lengthscale L
-    norm = (field.dx / L) ** 2
+    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
+    norm = (field.dx / jnp.abs(L)) ** 2
 
     # Calculating input phase change
     input_phase = jnp.pi * l2_sq_norm(field.grid) / L**2
+
+    # Determining new field; optical_fft minus -1j factor
+    u = fft(field.u * jnp.exp(1j * input_phase), shift=True, loop_axis=loop_axis)
+
     # Calculating new scaled output coordinates
-    du = L**2 / (field.shape[1] * field.dx)
+    du = jnp.abs(L) ** 2 * field.dk
     # Calculating output phase
     output_grid = l2_sq_norm(field.grid) * (du / field.dx) ** 2
-    output_phase = jnp.pi * output_grid / L**2
-    # Determining new field
-    u = fft(field.u * jnp.exp(1j * input_phase), shift=True, loop_axis=loop_axis)
+    output_phase = jnp.pi * output_grid / jnp.abs(L) ** 2
+
     # Final normalization and phase
-    u *= norm * jnp.exp(1j * output_phase)
+    u = norm * u * jnp.exp(1j * output_phase)
 
     return crop(field.replace(u=u, dx=du), N_pad)
 
