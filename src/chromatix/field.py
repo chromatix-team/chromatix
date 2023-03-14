@@ -148,7 +148,15 @@ class Field(struct.PyTreeNode):
 
     @property
     def k_grid(self) -> jnp.ndarray:
-        return None
+        N_x, N_y = self.spatial_shape
+        grid = jnp.meshgrid(
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
+            indexing="ij",
+        )
+
+        grid = rearrange(grid, "d h w -> d 1 h w 1")
+        return self.dk * grid
 
     @property
     def dk(self) -> jnp.ndarray:
