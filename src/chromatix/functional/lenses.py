@@ -4,6 +4,7 @@ from ..field import Field
 from typing import Optional
 from .pupils import circular_pupil
 from ..ops.fft import optical_fft
+from chromatix.utils.grids import l2_sq_norm
 
 __all__ = ["thin_lens", "ff_lens", "df_lens"]
 
@@ -23,7 +24,7 @@ def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> F
         The ``Field`` directly after the lens.
     """
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * field.l2_sq_grid / L**2
+    phase = -jnp.pi * l2_sq_norm(field.grid) / L**2
 
     if NA is not None:
         D = 2 * f * NA / n  # Expression for NA yields width of pupil
@@ -94,11 +95,9 @@ def df_lens(
         # if inverse, propagate over negative distance
         f = -d
         d = -f
-
-    # Preliminaries
-    L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
+    field = optical_fft(field, f, n, loop_axis)
 
     # Phase factor due to distance d from lens
-    phase = jnp.pi * (1 - d / f) * field.l2_sq_grid / jnp.abs(L) ** 2
-
-    return optical_fft(field, f, n, loop_axis) * jnp.exp(1j * phase)
+    L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
+    phase = jnp.pi * (1 - d / f) * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
+    return field * jnp.exp(1j * phase)
