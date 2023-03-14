@@ -98,7 +98,7 @@ class Field(struct.PyTreeNode):
                 must be provided.
         """
         # Getting everything into right shape
-        field_dx = _broadcast_1d_to_innermost_batch(dx, 4)
+        field_dx = _broadcast_1d_to_channels(dx, 4)
         field_spectrum = _broadcast_1d_to_channels(spectrum, 4)
         field_spectral_density = _broadcast_1d_to_channels(spectral_density, 4)
 
@@ -129,11 +129,11 @@ class Field(struct.PyTreeNode):
     @property
     def grid(self) -> jnp.ndarray:
         """
-        The grid for each spatial dimension as an array of shape `[2 1 H W 1]`.
-        The 2 entries along the first dimension represent the y and x grids,
-        respectively. This grid assumes that the center of the ``Field`` is
-        the origin and that the elements are sampling from the center, not
-        the corner.
+        The grid for each spatial dimension as an array of shape
+        `[2 [B | 1] H W [C | 1]]`. The 2 entries along the first dimension
+        represent the y and x grids, respectively. This grid assumes that the
+        center of the ``Field`` is the origin and that the elements are
+        sampling from the center, not the corner.
         """
         # We must use meshgrid instead of mgrid here in order to be jittable
         N_x, N_y = self.spatial_shape
