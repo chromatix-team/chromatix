@@ -11,12 +11,12 @@ def thin_sample(
     field: Field, absorption: Array, dn: Array, thickness: Union[float, Array]
 ) -> Field:
     """
-    Perturbs a ``field`` as if it went through a thin sample object with a given
-    ``absorption`` and refractive index change ``dn`` and of a given
+    Perturbs a ``field`` as if it went through a thin sample object with a
+    given ``absorption`` and refractive index change ``dn`` and of a given
     ``thickness`` in micrometres.
 
-    The sample is supposed to follow the thin sample approximation, so the sample
-    perturbation is calculated as
+    The sample is supposed to follow the thin sample approximation, so the
+    sample perturbation is calculated as
     ``exp(1j * 2*pi * (dn + 1j*absorption) * thickness / lambda)``.
 
     Returns a ``Field`` with the result of the perturbation.
@@ -30,12 +30,12 @@ def thin_sample(
     assert_rank(
         absorption,
         field.ndim,
-        custom_message="Absorption must have same number of dimensions as incoming ``Field``.",
+        custom_message="Absorption must have same ndim as incoming ``Field``.",
     )
     assert_rank(
         dn,
         field.ndim,
-        custom_message="Refractive index must have same number of dimensions as incoming ``Field`.`",
+        custom_message="Refractive index must have same ndim as incoming ``Field`.`",
     )
     sample = jnp.exp(
         1j * 2 * jnp.pi * (dn + 1j * absorption) * thickness / field.spectrum

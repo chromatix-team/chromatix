@@ -149,12 +149,12 @@ def generic_field(
     assert_rank(
         amplitude,
         field.ndim,
-        custom_message="Amplitude must have same number of dimensions as ``Field``.",
+        custom_message="Amplitude must have same ndim as ``Field``.",
     )
     assert_rank(
         phase,
         field.ndim,
-        custom_message="Phase must have same number of dimensions as ``Field``.",
+        custom_message="Phase must have same ndim as ``Field``.",
     )
 
     field = field.replace(u=amplitude * jnp.exp(1j * phase))

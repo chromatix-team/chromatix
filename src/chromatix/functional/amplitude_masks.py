@@ -18,6 +18,6 @@ def amplitude_change(field: Field, amplitude: Array) -> Field:
     assert_rank(
         amplitude,
         field.ndim,
-        custom_message="Amplitude must have same number of dimensions as incoming ``Field``.",
+        custom_message="Amplitude must have same ndim as incoming ``Field``.",
     )
     return field * amplitude.astype(jnp.complex64)
