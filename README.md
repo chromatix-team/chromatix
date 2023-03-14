@@ -22,7 +22,7 @@ We recommend installing `jax` first as described in the [`jax` README](https://g
 
 Then, simply run
 ```bash
-$ pip install git+https://github.com/TuragaLab/chromatix.git@master
+$ pip install git+https://github.com/TuragaLab/chromatix.git@main
 ```
 or for an editable install for development, first clone the repository and then install as shown:
 ```bash

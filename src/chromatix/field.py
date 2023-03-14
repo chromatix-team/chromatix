@@ -7,7 +7,7 @@ from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
 
-from .utils import _broadcast_1d_to_channels
+from .utils.shapes import _broadcast_1d_to_channels
 
 
 class Field(struct.PyTreeNode):
@@ -107,7 +107,7 @@ class Field(struct.PyTreeNode):
         else:
             field_u = u
         rank = len(field_u.shape)
-        assert rank >= 4, "Field must be Array of rank at least 4: (B H W C)."
+        assert rank >= 4, "Field must be Array of rank at least 4: (B... H W C)."
         field_spatial_dims = (1 + rank - 4, 2 + rank - 4)
         field_dx = _broadcast_1d_to_channels(dx, rank)
         field_spectrum = _broadcast_1d_to_channels(spectrum, rank)
@@ -133,45 +133,16 @@ class Field(struct.PyTreeNode):
         respectively. This grid assumes that the center of the ``Field`` is
         the origin and that the elements are sampling from the center, not
         the corner.
-
-        In addition to this actual grid, ``Field`` also provides:
-            - ``l2_sq_grid``
-            - ``l2_grid``
-            - ``l1_grid``
-            - ``linf_grid``
-        each of which are described below.
         """
-        half_size = jnp.array(self.spatial_shape) / 2
         # We must use meshgrid instead of mgrid here in order to be jittable
+        N_x, N_y = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-half_size[0], half_size[0] - 1, num=self.spatial_shape[0])
-            + 0.5,
-            jnp.linspace(-half_size[1], half_size[1] - 1, num=self.spatial_shape[1])
-            + 0.5,
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.rank - 3)) + "h w 1")
         return self.dx * grid
-
-    @property
-    def l2_sq_grid(self) -> Array:
-        """Sum of the squared grid over spatial dimensions, i.e. `x**2 + y**2`."""
-        return jnp.sum(self.grid**2, axis=0)
-
-    @property
-    def l2_grid(self) -> Array:
-        """Square root of ``l2_sq_grid``, i.e. `sqrt(x**2 + y**2)`."""
-        return jnp.sqrt(jnp.sum(self.grid**2, axis=0))
-
-    @property
-    def l1_grid(self) -> Array:
-        """Sum absolute value over spatial dimensions, i.e. `|x| + |y|`."""
-        return jnp.sum(jnp.abs(self.grid), axis=0)
-
-    @property
-    def linf_grid(self) -> Array:
-        """Max absolute value over spatial dimensions, i.e. `max(|x|, |y|)`."""
-        return jnp.max(jnp.abs(self.grid), axis=0)
 
     @property
     def phase(self) -> Array:

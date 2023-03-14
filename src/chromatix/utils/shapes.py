@@ -1,5 +1,7 @@
 from einops import rearrange
 from chex import Array
+from typing import Union
+import jax.numpy as jnp
 
 __all__ = [
     "_broadcast_1d_to_channels",
@@ -8,16 +10,16 @@ __all__ = [
 ]
 
 
-def _broadcast_1d_to_channels(x: Array, rank: int) -> Array:
+def _broadcast_1d_to_channels(x: Union[float, Array], rank: int) -> Array:
     """Broadcast 1D array of size `C` to `(B H W C)`."""
     shape_spec = "c -> " + ("1 " * (rank - 1)) + "c"
-    return rearrange(x, shape_spec)
+    return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_innermost_batch(x: Array, rank: int) -> Array:
+def _broadcast_1d_to_innermost_batch(x: Union[float, Array], rank: int) -> Array:
     """Broadcast 1D array of size `B` to left of `(H W)` in `(B... H W C)`."""
     shape_spec = "z ->" + " 1" * (rank - 4) + " z 1 1 1"
-    return rearrange(x, shape_spec)
+    return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
 def _broadcast_2d_to_spatial(x: Array, rank: int) -> Array:

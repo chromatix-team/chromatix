@@ -3,7 +3,8 @@ from ..field import Field
 from typing import Optional, Callable, Tuple
 from chex import Array, assert_rank
 from .pupils import circular_pupil
-from ..utils import _broadcast_1d_to_innermost_batch
+from ..utils.grids import l2_sq_norm
+from ..utils.shapes import _broadcast_1d_to_innermost_batch
 
 __all__ = [
     "empty_field",
@@ -42,12 +43,10 @@ def point_source(
             defaults to 1.0.
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    z = jnp.atleast_1d(z)
     z = _broadcast_1d_to_innermost_batch(z, field.rank)
 
-    # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * z / n)
-    phase = jnp.pi * field.l2_sq_grid / L**2
+    phase = jnp.pi * l2_sq_norm(field.grid) / L**2
     u = -1j / L**2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
 
@@ -77,12 +76,11 @@ def objective_point_source(
         power: The total power that the result should be normalized to,
             defaults to 1.0.
     """
-    z = jnp.atleast_1d(z)
     z = _broadcast_1d_to_innermost_batch(z, field.rank)
 
     # Calculating phase and pupil
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * (z / f) * field.l2_sq_grid / L**2
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid) / L**2
 
     # Field
     u = -1j / L**2 * jnp.exp(1j * phase)
@@ -156,6 +154,7 @@ def generic_field(
     assert_rank(
         phase, field.rank, custom_message="Phase must have same rank as ``Field``."
     )
+
     field = field.replace(u=amplitude * jnp.exp(1j * phase))
 
     if pupil is not None:

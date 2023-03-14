@@ -1,6 +1,5 @@
 import jax.numpy as jnp
 from chex import Array, assert_rank
-
 from ..field import Field
 
 __all__ = ["amplitude_change"]
