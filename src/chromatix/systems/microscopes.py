@@ -33,20 +33,17 @@ class Microscope(nn.Module):
     Optical4FSystemPSF.
 
     Attributes:
-        system_psf: A function or ``Module`` that will compute the ``Field``
-            just before the sensor plane due to a point source for this imaging
-            system. Must take a ``Microscope`` as the first argument to read
-            any relevant optical properties of the system. Can take any other
-            arguments passed during a call to this ``Microscope`` (e.g. z
-            values to compute a 3D PSF at for imaging).
-        padding_ratio: The proportion of the original PSF shape that will be
-            added to simulate the PSF. That means the final shape will be shape
-            * (1.0 + padding) in each dimension. This will then automatically
-            be cropped to the original desired shape after simulation, and a
-            taper will be applied to the result.
-        taper_width: The width in pixels of the sigmoid that will be used to
-            smoothly bring the edges of the PSF to 0. This helps to prevent
-            edge artifacts in the image if the PSF has edge artifacts.
+        system_psf: A function or ``Module`` that will compute the field at the
+            sensor plane due to a point source for this imaging system. Must
+            take a ``Microscope`` as the first argument to read any relevant
+            optical properties of the system. Can take any other arguments
+            passed during a call to this ``Microscope`` (e.g. z values to
+            compute a 3D PSF at for imaging). Can either return a ``Field``, in
+            which case the intensity and spacing of the PSF will automatically
+            be determined, or an ``Array``, in which case the ``Array`` is
+            assumed to be the intensity and the spacing of the PSF will be
+            automatically determined based on the ratio of the specified
+            ``sensor_shape`` to the shape of the PSF.
         sensor_shape: A tuple of form (H W) defining the camera sensor shape.
         sensor_spacing: A float defining the pixel pitch of the camera sensor.
         f: Focal length of the system's objective.
@@ -56,6 +53,15 @@ class Microscope(nn.Module):
             PSF.
         spectral_density: The weights of each wavelength in the simulation of
             the system's PSF.
+        padding_ratio: The proportion of the original PSF shape that will be
+            added to simulate the PSF. That means the final shape will be shape
+            * (1.0 + padding) in each dimension. This will then automatically
+            be cropped to the original desired shape after simulation. Defaults
+            to None, in which case no cropping occurs.
+        taper_width: The width in pixels of the sigmoid that will be used to
+            smoothly bring the edges of the PSF to 0. This helps to prevent
+            edge artifacts in the image if the PSF has edge artifacts. Defaults
+            to None, in which case no tapering is applied.
         shot_noise_mode: A string of either 'approximate' or 'poisson' that
             determines how to add noise to the image. Defaults to None, in
             which case no noise is applied.
@@ -69,9 +75,7 @@ class Microscope(nn.Module):
             name.
     """
 
-    system_psf: Callable[[Microscope], Field]
-    padding_ratio: float
-    taper_width: float
+    system_psf: Callable[[Microscope], Union[Field, Array]]
     sensor_shape: Tuple[int, int]
     sensor_spacing: float
     f: float
@@ -79,6 +83,8 @@ class Microscope(nn.Module):
     NA: float
     spectrum: Array
     spectral_density: Array
+    padding_ratio: Optional[float] = None
+    taper_width: Optional[float] = None
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
     psf_resampling_method: Optional[Literal["pool", "linear", "cubic"]] = None
     reduce_axis: Optional[int] = None
@@ -99,24 +105,51 @@ class Microscope(nn.Module):
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
-        psf = self.psf(*args, **kwargs)
-        spatial_dims = psf.spatial_dims
-        ndim = psf.ndim
+        system_psf = self.psf(*args, **kwargs)
+        ndim = system_psf.ndim
+        # NOTE(dd): We have to manually calculate the spatial dimensions here
+        # because we can have system_psf functions return Arrays in addition
+        # to Fields.
+        spatial_dims = (1 + ndim - 4, 2 + ndim - 4)
+        psf = self._process_psf(system_psf, ndim, spatial_dims)
+        return self.image(sample, psf, axes=spatial_dims)
+
+    def psf(self, *args: Any, **kwargs: Any) -> Union[Field, Array]:
+        """Computes PSF of system, taking any necessary arguments."""
+        return self.system_psf(self, *args, **kwargs)
+
+    def _process_psf(
+        self, system_psf: Union[Field, Array], ndim: int, spatial_dims: Tuple[int, int]
+    ) -> Array:
+        shape = system_psf.shape[spatial_dims[0] : spatial_dims[1] + 1]
+        if self.padding_ratio is not None:
+            unpadded_shape = tuple(int(s / (1.0 + self.padding_ratio)) for s in shape)
+            padding = tuple(s - u for s, u in zip(shape, unpadded_shape))
+        else:
+            unpadded_shape = shape
+            padding = (0, 0)
         # WARNING(dd): Assumes that field has same spacing at all wavelengths
         # when calculating intensity!
-        spacing = psf.dx[..., 0].squeeze()
-        padding = tuple(int(self.padding_ratio * s) for s in self.system_psf.shape)
-        psf = center_crop(psf.intensity, (None, padding[0] // 2, padding[1] // 2, None))
-        psf = psf * sigmoid_taper(self.system_psf.shape, self.taper_width)
+        if isinstance(system_psf, Field):
+            psf = system_psf.intensity
+            spacing = system_psf.dx[..., 0].squeeze()
+        else:
+            psf = system_psf
+            spacing = self.sensor_spacing * (
+                self.sensor_shape[0] / (psf.shape[1] - padding[0])
+            )
+        if self.padding_ratio is not None:
+            pad_spec = [None for _ in range(ndim)]
+            pad_spec[spatial_dims[0]] = padding[0] // 2
+            pad_spec[spatial_dims[1]] = padding[1] // 2
+            psf = center_crop(psf, pad_spec)
+        if self.taper_width is not None:
+            psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
         if self.psf_resampling_method is not None:
             for i in range(ndim - 3):
                 resample = vmap(self.resample, in_axes=(0, None))
             psf = resample(psf, spacing)
-        return self.image(sample, psf, axes=spatial_dims)
-
-    def psf(self, *args: Any, **kwargs: Any) -> Field:
-        """Computes PSF complex field, taking any necessary arguments."""
-        return self.system_psf(self, *args, **kwargs)
+        return psf
 
     def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
         """
