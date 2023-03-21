@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from einops import rearrange
 from ..field import Field
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Tuple, Union
 from chex import Array, assert_rank
 from .pupils import circular_pupil
 from chromatix.utils.grids import l2_sq_norm
@@ -21,10 +21,12 @@ __all__ = [
 
 
 def empty_field(
-    shape: Tuple[int, int], dx: float, spectrum: float, spectral_density: float
+    shape: Tuple[int, int],
+    dx: Union[float, Array],
+    spectrum: float,
+    spectral_density: float,
 ) -> Field:
     """Simple wrapper to create empty field."""
-    assert shape[0] == shape[1], "Currently only square fields are supported."
     return Field.create(dx, spectrum, spectral_density, shape=shape)
 
 

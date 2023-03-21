@@ -8,7 +8,7 @@ from typing import Union, Optional, Tuple, Any
 from numbers import Number
 from chromatix.utils.shapes import (
     _broadcast_1d_to_channels,
-    _broadcast_1d_to_innermost_batch,
+    _broadcast_1d_to_grid,
 )
 
 
@@ -62,14 +62,14 @@ class Field(struct.PyTreeNode):
     """
 
     u: jnp.ndarray  # [B H W C]
-    dx: jnp.ndarray
-    spectrum: jnp.ndarray
-    spectral_density: jnp.ndarray
+    dx: jnp.ndarray  # [2 B H W C]
+    spectrum: jnp.ndarray  # [B H W C]
+    spectral_density: jnp.ndarray  # [B H W C]
 
     @classmethod
     def create(
         cls,
-        dx: float,
+        dx: Union[float, jnp.ndarray],
         spectrum: Union[float, jnp.ndarray],
         spectral_density: Union[float, jnp.ndarray],
         u: Optional[jnp.ndarray] = None,
@@ -98,14 +98,18 @@ class Field(struct.PyTreeNode):
                 must be provided.
         """
         # Getting everything into right shape
-        field_dx = _broadcast_1d_to_channels(dx, 4)
+        dx = jnp.atleast_1d(dx)
+        if dx.size == 1:
+            dx = jnp.concatenate([dx, dx])
+
+        field_dx = _broadcast_1d_to_grid(dx, 4)
         field_spectrum = _broadcast_1d_to_channels(spectrum, 4)
         field_spectral_density = _broadcast_1d_to_channels(spectral_density, 4)
 
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )  # Must sum to 1
-        assert_equal_shape([field_dx, field_spectrum, field_spectral_density])
+        assert_equal_shape([field_spectrum, field_spectral_density])
         if u is None:
             # NOTE(dd): when jitting this function, shape must be a
             # static argument --- possibly requiring multiple traces
@@ -160,8 +164,9 @@ class Field(struct.PyTreeNode):
 
     @property
     def dk(self) -> jnp.ndarray:
-        # NOTE: We only support square grids because of this.
-        return 1 / (self.dx * self.spatial_shape[0])
+        shape = jnp.array(self.spatial_shape)
+        shape = rearrange(shape, "d -> d 1 1 1 1")
+        return 1 / (self.dx * shape)
 
     # Field properties
     @property
@@ -186,7 +191,8 @@ class Field(struct.PyTreeNode):
     @property
     def power(self) -> jnp.ndarray:
         """Power of the complex scalar field, shape `[B 1 1 1]`."""
-        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
+        area = jnp.prod(self.dx, axis=0, keepdims=False)
+        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * area
 
     @property
     def shape(self) -> Tuple[int, ...]:

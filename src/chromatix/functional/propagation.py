@@ -29,7 +29,7 @@ def transform_propagate(
     field: Field,
     z: Union[float, Array],
     n: float,
-    N_pad: int,
+    N_pad: Union[int, Tuple[int, int]],
     cval: float = 0,
 ) -> Field:
     """
