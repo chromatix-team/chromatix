@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from chex import Array, assert_equal_shape
+from chex import Array, assert_equal_shape, assert_rank
 from flax import struct
-from einops import rearrange
+from einops import rearrange, repeat
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
-
-from .utils.shapes import _broadcast_1d_to_channels
+from chromatix.utils.shapes import (
+    _broadcast_1d_to_channels,
+    _broadcast_1d_to_grid,
+    _broadcast_2d_to_grid,
+)
 
 
 class Field(struct.PyTreeNode):
@@ -27,14 +30,15 @@ class Field(struct.PyTreeNode):
     The shape of a ``Field`` object is `(B... H W C)`, where B... is an
     arbitrary number of batch dimensions, H and W are height and width, and
     C is the channel dimension, which we use for different wavelengths in the
-    spectrum of a ``Field``. The batch dimensions can be used for any purpose,
-    such as different samples, depth, or time. Any propagations using Chromatix
-    elements or functions that produce multiple depths will broadcast to the
-    innermost batch dimension. If more dimensions are required, we encourage
-    the use of ``jax.vmap``, ``jax.pmap``, or a combination of the two. We
-    intend for this to be a compromise between not having too many dimensions
-    when they are not required, and also not having to litter a program with
-    ``jax.vmap`` transformations for common simulations in 3D or 3D over time.
+    spectrum of a ``Field``. The (potentially more than 1) batch dimensions
+    can be used for any purpose, such as different samples, depth, or time. Any
+    propagations using Chromatix elements or functions that produce multiple
+    depths will broadcast to the innermost batch dimension. If more dimensions
+    are required, we encourage the use of ``jax.vmap``, ``jax.pmap``, or a
+    combination of the two. We intend for this to be a compromise between
+    not having too many dimensions when they are not required, and also not
+    having to litter a program with ``jax.vmap`` transformations for common
+    simulations in 3D or 3D over time.
 
     Concretely, this means simulations that are only in 2D and with a single
     wavelength will always have only two distinct singleton dimensions. Any
@@ -55,22 +59,32 @@ class Field(struct.PyTreeNode):
 
     Attributes:
         u: The scalar field of shape `(B... H W C)`.
-        dx: The spacing of samples in ``u`` discretizing a continuous field.
+        dx: The spacing of the samples in ``u`` discretizing a continuous
+            field. Can either be a 1D array with the same size as the number
+            of wavelengths in the spectrum of shape (C), specifying a square
+            spacing per wavelength, or a 2D array of shape (2 C) specifying
+            the spacing in the y and x directions respectively for non-
+            square pixels. A float can also be specified to use the same
+            square spacing for all wavelengths. Spacing will be the same per
+            wavelength for all entries in a batch.
         spectrum: The wavelengths sampled by the field, in any units specified.
         spectral_density: The weights of the wavelengths in the spectrum. Must
             sum to 1.0.
+        spatial_dims: A tuple of two integers specifying the spatial dimensions
+            (the `H W` dimensions respectively) within a `Field` that
+            potentially has multiple batch dimensions.
     """
 
     u: Array  # (B... H W C)
-    dx: Array
-    spectrum: Array
-    spectral_density: Array
+    dx: Array  # ([2] B... H W C)
+    spectrum: Array  # (B... H W C)
+    spectral_density: Array  # (B... H W C)
     spatial_dims: Tuple[int, int]
 
     @classmethod
     def create(
         cls,
-        dx: float,
+        dx: Union[float, Array],
         spectrum: Union[float, Array],
         spectral_density: Union[float, Array],
         u: Optional[Array] = None,
@@ -86,10 +100,21 @@ class Field(struct.PyTreeNode):
         density, as desired.
 
         Args:
-            dx: The spacing of the samples in ``u`` discretizing a continuous field.
-            spectrum: The wavelengths sampled by the field, in any units specified.
+            dx: The spacing of the samples in ``u`` discretizing a continuous
+                field. Can either be a 1D array with the same size as the
+                number of wavelengths in the spectrum of shape (C), specifying
+                a square spacing per wavelength, or a 2D array of shape (2 C)
+                specifying the spacing in the y and x directions respectively
+                for non-square pixels. A float can also be specified to use the
+                same square spacing for all wavelengths. Spacing will be the
+                same per wavelength for all entries in a batch.
+            spectrum: The wavelengths sampled by the field, in any units
+                specified. Should be a 1D array containing each wavelength, or
+                a float for a single wavelength.
             spectral_density: The weights of the wavelengths in the spectrum.
-                Will be scaled to sum to 1.0.
+                Will be scaled to sum to 1.0 over all wavelengths. Should be a
+                1D array containing the weight of each wavelength, or a float
+                for a single wavelength.
             u: The scalar field of shape `(B... H W C)`. If not given,
                 the ``Field`` is allocated with uninitialized values of the
                 given ``shape`` as `(1 H W C)`.
@@ -98,9 +123,14 @@ class Field(struct.PyTreeNode):
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
-        dx = jnp.atleast_1d(dx)
         spectrum = jnp.atleast_1d(spectrum)
         spectral_density = jnp.atleast_1d(spectral_density)
+        dx = jnp.atleast_1d(dx)
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        if dx.shape[-1] == 1:
+            dx = repeat(dx, "d 1 -> d c", c=spectrum.size)
         if u is None:
             # NOTE(dd): when jitting this function, shape must be a
             # static argument --- possibly requiring multiple traces
@@ -113,13 +143,13 @@ class Field(struct.PyTreeNode):
             ndim >= 4
         ), "Field must be Array with at least 4 dimensions: (B... H W C)."
         field_spatial_dims = (1 + ndim - 4, 2 + ndim - 4)
-        field_dx = _broadcast_1d_to_channels(dx, ndim)
+        field_dx = _broadcast_2d_to_grid(dx, ndim)
         field_spectrum = _broadcast_1d_to_channels(spectrum, ndim)
         field_spectral_density = _broadcast_1d_to_channels(spectral_density, ndim)
         field_spectral_density = field_spectral_density / jnp.sum(
             field_spectral_density
         )
-        assert_equal_shape([field_dx, field_spectrum, field_spectral_density])
+        assert_equal_shape([field_spectrum, field_spectral_density])
         field = cls(
             field_u,
             field_dx,
@@ -132,7 +162,7 @@ class Field(struct.PyTreeNode):
     @property
     def grid(self) -> Array:
         """
-        The grid for each spatial dimension as an array of shape `(2 1... H W 1)`.
+        The grid for each spatial dimension as an array of shape `(2 B|1... H W C|1)`.
         The 2 entries along the first dimension represent the y and x grids,
         respectively. This grid assumes that the center of the ``Field`` is
         the origin and that the elements are sampling from the center, not
@@ -147,6 +177,23 @@ class Field(struct.PyTreeNode):
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 3)) + "h w 1")
         return self.dx * grid
+
+    @property
+    def k_grid(self) -> jnp.ndarray:
+        N_x, N_y = self.spatial_shape
+        grid = jnp.meshgrid(
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
+            indexing="ij",
+        )
+        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 3)) + "h w 1")
+        return self.dk * grid
+
+    @property
+    def dk(self) -> jnp.ndarray:
+        shape = jnp.array(self.spatial_shape)
+        shape = _broadcast_1d_to_grid(shape, self.ndim)
+        return 1 / (self.dx * shape)
 
     @property
     def phase(self) -> Array:
@@ -168,9 +215,10 @@ class Field(struct.PyTreeNode):
         )
 
     @property
-    def power(self) -> Array:
+    def power(self) -> jnp.ndarray:
         """Power of the complex scalar field, shape `(B... 1 1 1)`."""
-        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * self.dx**2
+        area = jnp.prod(self.dx, axis=0, keepdims=False)
+        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * area
 
     @property
     def shape(self) -> Tuple[int, ...]:

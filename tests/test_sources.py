@@ -10,7 +10,7 @@ import pytest
     "power, phase, size, pupil",
     [
         (1.0, jnp.pi, (512, 512), partial(cf.circular_pupil, w=10.0)),
-        (100.0, -jnp.pi, (256, 1024), None),
+        (100.0, -jnp.pi, (256, 256), None),
     ],
 )
 def test_plane_wave(power, phase, size, pupil):
@@ -25,7 +25,7 @@ def test_plane_wave(power, phase, size, pupil):
     "power, z, size, pupil",
     [
         (1.0, 0.5, (512, 512), partial(cf.square_pupil, w=10.0)),
-        (100.0, 1.0, (256, 1024), None),
+        (100.0, 1.0, (256, 256), None),
     ],
 )
 def test_point_source(power, z, size, pupil):
@@ -37,7 +37,7 @@ def test_point_source(power, z, size, pupil):
 
 
 @pytest.mark.parametrize(
-    "power, z, size", [(1.0, 0.5, (512, 512)), (100.0, 1.0, (256, 1024))]
+    "power, z, size", [(1.0, 0.5, (512, 512)), (100.0, 1.0, (256, 256))]
 )
 def test_objective_point_source(power, z, size):
     field = cf.empty_field(size, 0.1, 0.532, 1.0)

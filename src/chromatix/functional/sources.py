@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from ..field import Field
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Tuple, Union
 from chex import Array, assert_rank
 from .pupils import circular_pupil
 from ..utils.grids import l2_sq_norm
@@ -16,7 +16,10 @@ __all__ = [
 
 
 def empty_field(
-    shape: Tuple[int, int], dx: float, spectrum: float, spectral_density: float
+    shape: Tuple[int, int],
+    dx: Union[float, Array],
+    spectrum: float,
+    spectral_density: float,
 ) -> Field:
     """Simple wrapper to create empty field."""
     return Field.create(dx, spectrum, spectral_density, shape=shape)
