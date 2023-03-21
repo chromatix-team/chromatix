@@ -1,10 +1,12 @@
 from typing import Optional, Union
 import jax.numpy as jnp
-from chex import Array, assert_rank
+from chex import Array, assert_equal_shape
 
 from ..field import Field
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 from chromatix.utils.shapes import _broadcast_2d_to_spatial
+from chromatix.ops.field import pad, crop
+from einops import rearrange
 
 
 def thin_sample(
@@ -44,7 +46,6 @@ def multislice_thick_sample(
     N_pad: int,
     propagator: Optional[Array] = None,
     kykx: Array = jnp.zeros((2,)),
-    loop_axis: Optional[int] = None,
 ) -> Field:
     """
     Perturbs incoming ``Field`` as if it went through a thick sample. The
@@ -74,35 +75,25 @@ def multislice_thick_sample(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    assert (
-        absorption_stack.shape == dn_stack.shape
-    ), "Absorption stack and phase delay stack should be of the same shape!"
-    if propagator is None:
-        propagator = compute_exact_propagator(
-            field.u.shape, field.dx, field.spectrum, thickness_per_slice, n, N_pad, kykx
-        )
+    assert_equal_shape(absorption_stack, dn_stack)
+    absorption_stack = rearrange(absorption_stack, "b h w -> b 1 h w 1")
+    dn_stack = rearrange(dn_stack, "b h w -> b 1 h w 1")
+
+    # Padding field
+    field = pad(field, N_pad)
+
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
-    for i in range(absorption_stack.shape[0]):
-        absorption = (absorption_stack[i])[jnp.newaxis, :, :, jnp.newaxis]
-        dn = (dn_stack[i])[jnp.newaxis, :, :, jnp.newaxis]
+    if propagator is None:
+        propagator = compute_exact_propagator(field, thickness_per_slice, n, kykx)
+
+    for absorption, dn in zip(absorption_stack, dn_stack):
         field = thin_sample(field, absorption, dn, thickness_per_slice)
-        field = kernel_propagate(
-            field,
-            propagator,
-            N_pad=N_pad,
-            loop_axis=loop_axis,
-            mode="same",
-        )
+        field = kernel_propagate(field, propagator)
+
     # Propagate field backwards to the middle
     # TODO(dd): Allow choosing how far back we propagate here
     half_stack_thickness = thickness_per_slice * absorption_stack.shape[0] / 2
-    field = exact_propagate(
-        field,
-        z=-half_stack_thickness,
-        n=n,
-        kykx=kykx,
-        mode="same",
-        N_pad=N_pad,
-        cval=0,
-    )
-    return field
+    field = exact_propagate(field, z=-half_stack_thickness, n=n, kykx=kykx, N_pad=0)
+
+    # Cropping output field
+    return crop(field, N_pad)
