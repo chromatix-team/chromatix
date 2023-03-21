@@ -156,8 +156,8 @@ class Microscope(nn.Module):
         Computes image or batch of images using the specified PSF and sample.
 
         Args:
-            sample: The sample volume to image with, has shape `(B H W 1)`.
-            psf: The PSF intensity volume to image with, has shape `(B H W 1)`.
+            sample: The sample volume to image with, has shape `(B... H W 1)`.
+            psf: The PSF intensity volume to image with, has shape `(B... H W 1)`.
         """
         image = fourier_convolution(psf, sample, axes=axes)
         if self.reduce_axis is not None:

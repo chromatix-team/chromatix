@@ -3,7 +3,6 @@ from flax import linen as nn
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
 from typing import Callable, Optional, Tuple, Union
-
 from ..field import Field
 from ..functional.phase_masks import (
     wrap_phase,
