@@ -76,8 +76,6 @@ def multislice_thick_sample(
             be an array of shape `[2,]` in the format [ky, kx].
     """
     assert_equal_shape(absorption_stack, dn_stack)
-    absorption_stack = rearrange(absorption_stack, "b h w -> b 1 h w 1")
-    dn_stack = rearrange(dn_stack, "b h w -> b 1 h w 1")
 
     # Padding field
     field = pad(field, N_pad)
