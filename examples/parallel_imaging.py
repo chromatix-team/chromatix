@@ -1,11 +1,10 @@
 from chromatix.elements import ObjectivePointSource, PhaseMask, FFLens
-from chromatix import Microscope, OpticalSystem
+from chromatix.systems import Microscope, Optical4FSystemPSF
 from chromatix.utils import trainable
 from chromatix.functional.phase_masks import flat_phase
 import jax
 import jax.numpy as jnp
 import numpy as np
-from flax import linen as nn
 from functools import partial
 from time import perf_counter_ns
 
@@ -21,12 +20,19 @@ n = 1.33  # refractive index of medium
 NA = 0.8  # numerical aperture of objective
 
 microscope = Microscope(
-    optical_system=[
-        ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        PhaseMask(trainable(flat_phase)),
-        FFLens(f, n),
-    ],
-    reduce_fn=lambda image: jnp.sum(image, axis=0),
+    system_psf=Optical4FSystemPSF(
+        shape=shape,
+        spacing=spacing,
+        phase=trainable(flat_phase),
+    ),
+    sensor_shape=shape,
+    sensor_spacing=spacing,
+    f=f,
+    n=n,
+    NA=NA,
+    spectrum=spectrum,
+    spectral_density=spectral_density,
+    reduce_axis=0,
 )
 
 
@@ -40,7 +46,7 @@ def compute_image(params, volume, z):
     return microscope.apply(params, volume, z)
 
 
-volume = jnp.ones((128, *shape, 1))  # fill in your volume here
+volume = jnp.ones((num_planes, *shape, 1))  # fill in your volume here
 z = jnp.linspace(-4, 4, num=num_planes)
 params = init_params(jax.random.PRNGKey(6022), volume, z)
 widefield_image = compute_image(params, volume, z)
@@ -57,12 +63,20 @@ for i in range(10):
 print(f"single gpu: {np.mean(single_gpu_times)} +/- {np.std(single_gpu_times)} ms")
 
 microscope = Microscope(
-    optical_system=[
-        ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        PhaseMask(trainable(flat_phase)),
-        FFLens(f, n),
-    ],
-    reduce_fn=lambda image: jax.lax.psum(jnp.sum(image, axis=0), axis_name="devices"),
+    system_psf=Optical4FSystemPSF(
+        shape=shape,
+        spacing=spacing,
+        phase=trainable(flat_phase),
+    ),
+    sensor_shape=shape,
+    sensor_spacing=spacing,
+    f=f,
+    n=n,
+    NA=NA,
+    spectrum=spectrum,
+    spectral_density=spectral_density,
+    reduce_axis=0,
+    reduce_parallel_axis_name="devices",
 )
 
 
