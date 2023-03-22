@@ -57,11 +57,11 @@ class Microscope(nn.Module):
             added to simulate the PSF. That means the final shape will be shape
             * (1.0 + padding) in each dimension. This will then automatically
             be cropped to the original desired shape after simulation. Defaults
-            to None, in which case no cropping occurs.
+            to 0, in which case no cropping occurs.
         taper_width: The width in pixels of the sigmoid that will be used to
             smoothly bring the edges of the PSF to 0. This helps to prevent
             edge artifacts in the image if the PSF has edge artifacts. Defaults
-            to None, in which case no tapering is applied.
+            to 0, in which case no tapering is applied.
         shot_noise_mode: A string of either 'approximate' or 'poisson' that
             determines how to add noise to the image. Defaults to None, in
             which case no noise is applied.
@@ -83,8 +83,8 @@ class Microscope(nn.Module):
     NA: float
     spectrum: Array
     spectral_density: Array
-    padding_ratio: Optional[float] = None
-    taper_width: Optional[float] = None
+    padding_ratio: float = 0
+    taper_width: float = 0
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
     psf_resampling_method: Optional[Literal["pool", "linear", "cubic"]] = None
     reduce_axis: Optional[int] = None
@@ -138,12 +138,12 @@ class Microscope(nn.Module):
             spacing = self.sensor_spacing * (
                 self.sensor_shape[0] / (psf.shape[1] - padding[0])
             )
-        if self.padding_ratio is not None:
+        if self.padding_ratio > 0:
             pad_spec = [None for _ in range(ndim)]
             pad_spec[spatial_dims[0]] = padding[0] // 2
             pad_spec[spatial_dims[1]] = padding[1] // 2
             psf = center_crop(psf, pad_spec)
-        if self.taper_width is not None:
+        if self.taper_width > 0:
             psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
         if self.psf_resampling_method is not None:
             for i in range(ndim - 3):
