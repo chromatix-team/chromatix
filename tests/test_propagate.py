@@ -34,7 +34,7 @@ def test_transform_propagation(shape, N_pad):
     dxi = D / np.array(shape)
 
     # Input field
-    field = cf.empty_field(shape, dxi, 0.532, 1.0)
+    field = cf.empty_field(shape, dxi[..., np.newaxis], 0.532, 1.0)
     field = cf.plane_wave(
         field, pupil=lambda field: cf.square_pupil(field, dxi[1] * shape[1])
     )
@@ -59,7 +59,7 @@ def test_transfer_propagation(shape, N_pad):
     dxi = D / np.array(shape)
 
     # Input field
-    field = cf.empty_field(shape, dxi, 0.532, 1.0)
+    field = cf.empty_field(shape, dxi[..., np.newaxis], 0.532, 1.0)
     field = cf.plane_wave(
         field, pupil=lambda field: cf.square_pupil(field, dxi[1] * shape[1])
     )
@@ -84,7 +84,7 @@ def test_exact_propagation(shape, N_pad):
     dxi = D / np.array(shape)
 
     # Input field
-    field = cf.empty_field(shape, dxi, 0.532, 1.0)
+    field = cf.empty_field(shape, dxi[..., np.newaxis], 0.532, 1.0)
     field = cf.plane_wave(
         field, pupil=lambda field: cf.square_pupil(field, dxi[1] * shape[1])
     )
