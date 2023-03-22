@@ -36,12 +36,12 @@ on) may be lacking.
 A common style of parallelism is across a batch dimension. Chromatix already
 describes ``Field`` objects with arbitrary batch dimensions, such that they
 have a shape `(B... H W C)`. This means that across a single device, any
-computations across the batch (`B`) and channel (`C`) dimensions are already
-performed in parallel. It is possible to parallelize additional dimensions
-using `jax.vmap` on a single device. For example, we can look at the widefield
-PSF example from the README (but adjusted so that the workload is large enough
-to observe some benefit from parallelization). Here is the single device
-version:
+computations across the (potentially multiple) batch (`B`) and channel (`C`)
+dimensions are already performed in parallel. It is possible to parallelize
+additional dimensions using `jax.vmap` on a single device. For example, we can
+look at the widefield PSF example from the README (but adjusted so that the
+workload is large enough to observe some benefit from parallelization). Here is
+the single device version:
 
 ```python
 from chromatix.elements import ObjectivePointSource, PhaseMask, FFLens
@@ -59,8 +59,8 @@ NA = 0.8 # numerical aperture of objective
 optical_model = OpticalSystem(
     [
         ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        PhaseMask(jnp.ones(shape)[jnp.newaxis, ..., jnp.newaxis]),
-        FFLens(f, n)
+        PhaseMask(jnp.ones(shape)),
+        FFLens(f, n),
     ]
 )
 
@@ -110,17 +110,24 @@ must be initialized and passed in, instead of an empty parameter dictionary.
 First, let's look at the single device version:
 
 ```python
-from chromatix import Microscope
+from chromatix.systems import Microscope, Optical4FSystemPSF
 from chromatix.utils import trainable
-from chromatix.functional import flat_phase
+from chromatix.functional.phase_masks import flat_phase
 
 microscope = Microscope(
-    optical_system=[
-        ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        PhaseMask(trainable(flat_phase)),
-        FFLens(f, n)
-    ],
-    reduce_fn=lambda image: jnp.sum(image, axis=0),
+    system_psf=Optical4FSystemPSF(
+        shape=shape,
+        spacing=spacing,
+        phase=trainable(flat_phase),
+    ),
+    sensor_shape=shape,
+    sensor_spacing=spacing,
+    f=f,
+    n=n,
+    NA=NA,
+    spectrum=spectrum,
+    spectral_density=spectral_density,
+    reduce_axis=0,
 )
 
 def init_params(key, volume, z):
@@ -137,12 +144,12 @@ params = init_params(jax.random.PRNGKey(6022), volume, z)
 widefield_image = compute_image(params, volume, z)
 ```
 
-Here, we constructed a ``Microscope`` that took our 4f system from before, but
-this time we specified that the ``PhaseMask`` has a trainable parameter. This
-means that we have to initialize the parameters for this ``flax.linen.Module``
-and also pass these parameters when we want to call the ``Microscope``. This
-``Microscope`` also accepted a ``reduce_fn``, which we have specified to sum
-across the batch dimension to simulate a camera collecting light from multiple
+Here, we constructed a ``Microscope`` with a 4f system PSF, but this time we
+specified that the phase is a trainable parameter. This means that we have to
+initialize the parameters for this ``flax.linen.Module`` and also pass these
+parameters when we want to call the ``Microscope``. This ``Microscope`` also
+accepted a ``reduce_axis`` argument, which we have specified to sum across the
+batch dimension (axis 0) to simulate a camera collecting light from multiple
 planes. This computation ran in **172.86ms** on a single NVIDIA A100 GPU
 (average over 10 runs).
 
@@ -153,12 +160,20 @@ batch dimension by using ``jax.pmap``:
 from functools import partial
 
 microscope = Microscope(
-    optical_system=[
-        ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        PhaseMask(trainable(flat_phase)),
-        FFLens(f, n)
-    ],
-    reduce_fn=lambda image: jax.lax.psum(jnp.sum(image, axis=0), axis_name='devices'),
+    system_psf=Optical4FSystemPSF(
+        shape=shape,
+        spacing=spacing,
+        phase=trainable(flat_phase),
+    ),
+    sensor_shape=shape,
+    sensor_spacing=spacing,
+    f=f,
+    n=n,
+    NA=NA,
+    spectrum=spectrum,
+    spectral_density=spectral_density,
+    reduce_axis=0,
+    reduce_parallel_axis_name="devices",
 )
 
 @partial(jax.pmap, axis_name='devices')
@@ -178,9 +193,12 @@ widefield_image = compute_image(params, volume, z)
 
 This time, we ended up having to make a change to how we define the optics.
 That is because each device first computes a partial image of just the chunk
-that it received. So, we need to make sure that we are summing these partial
-images together across all the devices. We can tell `jax` to do that by using
-``jax.lax.psum``. Now, each device has a copy of the same final image.
+that it received, which are summed across the batch dimension on each device
+(because we specified ``reduce_axis``). So, we need to make sure that we are
+summing these partial images together across all the devices. We can tell
+`jax` to do that by using ``jax.lax.psum``, which happens internally in the
+``Microscope`` because we specified ``reduce_parallel_axis_name`` in addition
+to ``reduce_axis``. Now, each device has a copy of the same final image.
 
 That means that if we look at the shape of ``widefield_image``, we'll see that
 it has shape `[4 1536 1536 1]` because we ran on 4 devices. Each of those 4
