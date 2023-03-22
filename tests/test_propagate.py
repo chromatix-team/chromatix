@@ -1,9 +1,9 @@
+import pytest
+import numpy as np
 import jax.numpy as jnp
 from scipy.special import fresnel
-from chromatix import Field
 import chromatix.functional as cf
-import numpy as np
-import pytest
+from functools import partial
 
 D = 40
 z = 100
@@ -32,12 +32,11 @@ def analytical_result_square_aperture(x, z, D, spectrum, n):
 )
 def test_transform_propagation(shape, N_pad):
     dxi = D / np.array(shape)
+    spacing = dxi[..., np.newaxis]
 
     # Input field
-    field = cf.empty_field(shape, dxi[..., np.newaxis], 0.532, 1.0)
-    field = cf.plane_wave(
-        field, pupil=lambda field: cf.square_pupil(field, dxi[1] * shape[1])
-    )
+    field = cf.empty_field(shape, spacing, 0.532, 1.0)
+    field = cf.plane_wave(field, pupil=partial(cf.square_pupil, w=dxi[1] * shape[1]))
     out_field = cf.transform_propagate(field, z, n, N_pad=N_pad)
     I_numerical = out_field.intensity.squeeze()
 
@@ -57,12 +56,11 @@ def test_transform_propagation(shape, N_pad):
 )
 def test_transfer_propagation(shape, N_pad):
     dxi = D / np.array(shape)
+    spacing = dxi[..., np.newaxis]
 
     # Input field
-    field = cf.empty_field(shape, dxi[..., np.newaxis], 0.532, 1.0)
-    field = cf.plane_wave(
-        field, pupil=lambda field: cf.square_pupil(field, dxi[1] * shape[1])
-    )
+    field = cf.empty_field(shape, spacing, 0.532, 1.0)
+    field = cf.plane_wave(field, pupil=partial(cf.square_pupil, w=dxi[1] * shape[1]))
     out_field = cf.transfer_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
 
@@ -82,12 +80,11 @@ def test_transfer_propagation(shape, N_pad):
 )
 def test_exact_propagation(shape, N_pad):
     dxi = D / np.array(shape)
+    spacing = dxi[..., np.newaxis]
 
     # Input field
-    field = cf.empty_field(shape, dxi[..., np.newaxis], 0.532, 1.0)
-    field = cf.plane_wave(
-        field, pupil=lambda field: cf.square_pupil(field, dxi[1] * shape[1])
-    )
+    field = cf.empty_field(shape, spacing, 0.532, 1.0)
+    field = cf.plane_wave(field, pupil=partial(cf.square_pupil, w=dxi[1] * shape[1]))
     out_field = cf.exact_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
 
