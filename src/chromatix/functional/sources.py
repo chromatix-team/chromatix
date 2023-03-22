@@ -1,28 +1,17 @@
 import jax.numpy as jnp
 from ..field import Field
-from typing import Optional, Callable, Tuple, Union
+from typing import Optional, Callable
 from chex import Array, assert_rank
 from .pupils import circular_pupil
 from ..utils.grids import l2_sq_norm
 from ..utils.shapes import _broadcast_1d_to_innermost_batch
 
 __all__ = [
-    "empty_field",
     "point_source",
     "objective_point_source",
     "plane_wave",
     "generic_field",
 ]
-
-
-def empty_field(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: float,
-    spectral_density: float,
-) -> Field:
-    """Simple wrapper to create empty field."""
-    return Field.create(dx, spectrum, spectral_density, shape=shape)
 
 
 def point_source(

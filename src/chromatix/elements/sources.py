@@ -2,7 +2,6 @@ import jax.numpy as jnp
 import flax.linen as nn
 from chromatix import Field
 from ..functional.sources import (
-    empty_field,
     plane_wave,
     point_source,
     objective_point_source,
@@ -47,10 +46,9 @@ class PointSource(nn.Module):
     pupil: Optional[Callable[[Field], Field]] = None
 
     def setup(self):
-        self.empty_field = empty_field(
-            self.shape, self.dx, self.spectrum, self.spectral_density
+        self.empty_field = Field.create(
+            self.dx, self.spectrum, self.spectral_density, shape=self.shape
         )
-
         self._z = self.param("_z", self.z) if isinstance(self.z, Callable) else self.z
         self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
         self._power = (
@@ -95,10 +93,9 @@ class ObjectivePointSource(nn.Module):
     power: Optional[Union[float, Callable[[PRNGKey], float]]] = 1.0
 
     def setup(self):
-        self.empty_field = empty_field(
-            self.shape, self.dx, self.spectrum, self.spectral_density
+        self.empty_field = Field.create(
+            self.dx, self.spectrum, self.spectral_density, shape=self.shape
         )
-
         self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
         self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
         self._NA = (
@@ -148,8 +145,8 @@ class PlaneWave(nn.Module):
     pupil: Optional[Callable[[Field], Field]] = None
 
     def setup(self):
-        self.empty_field = empty_field(
-            self.shape, self.dx, self.spectrum, self.spectral_density
+        self.empty_field = Field.create(
+            self.dx, self.spectrum, self.spectral_density, shape=self.shape
         )
         self._power = (
             self.param("_power", self.power)
@@ -198,22 +195,19 @@ class GenericBeam(nn.Module):
     pupil: Optional[Callable[[Field], Field]] = None
 
     def setup(self):
-        self.empty_field = empty_field(
-            self.shape, self.dx, self.spectrum, self.spectral_density
+        self.empty_field = Field.create(
+            self.dx, self.spectrum, self.spectral_density, shape=self.shape
         )
-
         self._amplitude = (
             self.param("_amplitude", self.amplitude)
             if isinstance(self.amplitude, Callable)
             else self.amplitude
         )
-
         self._phase = (
             self.param("_phase", self.phase)
             if isinstance(self.phase, Callable)
             else self.phase
         )
-
         self._power = (
             self.param("_power", self.power)
             if isinstance(self.power, Callable)

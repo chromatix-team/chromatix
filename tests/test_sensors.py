@@ -1,11 +1,12 @@
-import chromatix.functional as cf
-from chromatix.elements.sensors import ShotNoiseIntensitySensor
 import jax.numpy as jnp
 from jax.random import PRNGKey
+from chromatix import Field
+import chromatix.functional as cf
+from chromatix.elements.sensors import ShotNoiseIntensitySensor
 
 
 def test_shot_noise_intensity_sensor():
-    field = cf.empty_field((512, 512), 0.3, 0.532, 1.0)
+    field = Field.create(0.3, 0.532, 1.0, shape=(512, 512))
     field = cf.objective_point_source(
         field, jnp.linspace(-5, 5, num=3), f=100.0, n=1.0, NA=0.8
     )
@@ -30,4 +31,3 @@ def test_shot_noise_intensity_sensor():
     image = sensor.apply(params, field, rngs={"noise": key})
     assert image.shape[1:3] == shape
     assert image.shape[0] == 1
-    print("done testing")
