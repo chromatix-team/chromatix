@@ -1,10 +1,6 @@
 import jax.numpy as jnp
-from jax.nn.initializers import lecun_normal
-from jax.lax import complex
 from jax.random import PRNGKey
 import numpy as np
-import jax
-import flax.linen as nn
 from einops import rearrange
 from typing import Any, Sequence, Callable, Optional
 
@@ -189,85 +185,3 @@ def create_grid(shape, spacing):
 def grid_spatial_to_pupil(grid, f, NA, n):
     R = f * NA / n  # pupil radius
     return grid / R
-
-
-@jax.custom_jvp
-def digitize(x, bitdepth):
-    """
-    Changes the bit depth of the input tensor. Surrogate gradient approach [1] is
-    used to adjust the bit depth differentiably.
-
-    [1] Eybposh, M. Hossein, et al. "Optimization of time-multiplexed
-    computer-generated holograms with surrogate gradients." Emerging Digital
-    Micromirror Device Based Systems and Applications XIV. SPIE, 2022.
-
-    Parameters
-    ----------
-    x : jax.numpy.ndarray
-        The tensor that .
-    bitdepth : int
-        number of bits. This parameter does NOT represent the number of
-        digitization levels, but the bit depth.
-
-    Returns
-    -------
-    jax.numpy.ndarray
-        Digitized tensor.
-
-    """
-    x_min = x.min()
-    x_max = (x - x_min).max()
-    y = jnp.round(((x - x_min) / x_max) * ((2**bitdepth) - 1)).astype(jnp.float32)
-    return (y / ((2**bitdepth) - 1.0)) * x_max + x_min
-
-
-@digitize.defjvp
-def digitize_jvp(primals, tangents):
-    return digitize(*primals), tangents[0]
-
-
-class Digitize(nn.Module):
-    bitdepth: int
-
-    @nn.compact
-    def __call__(self, x):
-        return digitize(x, self.bitdepth)
-
-
-@jax.custom_jvp
-def threshold(x, thr):
-    """
-    Differentiable thresholding. This function uses the surrogate gradient
-    approach with sigmoid gradients [1].
-
-    [1] Eybposh, M. Hossein, et al. "Optimization of time-multiplexed
-    computer-generated holograms with surrogate gradients." Emerging Digital
-    Micromirror Device Based Systems and Applications XIV. SPIE, 2022.
-
-    Parameters
-    ----------
-    x : jax.numpy.ndarray
-        Input tensor.
-    thr : float
-        Threshold to be applied on the input.
-
-    Returns
-    -------
-    jax.numpy.ndarray
-        thresholded output.
-
-    """
-    return (x > thr) * 1.0
-
-
-@threshold.defjvp
-def threshold_jvp(primals, tangents):
-    sig = 1 / (1 + jnp.exp((-1 * primals[0]) + primals[1]))
-    out_tangents = tangents[0] * (1 / 2.0) * (1 - sig**2 - (1 - sig) ** 2)
-    return threshold(*primals), out_tangents
-
-
-class Threshold(nn.Module):
-    @nn.compact
-    def __call__(self, x, threshold):
-        return threshold(x, self.bitdepth)

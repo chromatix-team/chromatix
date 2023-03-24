@@ -6,3 +6,4 @@ from .ops import (
 from .noise import *
 from .windows import *
 from .filters import *
+from .quantization import *
