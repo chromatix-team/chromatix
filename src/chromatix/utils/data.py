@@ -1,7 +1,12 @@
 import numpy as np
-import jax.numpy as jnp
-import os
-import cv2
+from typing import Tuple
+
+try:
+    import cv2
+
+    USE_CV2 = True
+except ModuleNotFoundError:
+    USE_CV2 = False
 
 
 def siemens_star(num_pixels=512, num_spokes=32):
@@ -25,43 +30,58 @@ def siemens_star(num_pixels=512, num_spokes=32):
     return S
 
 
-def draw_disks(image_size, coordinates, radius, color=255):
-    """
-    Create a grayscale image with disks drawn at each provided coordinate.
+if USE_CV2:
 
-    Args:
-        image_size (tuple): The desired image size as (height, width).
-        coordinates (list or numpy.ndarray): A list of (x, y) coordinates where disks should be drawn.
-        radius (int): The radius of the disks.
-        color (int): An optional intensity for the disks (0-255).
+    def draw_disks(image_size, coordinates, radius, color=255):
+        """
+        Create a grayscale image with disks drawn at each provided coordinate.
 
-    Returns:
-        numpy.ndarray: The resulting grayscale image with disks drawn at the specified coordinates.
-    """
-    # Create a blank grayscale image with the desired size
-    image = np.zeros(image_size, dtype=np.uint8)
+        Args:
+            image_size (tuple): The desired image size as (height, width).
+            coordinates (list or numpy.ndarray): A list of (x, y) coordinates where disks should be drawn.
+            radius (int): The radius of the disks.
+            color (int): An optional intensity for the disks (0-255).
 
-    # Draw a disk at each coordinate
-    for coord in coordinates:
-        cv2.circle(image, (coord[0], coord[1]), radius, color, -1)
+        Returns:
+            numpy.ndarray: The resulting grayscale image with disks drawn at the specified coordinates.
+        """
+        # Create a blank grayscale image with the desired size
+        image = np.zeros(image_size, dtype=np.uint8)
 
-    return image
+        # Draw a disk at each coordinate
+        for coord in coordinates:
+            cv2.circle(image, (coord[0], coord[1]), radius, color, -1)
 
-class RandDiskGenerator: # TODO avoid overlapping disks
-    def __init__(self,
-                 N,
-                 n_points,
-                 radius,
-                 shape,
-                 z_range):
-        '''
+        return image
+
+else:
+
+    def draw_disks(
+        shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
+    ) -> np.ndarray:
+        image = np.zeros([s + radius * 2 for s in shape], dtype=np.uint8)
+        _samples = np.linspace(-radius, radius, num=radius * 2, dtype=np.float32)
+        circle = color * np.uint8(
+            np.sum(np.array(np.meshgrid(_samples, _samples)) ** 2, axis=0)
+            <= radius**2
+        )
+        for c in coordinates:
+            slices = (slice(c[0], c[0] + radius * 2), slice(c[1], c[1] + radius * 2))
+            image[slices] = image[slices] | circle
+        image = image[radius : radius + shape[0], radius : radius + shape[1]]
+        return image
+
+
+class RandDiskGenerator:  # TODO avoid overlapping disks
+    def __init__(self, N, n_points, radius, shape, z_range):
+        """
         Create a dataset of random 3D coordinates and their associated image.
         Each generated sample consists of an array of [n_points x y z] with
         shape: n_points * 3, accompanied by a 3D image with shape `shape`. The
         last dimension of `shape` represents the z axis. The number of planes
         will be infered from the `shape` argument. This is meant for Tensorflow
         and PyTorch data loaders that support generators.
-        
+
         Parameters
         ----------
         N : int
@@ -86,21 +106,24 @@ class RandDiskGenerator: # TODO avoid overlapping disks
         -------
         None.
 
-        '''
-        
-        assert len(shape) == 3, 'Shape must specify three dimensions, shape parameter is: {}'.format(len(shape))
+        """
+
+        assert (
+            len(shape) == 3
+        ), "Shape must specify three dimensions, shape parameter is: {}".format(
+            len(shape)
+        )
         self.N = N
         self.radius = radius
         self.shape = shape
         self.z_range = z_range
         self.n_points = n_points
         self.num_planes = shape[-1]
-        
+
         self.__get_randomized_coords()
-        
-    
+
     def __get_randomized_coords(self):
-        '''
+        """
         Generate all the random coordinates. This is called when generator
         is instanciated or end of epoch is reached.
 
@@ -108,30 +131,34 @@ class RandDiskGenerator: # TODO avoid overlapping disks
         -------
         None.
 
-        '''
-        self.centery = np.random.randint(low = self.radius,
-                                         high = self.shape[0]-self.radius,
-                                         size = (self.N, self.n_points))
-        self.centerx = np.random.randint(low = self.radius,
-                                         high = self.shape[1]-self.radius,
-                                         size = (self.N, self.n_points))
-        
+        """
+        self.centery = np.random.randint(
+            low=self.radius,
+            high=self.shape[0] - self.radius,
+            size=(self.N, self.n_points),
+        )
+        self.centerx = np.random.randint(
+            low=self.radius,
+            high=self.shape[1] - self.radius,
+            size=(self.N, self.n_points),
+        )
+
         if self.num_planes > 1:
-            self.z_indices = np.random.randint(low = 0,
-                                               high = self.num_planes,
-                                               size = (self.N, self.n_points))
-            self.z_values = np.random.rand(self.N, self.num_planes) * (self.z_range[1] - self.z_range[0])
+            self.z_indices = np.random.randint(
+                low=0, high=self.num_planes, size=(self.N, self.n_points)
+            )
+            self.z_values = np.random.rand(self.N, self.num_planes) * (
+                self.z_range[1] - self.z_range[0]
+            )
             self.z_values += self.z_range[0]
             self.z_values.sort(axis=1)
             self.z = np.zeros_like(self.centerx).astype(np.float32)
-        
 
     def __len__(self):
         return self.N
-    
 
     def __getitem__(self, idx):
-        '''
+        """
         Get a new sample.
 
         Parameters
@@ -147,36 +174,38 @@ class RandDiskGenerator: # TODO avoid overlapping disks
         numpy.ndarray
             2D or 3D Image corresponding to the coordinates.
 
-        '''
+        """
         coords = np.array([self.centerx[idx], self.centery[idx]]).T
-        
+
         if self.num_planes > 1:
             canvas = np.zeros(self.shape)
             for i in range(self.num_planes):
-                canvas[:, :, i] = draw_disks(self.shape[:-1],
-                                            coords[self.z_indices[idx] == i, :],
-                                            self.radius,
-                                            color = 255) #TODO add weight
+                canvas[:, :, i] = draw_disks(
+                    self.shape[:-1],
+                    coords[self.z_indices[idx] == i, :],
+                    self.radius,
+                    color=255,
+                )  # TODO add weight
                 print(self.z_values[idx, i])
                 self.z[idx, self.z_indices[idx] == i] = self.z_values[idx, i]
-            return np.array([self.centerx[idx], self.centery[idx], self.z[idx]]).T, canvas #TODO add weight
-                
+            return (
+                np.array([self.centerx[idx], self.centery[idx], self.z[idx]]).T,
+                canvas,
+            )  # TODO add weight
+
         else:
-            image = draw_disks(self.shape[:-1],
-                               coords,
-                               self.radius,
-                               color = 255)[..., None] #TODO add weight
+            image = draw_disks(self.shape[:-1], coords, self.radius, color=255)[
+                ..., None
+            ]  # TODO add weight
             return coords, image
-    
-    
+
     def __call__(self):
         for i in range(self.__len__()):
             yield self.__getitem__(i)
-            
-            if i == self.__len__()-1:
+
+            if i == self.__len__() - 1:
                 self.on_epoch_end()
-        
-        
-    #shuffles the dataset at the end of each epoch
+
+    # shuffles the dataset at the end of each epoch
     def on_epoch_end(self):
         self.__get_randomized_coords()
