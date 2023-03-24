@@ -4,8 +4,8 @@ from chex import Array, PRNGKey, assert_rank
 
 from ..field import Field
 from ..functional.amplitude_masks import amplitude_change
-from ..ops.binarize import binarize
 from ..utils import _broadcast_2d_to_spatial
+from ..ops import binarize
 
 __all__ = ["AmplitudeMask"]
 
