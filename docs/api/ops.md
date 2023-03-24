@@ -6,6 +6,8 @@
 
 :::chromatix.ops.filters
 
+:::chromatix.ops.quantization
+
 :::chromatix.ops.windows
 
 :::chromatix.ops.ops
