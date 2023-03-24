@@ -55,6 +55,8 @@ def quantize(x: Array, bit_depth: float, range: Optional[Tuple[int, int]]) -> Ar
         x: Input to quantize.
         bit_depth: Number of bits. This parameter does NOT represent the number of
             digitization levels, but the bit depth.
+        range: Range to quantize to, provided as ``(minimum, maximum)``. If not
+            provided, the range of the values in ``x`` will be used.
 
     Returns:
         The quantized input.
