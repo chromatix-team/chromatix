@@ -42,7 +42,9 @@ def binarize_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
 
 
 @jax.custom_jvp
-def quantize(x: Array, bit_depth: float, range: Optional[Tuple[int, int]]) -> Array:
+def quantize(
+    x: Array, bit_depth: float, range: Optional[Tuple[int, int]] = None
+) -> Array:
     """
     Quantize the input ``x`` to the specified ``bit_depth``. Surrogate gradient
     approach [1] is used to adjust the bit depth differentiably.
