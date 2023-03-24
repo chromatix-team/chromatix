@@ -42,6 +42,7 @@ class Binarize(nn.Module):
 
     See ``chromatix.ops.quantization.binarize`` for more details.
     """
+
     threshold: float = 0.5
 
     @nn.compact
@@ -55,6 +56,7 @@ class Quantize(nn.Module):
 
     See ``chromatix.ops.quantization.quantize`` for more details.
     """
+
     bit_depth: int
     range: Optional[Tuple[int, int]] = None
 
