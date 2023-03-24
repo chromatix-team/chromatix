@@ -65,7 +65,6 @@ def transfer_propagate(
     z: Union[float, Array],
     n: float,
     N_pad: int,
-    method: str = "Fresnel",
     cval: float = 0,
     kykx: Array = jnp.zeros((2,)),
     loop_axis: Optional[int] = None,
@@ -88,7 +87,39 @@ def transfer_propagate(
             to "full", in which case the output shape will include padding.
     """
     propagator = compute_transfer_propagator(
-        field.shape, field.dx, field.spectrum, z, n, N_pad, method, kykx
+        field.shape, field.dx, field.spectrum, z, n, N_pad, kykx
+    )
+    return kernel_propagate(field, propagator, N_pad, cval, loop_axis, mode)
+
+
+def asm_propagate(
+    field: Field,
+    z: Union[float, Array],
+    n: float,
+    N_pad: int,
+    cval: float = 0,
+    kykx: Array = jnp.zeros((2,)),
+    loop_axis: Optional[int] = None,
+    mode: Literal["full", "same"] = "full",
+) -> Field:
+    """
+    Fresnel propagate ``field`` for a distance ``z`` using transfer method.
+
+    Args:
+        field: ``Field`` to be propagated.
+        z: Distance(s) to propagate, either a float or a 1D array.
+        n: A float that defines the refractive index of the medium.
+        N_pad: A keyword argument integer defining the pad length for the
+        propagation FFT (NOTE: should not be a Jax array, otherwise a
+        ConcretizationError will arise when traced!).
+        kykx: If provided, defines the orientation of the propagation. Should
+            be an array of shape `[2,]` in the format [ky, kx].
+        mode: Either "full" or "same". If "same", the shape of the output
+            ``Field`` will match the shape of the incoming ``Field``. Defaults
+            to "full", in which case the output shape will include padding.
+    """
+    propagator = compute_asm_propagator(
+        field.shape, field.dx, field.spectrum, z, n, N_pad, kykx
     )
     return kernel_propagate(field, propagator, N_pad, cval, loop_axis, mode)
 
@@ -149,6 +180,29 @@ def kernel_propagate(
     return field
 
 
+def compute_asm_propagator(
+    shape: tuple[int],
+    z: Array,
+    spectrum: Array,
+    dx: int,) -> Array:
+    N_pad = 0
+    # cacluate the grid
+    f = []
+    for d in range(dx.size):
+        f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
+    f = jnp.stack(f, axis=-1)
+    fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
+    
+    argument = (2 * np.pi)**2 * ((1. / spectrum) ** 2 -  fx** 2 - fy ** 2)
+    
+    #Calculate the propagating and the evanescent (complex) modes
+    tmp = np.sqrt(jnp.abs(argument))
+    kz = np.where(argument >= 0, tmp, 1j*tmp)
+    
+    propagator = np.exp(1j * kz * z).astype(np.complex64)
+    return propagator
+
+
 def compute_transfer_propagator(
     shape: Tuple,
     dx: Union[float, Array],
@@ -156,7 +210,6 @@ def compute_transfer_propagator(
     z: Union[float, Array],
     n: float,
     N_pad: int,
-    method: str = "Fresnel",
     kykx: Array = jnp.zeros((2,)),
 ):
     """Compute propagation kernel for Fresnel propagation.
@@ -188,21 +241,8 @@ def compute_transfer_propagator(
         f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    if method == "ASM":
-        argument = (2 * np.pi) ** 2 * (
-            (1.0 / spectrum) ** 2 - (fx - kykx[1]) ** 2 - (fy - kykx[0]) ** 2
-        )
-        tmp = np.sqrt(jnp.abs(argument))
-        phase = (
-            np.where(argument >= 0, tmp, 1j * tmp) * z
-        )  # TODO make eve. removal optional
-
-    elif method == "Fresnel":
-        L = jnp.complex64(spectrum * z / n)  # lengthscale L
-        phase = -jnp.pi * L * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
-
-    else:
-        raise ValueError("Invalid method. Choose either 'Fresnel' or 'ASM'.")
+    L = jnp.complex64(spectrum * z / n)  # lengthscale L
+    phase = -jnp.pi * L * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     return jnp.exp(1j * phase)
 
 
