@@ -9,7 +9,7 @@ except ModuleNotFoundError:
     USE_CV2 = False
 
 
-def siemens_star(num_pixels=512, num_spokes=32):
+def siemens_star(num_pixels: int = 512, num_spokes: int = 32) -> np.ndarray:
     """
     Generates a 2D Siemens star image of shape ``[num_pixels num_pixels]``.
 
@@ -32,26 +32,26 @@ def siemens_star(num_pixels=512, num_spokes=32):
 
 if USE_CV2:
 
-    def draw_disks(image_size, coordinates, radius, color=255):
+    def draw_disks(
+        shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
+    ) -> np.ndarray:
         """
         Create a grayscale image with disks drawn at each provided coordinate.
 
         Args:
-            image_size (tuple): The desired image size as (height, width).
-            coordinates (list or numpy.ndarray): A list of (x, y) coordinates where disks should be drawn.
-            radius (int): The radius of the disks.
-            color (int): An optional intensity for the disks (0-255).
+            image_size: The desired image size as (height, width).
+            coordinates: A list of (x, y) coordinates where disks should be
+                drawn.
+            radius: The radius of the disks.
+            color: An optional intensity for the disks (0-255).
 
         Returns:
-            numpy.ndarray: The resulting grayscale image with disks drawn at the specified coordinates.
+            numpy.ndarray: The resulting grayscale image with disks drawn at
+                the specified coordinates.
         """
-        # Create a blank grayscale image with the desired size
-        image = np.zeros(image_size, dtype=np.uint8)
-
-        # Draw a disk at each coordinate
+        image = np.zeros(shape, dtype=np.uint8)
         for coord in coordinates:
             cv2.circle(image, (coord[0], coord[1]), radius, color, -1)
-
         return image
 
 else:
@@ -59,6 +59,20 @@ else:
     def draw_disks(
         shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
     ) -> np.ndarray:
+        """
+        Create a grayscale image with disks drawn at each provided coordinate.
+
+        Args:
+            image_size: The desired image size as (height, width).
+            coordinates: A list of (x, y) coordinates where disks should be
+                drawn.
+            radius: The radius of the disks.
+            color: An optional intensity for the disks (0-255).
+
+        Returns:
+            numpy.ndarray: The resulting grayscale image with disks drawn at
+                the specified coordinates.
+        """
         image = np.zeros([s + radius * 2 for s in shape], dtype=np.uint8)
         _samples = np.linspace(-radius, radius, num=radius * 2, dtype=np.float32)
         circle = color * np.uint8(
@@ -73,39 +87,36 @@ else:
 
 
 class RandDiskGenerator:  # TODO avoid overlapping disks
-    def __init__(self, N, n_points, radius, shape, z_range):
+    def __init__(
+        self,
+        N: int,
+        num_points: int,
+        radius: int,
+        shape: Tuple[int, int],
+        z_range: Tuple[int, int],
+    ):
         """
         Create a dataset of random 3D coordinates and their associated image.
-        Each generated sample consists of an array of [n_points x y z] with
-        shape: n_points * 3, accompanied by a 3D image with shape `shape`. The
-        last dimension of `shape` represents the z axis. The number of planes
-        will be infered from the `shape` argument. This is meant for Tensorflow
-        and PyTorch data loaders that support generators.
+        Each generated sample consists of an array of x y z coordinates with
+        shape: (n_points 3), accompanied by a 3D image with shape `shape`.
+        The last dimension of `shape` represents the z axis, if it exists. The
+        number of planes will be inferred from the `shape` argument. This is
+        meant for TensorFlow and PyTorch data loaders that support generators.
 
-        Parameters
-        ----------
-        N : int
-            Number of samples in the dataset. Avoid large N as the coordinates
-            on each epoch are pre-stored for speed. On each new epoch the samples
-            are randomized again (new random coordinates are generated) therefore
-            you can easily use small `N` to avoid memory issues.
-        n_points : int
-            Number of points in each sample. For 3D samples these samples will
-            be randomly split between the planes.
-        radius : int
-            Radius of the disks to be drawn on each plane.
-        shape : tuple or list
-            Shape of the output image. Dimensions are [h w n_z] where n_z is the
-            number of planes in 3D. For 2D samples use z=1.
-        z_range : list
-            Minimum and Maximum values for z values [min, max]. The returned
-            coordinates are [x y z] and this parameter determines the range of
-            the z coordinates.
-
-        Returns
-        -------
-        None.
-
+        Args:
+            N: Number of samples in the dataset. Avoid large N as the coordinates
+                on each epoch are pre-stored for speed. On each new epoch the
+                samples are randomized again (new random coordinates are generated)
+                therefore you can easily use small `N` to avoid memory issues.
+            num_points: Number of points in each sample. For 3D samples these samples
+                will be randomly split between the planes.
+            radius: Radius of the disks to be drawn on each plane.
+            shape: Shape of the output image. Dimensions are [h w n_z] where n_z is
+                the number of planes in 3D. For 2D samples use z=1.
+            z_range: list
+                Minimum and Maximum values for z values [min, max]. The returned
+                coordinates are [x y z] and this parameter determines the range of
+                the z coordinates.
         """
 
         assert (
@@ -117,65 +128,55 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
         self.radius = radius
         self.shape = shape
         self.z_range = z_range
-        self.n_points = n_points
+        self.num_points = num_points
         self.num_planes = shape[-1]
+        self.reset()
 
-        self.__get_randomized_coords()
-
-    def __get_randomized_coords(self):
+    def reset(self):
         """
         Generate all the random coordinates. This is called when generator
-        is instanciated or end of epoch is reached.
-
-        Returns
-        -------
-        None.
-
+        is instantiated or the last sample in the generator is reached.
         """
-        self.centery = np.random.randint(
+        self.y = np.random.randint(
             low=self.radius,
             high=self.shape[0] - self.radius,
-            size=(self.N, self.n_points),
+            size=(self.N, self.num_points),
         )
-        self.centerx = np.random.randint(
+        self.x = np.random.randint(
             low=self.radius,
             high=self.shape[1] - self.radius,
-            size=(self.N, self.n_points),
+            size=(self.N, self.num_points),
         )
 
         if self.num_planes > 1:
             self.z_indices = np.random.randint(
-                low=0, high=self.num_planes, size=(self.N, self.n_points)
+                low=0, high=self.num_planes, size=(self.N, self.num_points)
             )
             self.z_values = np.random.rand(self.N, self.num_planes) * (
                 self.z_range[1] - self.z_range[0]
             )
             self.z_values += self.z_range[0]
             self.z_values.sort(axis=1)
-            self.z = np.zeros_like(self.centerx).astype(np.float32)
+            self.z = np.zeros_like(self.x).astype(np.float32)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.N
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> np.ndarray:
         """
         Get a new sample.
 
-        Parameters
-        ----------
-        idx : int
-            Index of the current sample that needs to be generated.
-            Automatically provided.
+        Args:
+            idx: Index of the current sample that needs to be generated.
 
-        Returns
-        -------
-        numpy.ndarray
-            A [num_points 2] or [num_points 3] array containing the coordinates.
-        numpy.ndarray
-            2D or 3D Image corresponding to the coordinates.
-
+        Returns:
+            numpy.ndarray
+                A (num_points 2) or (num_points 3) array containing the
+                    coordinates.
+            numpy.ndarray
+                2D or 3D Image corresponding to the coordinates.
         """
-        coords = np.array([self.centerx[idx], self.centery[idx]]).T
+        coords = np.array([self.x[idx], self.y[idx]]).T
 
         if self.num_planes > 1:
             canvas = np.zeros(self.shape)
@@ -189,7 +190,7 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
                 print(self.z_values[idx, i])
                 self.z[idx, self.z_indices[idx] == i] = self.z_values[idx, i]
             return (
-                np.array([self.centerx[idx], self.centery[idx], self.z[idx]]).T,
+                np.array([self.x[idx], self.y[idx], self.z[idx]]).T,
                 canvas,
             )  # TODO add weight
 
@@ -199,13 +200,20 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
             ]  # TODO add weight
             return coords, image
 
-    def __call__(self):
+    def __call__(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get a new sample. Automatically iterates through samples of coordinates
+        with every call. Will cause the random coordinates to be regenerated
+        when the last sample is reached.
+
+        Returns:
+            numpy.ndarray
+                A (num_points 2) or (num_points 3) array containing the
+                    coordinates.
+            numpy.ndarray
+                2D or 3D Image corresponding to the coordinates.
+        """
         for i in range(self.__len__()):
             yield self.__getitem__(i)
-
             if i == self.__len__() - 1:
-                self.on_epoch_end()
-
-    # shuffles the dataset at the end of each epoch
-    def on_epoch_end(self):
-        self.__get_randomized_coords()
+                self.reset()
