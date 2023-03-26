@@ -243,8 +243,7 @@ def compute_transfer_propagator(
         f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    L = jnp.complex64(spectrum * z / n)  # lengthscale L
-    phase = -jnp.pi * L * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
+    phase = -jnp.pi * L**2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     return jnp.exp(1j * phase)
 
 
