@@ -186,7 +186,8 @@ def compute_asm_propagator(
     shape: tuple[int],
     z: Array,
     spectrum: Array,
-    dx: int,) -> Array:
+    dx: int,
+) -> Array:
     N_pad = 0
     # cacluate the grid
     f = []
@@ -194,13 +195,13 @@ def compute_asm_propagator(
         f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
-    
-    argument = (2 * np.pi)**2 * ((1. / spectrum) ** 2 -  fx** 2 - fy ** 2)
-    
-    #Calculate the propagating and the evanescent (complex) modes
+
+    argument = (2 * np.pi) ** 2 * ((1.0 / spectrum) ** 2 - fx**2 - fy**2)
+
+    # Calculate the propagating and the evanescent (complex) modes
     tmp = np.sqrt(jnp.abs(argument))
-    kz = np.where(argument >= 0, tmp, 1j*tmp)
-    
+    kz = np.where(argument >= 0, tmp, 1j * tmp)
+
     propagator = np.exp(1j * kz * z).astype(np.complex64)
     return propagator
 
