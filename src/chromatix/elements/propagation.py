@@ -7,9 +7,11 @@ from ..functional import (
     transform_propagate,
     transfer_propagate,
     exact_propagate,
+    asm_propagate,
     kernel_propagate,
     compute_transfer_propagator,
     compute_exact_propagator,
+    compute_asm_propagator,
 )
 from ..ops.field import pad, crop
 
@@ -59,8 +61,9 @@ class Propagate(nn.Module):
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
         method: The propagation method, which can be "transform", "transfer",
-            or "exact." Defaults to "exact", which is propagation without the
-            Fresnel approximation.
+            "exact", or "asm." Defaults to "exact", which is propagation
+            without the Fresnel approximation and with evanescent waves
+            cancelled.
         mode: Defines the cropping of the output if the method is "transfer" or
             "exact". Defaults to "same", which returns a ``Field`` of the same
             shape, unlike the functional methods.
@@ -74,7 +77,7 @@ class Propagate(nn.Module):
     N_pad: int = 0
     cval: float = 0
     kykx: Array = jnp.zeros((2,))
-    method: Literal["transform", "transfer", "exact"] = "exact"
+    method: Literal["transform", "transfer", "exact", "asm"] = "exact"
     mode: Literal["full", "same"] = "same"
     cache_propagator: bool = True
 
@@ -84,8 +87,10 @@ class Propagate(nn.Module):
             isinstance(self.z, Callable) or isinstance(self.n, Callable)
         ):
             raise ValueError("Cannot cache propagation kernel if z or n are trainable.")
-        if self.cache_propagator and self.method not in ["transfer", "exact"]:
-            raise ValueError("Can only cache kernel for 'transfer' or 'exact' methods.")
+        if self.cache_propagator and self.method not in ["transfer", "exact", "asm"]:
+            raise ValueError(
+                "Can only cache kernel for 'transfer', 'exact', or 'asm' methods."
+            )
         z = self.param("_z", self.z) if isinstance(self.z, Callable) else self.z
         n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
         if self.cache_propagator:
@@ -107,6 +112,12 @@ class Propagate(nn.Module):
                     "propagation",
                     "kernel",
                     lambda: compute_exact_propagator(*propagator_args),
+                )
+            elif self.method == "asm":
+                propagator = self.variable(
+                    "propagation",
+                    "kernel",
+                    lambda: compute_asm_propagator(*propagator_args),
                 )
             field = kernel_propagate(field, propagator.value)
             if self.mode == "same":
@@ -132,6 +143,16 @@ class Propagate(nn.Module):
             )
         elif self.method == "exact":
             return exact_propagate(
+                field,
+                z,
+                n,
+                N_pad=self.N_pad,
+                cval=self.cval,
+                kykx=self.kykx,
+                mode=self.mode,
+            )
+        elif self.method == "asm":
+            return asm_propagate(
                 field,
                 z,
                 n,
@@ -187,6 +208,7 @@ class KernelPropagate(nn.Module):
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
+        field = pad(field, self.N_pad, cval=self.cval)
         if isinstance(self.propagator, Callable):
             propagator = self.param(
                 "_propagator",
@@ -194,12 +216,11 @@ class KernelPropagate(nn.Module):
                 field,
                 self.z,
                 self.n,
-                self.N_pad,
                 self.kykx,
             )
         else:
             propagator = self.propagator
-        return kernel_propagate(
-            field,
-            propagator,
-        )
+        field = kernel_propagate(field, propagator)
+        if self.mode == "same":
+            field = crop(field, self.N_pad)
+        return field
