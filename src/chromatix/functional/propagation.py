@@ -183,12 +183,14 @@ def kernel_propagate(
 
 
 def compute_asm_propagator(
-    shape: tuple[int],
-    z: Array,
-    spectrum: Array,
-    dx: int,
-) -> Array:
-    N_pad = 0
+    shape: Tuple,
+    dx: Union[float, Array],
+    spectrum,
+    z: Union[float, Array],
+    n: float, # TODO ASM assumes n=1. Needs to be implemented for other n
+    N_pad: int,
+    kykx: Array = jnp.zeros((2,)),
+):
     # cacluate the grid
     f = []
     for d in range(dx.size):
@@ -196,12 +198,12 @@ def compute_asm_propagator(
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
 
-    argument = (2 * jnp.pi) ** 2 * ((1.0 / spectrum) ** 2 - fx**2 - fy**2)
+    argument = (2 * jnp.pi * n) ** 2 * ((1.0 / spectrum) ** 2 - (fx - kykx[1])**2 - (fy - kykx[0])**2)
 
     # Calculate the propagating and the evanescent (complex) modes
     tmp = jnp.sqrt(jnp.abs(argument))
     kz = jnp.where(argument >= 0, tmp, 1j * tmp)
-
+    
     return jnp.exp(1j * kz * z).astype(jnp.complex64)
 
 
@@ -287,6 +289,7 @@ def compute_exact_propagator(
         f.append(jnp.fft.fftfreq(shape[1] + N_pad, d=dx[..., d].squeeze()))
     f = jnp.stack(f, axis=-1)
     fx, fy = rearrange(f, "h c -> 1 h 1 c"), rearrange(f, "w c -> 1 1 w c")
+    
     kernel = 1 - (spectrum / n) ** 2 * ((fx - kykx[1]) ** 2 + (fy - kykx[0]) ** 2)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
     phase = 2 * jnp.pi * (z * n / spectrum) * jnp.sqrt(kernel)
