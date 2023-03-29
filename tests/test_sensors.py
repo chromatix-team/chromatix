@@ -1,12 +1,12 @@
 import jax.numpy as jnp
 from jax.random import PRNGKey
-from chromatix import Field
+from chromatix import ScalarField
 import chromatix.functional as cf
 from chromatix.elements.sensors import ShotNoiseIntensitySensor
 
 
 def test_shot_noise_intensity_sensor():
-    field = Field.create(0.3, 0.532, 1.0, shape=(512, 512))
+    field = ScalarField.create(0.3, 0.532, 1.0, shape=(512, 512))
     field = cf.objective_point_source(
         field, jnp.linspace(-5, 5, num=3), f=100.0, n=1.0, NA=0.8
     )

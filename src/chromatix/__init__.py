@@ -2,5 +2,5 @@
 __version__ = "0.1"
 
 
-from .field import Field
+from .field import ScalarField, VectorField, Field
 from .systems import OpticalSystem

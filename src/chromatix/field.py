@@ -75,89 +75,10 @@ class Field(struct.PyTreeNode):
             potentially has multiple batch dimensions.
     """
 
-    u: Array  # (B... H W C)
-    dx: Array  # ([2] B... H W C)
-    spectrum: Array  # (B... H W C)
-    spectral_density: Array  # (B... H W C)
-    spatial_dims: Tuple[int, int]
-
-    @classmethod
-    def create(
-        cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
-    ) -> Field:
-        """
-        Create a ``Field`` object in a convenient way.
-
-        Creates a ``Field`` object, accepting arguments as scalars or 1D values
-        as appropriate. This class function appropriately reshapes the given
-        values of attributes to the necessary shapes, allowing a ``Field`` to
-        be created with scalar or 1D array values for the spectrum and spectral
-        density, as desired.
-
-        Args:
-            dx: The spacing of the samples in ``u`` discretizing a continuous
-                field. Can either be a 1D array with the same size as the
-                number of wavelengths in the spectrum of shape (C), specifying
-                a square spacing per wavelength, or a 2D array of shape (2 C)
-                specifying the spacing in the y and x directions respectively
-                for non-square pixels. A float can also be specified to use the
-                same square spacing for all wavelengths. Spacing will be the
-                same per wavelength for all entries in a batch.
-            spectrum: The wavelengths sampled by the field, in any units
-                specified. Should be a 1D array containing each wavelength, or
-                a float for a single wavelength.
-            spectral_density: The weights of the wavelengths in the spectrum.
-                Will be scaled to sum to 1.0 over all wavelengths. Should be a
-                1D array containing the weight of each wavelength, or a float
-                for a single wavelength.
-            u: The scalar field of shape `(B... H W C)`. If not given,
-                the ``Field`` is allocated with uninitialized values of the
-                given ``shape`` as `(1 H W C)`.
-            shape: A tuple defining the shape of only the spatial
-                dimensions of the ``Field`` of the form `(H W)`. Not required
-                if ``u`` is provided. If ``u`` is not provided, then ``shape``
-                must be provided.
-        """
-        spectrum = jnp.atleast_1d(spectrum)
-        spectral_density = jnp.atleast_1d(spectral_density)
-        dx = jnp.atleast_1d(dx)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        if dx.shape[-1] == 1:
-            dx = repeat(dx, "d 1 -> d c", c=spectrum.size)
-        if u is None:
-            # NOTE(dd): when jitting this function, shape must be a
-            # static argument --- possibly requiring multiple traces
-            assert shape is not None, "Must specify shape if u is None"
-            field_u: Array = jnp.empty((1, *shape, spectrum.size), dtype=jnp.complex64)
-        else:
-            field_u = u
-        ndim = len(field_u.shape)
-        assert (
-            ndim >= 4
-        ), "Field must be Array with at least 4 dimensions: (B... H W C)."
-        field_spatial_dims = (1 + ndim - 4, 2 + ndim - 4)
-        field_dx = _broadcast_2d_to_grid(dx, ndim)
-        field_spectrum = _broadcast_1d_to_channels(spectrum, ndim)
-        field_spectral_density = _broadcast_1d_to_channels(spectral_density, ndim)
-        field_spectral_density = field_spectral_density / jnp.sum(
-            field_spectral_density
-        )
-        assert_equal_shape([field_spectrum, field_spectral_density])
-        field = cls(
-            field_u,
-            field_dx,
-            field_spectrum,
-            field_spectral_density,
-            field_spatial_dims,
-        )
-        return field
+    u: Array  # (B... H W C [1 | 3])
+    dx: Array  # (2 B... H W C [1 | 3])
+    spectrum: Array  # (B... H W C [1 | 3])
+    spectral_density: Array  # (B... H W C [1 | 3])
 
     @property
     def grid(self) -> Array:
@@ -175,7 +96,7 @@ class Field(struct.PyTreeNode):
             jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
             indexing="ij",
         )
-        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 3)) + "h w 1")
+        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
         return self.dx * grid
 
     @property
@@ -186,7 +107,7 @@ class Field(struct.PyTreeNode):
             jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
             indexing="ij",
         )
-        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 3)) + "h w 1")
+        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
         return self.dk * grid
 
     @property
@@ -197,28 +118,26 @@ class Field(struct.PyTreeNode):
 
     @property
     def phase(self) -> Array:
-        """Phase of the complex scalar field, shape `(B... H W C)`."""
+        """Phase of the complex scalar field, shape `(B... H W C [1 | 3])`."""
         return jnp.angle(self.u)
 
     @property
     def amplitude(self) -> Array:
-        """Amplitude of the complex scalar field, shape `(B... H W C)`."""
+        """Amplitude of the complex scalar field, shape `(B... H W C [1|3])`."""
         return jnp.abs(self.u)
 
     @property
     def intensity(self) -> Array:
-        """Intensity of the complex scalar field, shape `(B... H W 1)`."""
+        """Intensity of the complex scalar field, shape `(B... H W 1 1)`."""
         return jnp.sum(
-            self.spectral_density * jnp.abs(self.u) ** 2,
-            axis=-1,
-            keepdims=True,
+            self.spectral_density * jnp.abs(self.u) ** 2, axis=(-2, -1), keepdims=True
         )
 
     @property
     def power(self) -> jnp.ndarray:
         """Power of the complex scalar field, shape `(B... 1 1 1)`."""
         area = jnp.prod(self.dx, axis=0, keepdims=False)
-        return jnp.sum(self.intensity, axis=(1, 2), keepdims=True) * area
+        return jnp.sum(self.intensity, axis=(-4, -3), keepdims=True) * area
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -231,13 +150,15 @@ class Field(struct.PyTreeNode):
         return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
 
     @property
+    def spatial_dims(self) -> Tuple[int, int]:
+        """Returns dimensions representing height and width."""
+        return (-4, -3)
+
+    @property
     def ndim(self) -> int:
         return self.u.ndim
 
-    @property
-    def num_batch_dims(self) -> int:
-        return len(self.u.shape) - 3
-
+    # FIXME: how to add non-polarised to polarised?
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
@@ -303,3 +224,155 @@ class Field(struct.PyTreeNode):
 
     def __rmod__(self, other: Any) -> Field:
         return self.replace(u=other % self.u)
+
+
+class ScalarField(Field):
+    @classmethod
+    def create(
+        cls,
+        dx: Union[float, Array],
+        spectrum: Union[float, Array],
+        spectral_density: Union[float, Array],
+        u: Optional[Array] = None,
+        shape: Optional[Tuple[int, int]] = None,
+    ) -> Field:
+        """
+        Create a ``Field`` object in a convenient way.
+
+        Creates a ``Field`` object, accepting arguments as scalars or 1D values
+        as appropriate. This class function appropriately reshapes the given
+        values of attributes to the necessary shapes, allowing a ``Field`` to
+        be created with scalar or 1D array values for the spectrum and spectral
+        density, as desired.
+
+        Args:
+            dx: The spacing of the samples in ``u`` discretizing a continuous
+                field. Can either be a 1D array with the same size as the
+                number of wavelengths in the spectrum of shape (C), specifying
+                a square spacing per wavelength, or a 2D array of shape (2 C)
+                specifying the spacing in the y and x directions respectively
+                for non-square pixels. A float can also be specified to use the
+                same square spacing for all wavelengths. Spacing will be the
+                same per wavelength for all entries in a batch.
+            spectrum: The wavelengths sampled by the field, in any units
+                specified. Should be a 1D array containing each wavelength, or
+                a float for a single wavelength.
+            spectral_density: The weights of the wavelengths in the spectrum.
+                Will be scaled to sum to 1.0 over all wavelengths. Should be a
+                1D array containing the weight of each wavelength, or a float
+                for a single wavelength.
+            u: The scalar field of shape `(B... H W C)`. If not given,
+                the ``Field`` is allocated with uninitialized values of the
+                given ``shape`` as `(1 H W C)`.
+            shape: A tuple defining the shape of only the spatial
+                dimensions of the ``Field`` of the form `(H W)`. Not required
+                if ``u`` is provided. If ``u`` is not provided, then ``shape``
+                must be provided.
+        """
+        # First parse everything to array
+        dx: Array = jnp.atleast_1d(dx)
+        spectrum: Array = jnp.atleast_1d(spectrum)
+        spectral_density: Array = jnp.atleast_1d(spectral_density)
+
+        # Parsing field first
+        if u is None:
+            assert shape is not None, "Must specify shape if u is None"
+            u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
+        ndim = len(u.shape)
+        assert (
+            ndim >= 5
+        ), "Field must be Array with at least 4 dimensions: (B... H W C 1)."
+        assert u.shape[-1] == 1, "Last dimension of Array must be 3 for scalar fields."
+
+        # Parsing spectrum and density
+        assert_equal_shape([spectrum, spectral_density])
+        spectrum = _broadcast_1d_to_channels(spectrum, ndim)
+        spectral_density = _broadcast_1d_to_channels(spectral_density, ndim)
+        spectral_density = spectral_density / jnp.sum(spectral_density)
+
+        # Parsing spacing
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        # This should broadcast no?
+        # if dx.shape[-1] == 1:
+        #    dx = repeat(dx, "d 1 -> d c", c=spectrum.size)
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        dx = _broadcast_2d_to_grid(dx, ndim)
+
+        return cls(u, dx, spectrum, spectral_density)
+
+
+class VectorField(Field):
+    @classmethod
+    def create(
+        cls,
+        dx: Union[float, Array],
+        spectrum: Union[float, Array],
+        spectral_density: Union[float, Array],
+        u: Optional[Array] = None,
+        shape: Optional[Tuple[int, int]] = None,
+    ) -> Field:
+        """
+        Create a ``Field`` object in a convenient way.
+
+        Creates a ``Field`` object, accepting arguments as scalars or 1D values
+        as appropriate. This class function appropriately reshapes the given
+        values of attributes to the necessary shapes, allowing a ``Field`` to
+        be created with scalar or 1D array values for the spectrum and spectral
+        density, as desired.
+
+        Args:
+            dx: The spacing of the samples in ``u`` discretizing a continuous
+                field. Can either be a 1D array with the same size as the
+                number of wavelengths in the spectrum of shape (C), specifying
+                a square spacing per wavelength, or a 2D array of shape (2 C)
+                specifying the spacing in the y and x directions respectively
+                for non-square pixels. A float can also be specified to use the
+                same square spacing for all wavelengths. Spacing will be the
+                same per wavelength for all entries in a batch.
+            spectrum: The wavelengths sampled by the field, in any units
+                specified. Should be a 1D array containing each wavelength, or
+                a float for a single wavelength.
+            spectral_density: The weights of the wavelengths in the spectrum.
+                Will be scaled to sum to 1.0 over all wavelengths. Should be a
+                1D array containing the weight of each wavelength, or a float
+                for a single wavelength.
+            u: The scalar field of shape `(B... H W C)`. If not given,
+                the ``Field`` is allocated with uninitialized values of the
+                given ``shape`` as `(1 H W C)`.
+            shape: A tuple defining the shape of only the spatial
+                dimensions of the ``Field`` of the form `(H W)`. Not required
+                if ``u`` is provided. If ``u`` is not provided, then ``shape``
+                must be provided.
+        """
+        # First parse everything to array
+        dx: Array = jnp.atleast_1d(dx)
+        spectrum: Array = jnp.atleast_1d(spectrum)
+        spectral_density: Array = jnp.atleast_1d(spectral_density)
+
+        # Parsing field first
+        if u is None:
+            assert shape is not None, "Must specify shape if u is None"
+            u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
+        ndim = len(u.shape)
+        assert (
+            ndim >= 5
+        ), "Field must be Array with at least 4 dimensions: (B... H W C 1)."
+        assert u.shape[-1] == 4, "Last dimension of Array must be 3 for vector fields."
+
+        # Parsing spectrum and density
+        assert_equal_shape([spectrum, spectral_density])
+        spectrum = _broadcast_1d_to_channels(spectrum, ndim)
+        spectral_density = _broadcast_1d_to_channels(spectral_density, ndim)
+        spectral_density = spectral_density / jnp.sum(spectral_density)
+
+        # Parsing spacing
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        # This should broadcast no?
+        # if dx.shape[-1] == 1:
+        #    dx = repeat(dx, "d 1 -> d c", c=spectrum.size)
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        dx = _broadcast_2d_to_grid(dx, ndim)
+
+        return cls(u, dx, spectrum, spectral_density)

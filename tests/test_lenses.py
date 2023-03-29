@@ -1,10 +1,10 @@
-from chromatix import Field
+from chromatix import ScalarField
 import chromatix.functional as cf
 import jax.numpy as jnp
 
 
 def test_ff_lens():
-    empty_field = Field.create(0.3, 0.532, 1.0, shape=(512, 512))
+    empty_field = ScalarField.create(0.3, 0.532, 1.0, shape=(512, 512))
     field_after_first_lens = cf.objective_point_source(
         empty_field, 0, f=10.0, n=1.0, NA=0.8
     )
@@ -23,7 +23,7 @@ def test_ff_lens():
 
 
 def test_df_lens():
-    empty_field = Field.create(0.3, 0.532, 1.0, shape=(512, 512))
+    empty_field = ScalarField.create(0.3, 0.532, 1.0, shape=(512, 512))
     field_after_first_lens = cf.objective_point_source(
         empty_field, 0, f=10.0, n=1.0, NA=0.8
     )
