@@ -1,19 +1,18 @@
 import jax.numpy as jnp
 
-from ..field import Field
+from ..field import Field, VectorField
 from einops import rearrange
 
 __all__ = ["linear_polarizer", "left_circular_polarizer", "right_circular_polarizer"]
 
 
-def field_after_polarizer(field: Field, J00, J01, J10, J11):
+def field_after_polarizer(field: VectorField, J00, J01, J10, J11) -> VectorField:
     LP = jnp.array([[J00, J01, 0], [J10, J11, 0], [0, 0, 0]])
-    LP = rearrange(LP[::-1, ::-1], "a b -> 1 a b 1 1 1")
-    u = jnp.einsum("ijjklm, ijklm -> ijklm", LP, field.u)
-    return field.replace(u=u)
+    LP = LP[::-1, ::-1]  # why the inverse?
+    return field.replace(u=jnp.dot(field.u, LP.T))
 
 
-def linear_polarizer(field: Field, polarizer_angle: float) -> Field:
+def linear_polarizer(field: VectorField, polarizer_angle: float) -> VectorField:
     """
     Applies a thin polarizer placed directly after the incoming ``Field``.
 
@@ -33,7 +32,7 @@ def linear_polarizer(field: Field, polarizer_angle: float) -> Field:
     return field_after_polarizer(field, J00, J01, J10, J11)
 
 
-def left_circular_polarizer(field: Field) -> Field:
+def left_circular_polarizer(field: VectorField) -> VectorField:
     """
     Applies a thin LCP linear polarizer placed directly after the incoming ``Field``.
 
@@ -50,7 +49,7 @@ def left_circular_polarizer(field: Field) -> Field:
     return field_after_polarizer(field, J00, J01, J10, J11)
 
 
-def right_circular_polarizer(field: Field) -> Field:
+def right_circular_polarizer(field: VectorField) -> VectorField:
     """
     Applies a thin RCP polarizer placed directly after the incoming ``Field``.
 
