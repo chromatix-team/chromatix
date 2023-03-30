@@ -1,6 +1,6 @@
 # %%
 import jax.numpy as jnp
-from chromatix import ScalarField
+from chromatix import ScalarField, VectorField
 import chromatix.functional as cf
 from functools import partial
 from chex import assert_shape
@@ -46,3 +46,15 @@ def test_objective_point_source(power, z, shape):
 
     assert jnp.allclose(field.power, power)
     assert_shape(field.u, (1, *shape, 1, 1))
+
+
+def test_vector_plane_wave():
+    field = VectorField.create(1.0, 0.532, 1.0, shape=(512, 512))
+
+    k = jnp.array([0.0, 1.0])
+    E0 = jnp.ones((3,))
+
+    field = cf.vector_plane_wave(
+        field, k, E0, power=2.0, pupil=partial(cf.square_pupil, w=10.0)
+    )
+    assert_shape(field.u, (1, 512, 512, 1, 3))

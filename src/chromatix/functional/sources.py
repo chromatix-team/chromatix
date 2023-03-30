@@ -4,13 +4,14 @@ from typing import Optional, Callable
 from chex import Array, assert_rank
 from .pupils import circular_pupil
 from ..utils.grids import l2_sq_norm
-from ..utils.shapes import _broadcast_1d_to_innermost_batch
+from ..utils.shapes import _broadcast_1d_to_innermost_batch, _broadcast_1d_to_grid
 
 __all__ = [
     "point_source",
     "objective_point_source",
     "plane_wave",
     "generic_field",
+    "vector_plane_wave",
 ]
 
 
@@ -180,7 +181,9 @@ def vector_plane_wave(
             array of shape `[2 H W]`. If provided, ``phase`` is ignored.
     """
     # Field values
-    u = Ep * jnp.exp(1j * jnp.dot(kykx, jnp.moveaxis(field.grid, 0, -2)))
+    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
+
+    u = Ep * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
     field = field.replace(u=u)
 
     # Applying pupil

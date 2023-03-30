@@ -353,12 +353,12 @@ class VectorField(Field):
         # Parsing field first
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
+            u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
         ndim = len(u.shape)
         assert (
             ndim >= 5
         ), "Field must be Array with at least 4 dimensions: (B... H W C 1)."
-        assert u.shape[-1] == 4, "Last dimension of Array must be 3 for vector fields."
+        assert u.shape[-1] == 3, "Last dimension of Array must be 3 for vector fields."
 
         # Parsing spectrum and density
         assert_equal_shape([spectrum, spectral_density])
