@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from ..field import Field
+from ..field import Field, VectorField
 from typing import Optional, Callable
 from chex import Array, assert_rank
 from .pupils import circular_pupil
@@ -154,4 +154,38 @@ def generic_field(
     if pupil is not None:
         field = pupil(field)
     # Setting to correct power
+    return field * jnp.sqrt(power / field.power)
+
+
+def vector_plane_wave(
+    field: VectorField,
+    kykx: Array,
+    Ep: Array,
+    power: float = 1.0,
+    pupil: Optional[Callable[[Field], Field]] = None,
+) -> VectorField:
+    """
+    Generates plane wave of given ``phase`` and ``power``.
+
+    Can also be given ``pupil`` and ``k`` vector.
+
+    Args:
+        field: The ``Field`` which will be filled with the result of the plane
+            wave (should be empty).
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        phase: The phase of the plane wave in radians, defaults to 0.0.
+        pupil: If provided, will be called on the field to apply a pupil.
+        k: If provided, defines the orientation of the plane wave. Should be an
+            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
+    """
+    # Field values
+    u = Ep * jnp.exp(1j * jnp.dot(kykx, jnp.moveaxis(field.grid, 0, -2)))
+    field = field.replace(u=u)
+
+    # Applying pupil
+    if pupil is not None:
+        field = pupil(field)
+
+    # Normalizing to given power
     return field * jnp.sqrt(power / field.power)
