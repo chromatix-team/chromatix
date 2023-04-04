@@ -4,17 +4,22 @@ from chex import Array
 import jax.numpy as jnp
 
 __all__ = [
+    # General functions
+    "jones_vector",
     "polarizer",
+    "phase_retarder",
+    # Initialisers
+    "linear",
+    "left_circular",
+    "right_circular",
+    # Polarisers
     "linear_polarizer",
     "left_circular_polarizer",
     "right_circular_polarizer",
-    "jones_vector",
-    "linear",
-    "circular",
-    "linear_horizontal",
-    "linear_vertical",
-    "left_circular",
-    "right_circular",
+    # Waveplates
+    "wave_plate",
+    "halfwave_plate",
+    "quarterwave_plate",
 ]
 
 # ===================== Initializers for amplitudes ================================
@@ -33,15 +38,15 @@ def linear(theta: float) -> Array:
     return jones_vector(theta, 0)
 
 
-def circular(beta: float) -> Array:
+def left_circular() -> Array:
     """Generates a jones vector for circularly polarised light."""
-    return jones_vector(jnp.pi / 4, beta)
+    return jones_vector(jnp.pi / 4, jnp.pi / 2)
 
 
-linear_horizontal = linear(0)
-linear_vertical = linear(jnp.pi / 2)
-left_circular = circular(jnp.pi / 2)
-right_circular = circular(-jnp.pi / 2)
+def right_circular() -> Array:
+    """Generates a jones vector for circularly polarised light."""
+    return jones_vector(jnp.pi / 4, -jnp.pi / 2)
+
 
 # ===================== Jones Polarisers ================================
 
@@ -111,3 +116,28 @@ def right_circular_polarizer(field: VectorField) -> VectorField:
     J01 = 1j
     J10 = -1j
     return polarizer(field, J00, J01, J10, J11)
+
+
+# ================== Wave plates =======================
+def phase_retarder(
+    field: VectorField, theta: float, eta: float, phi: float
+) -> VectorField:
+    s, c = jnp.sin(theta), jnp.cos(theta)
+    scale = jnp.exp(-1j * eta / 2)
+    J00 = scale * (c**2 + jnp.exp(1j * eta) * s**2)
+    J11 = scale * (s**2 + jnp.exp(1j * eta) * c**2)
+    J01 = scale * (1 - jnp.exp(1j * eta)) * jnp.exp(-1j * phi) * s * c
+    J10 = scale * (1 - jnp.exp(1j * eta)) * jnp.exp(1j * phi) * s * c
+    return polarizer(field, J00, J01, J10, J11)
+
+
+def wave_plate(field: VectorField, theta: float, eta: float) -> VectorField:
+    return phase_retarder(field, theta, eta, phi=0)
+
+
+def halfwave_plate(field: VectorField, theta: float) -> VectorField:
+    return phase_retarder(field, theta, eta=jnp.pi, phi=0)
+
+
+def quarterwave_plate(field: VectorField, theta: float) -> VectorField:
+    return phase_retarder(field, theta, eta=jnp.pi / 2, phi=0)

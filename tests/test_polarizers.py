@@ -7,12 +7,12 @@ import pytest
 
 
 def test_inits():
-    assert jnp.allclose(cf.linear_horizontal, jnp.array([0, 0, 1], dtype=jnp.complex64))
+    assert jnp.allclose(cf.linear(0), jnp.array([0, 0, 1], dtype=jnp.complex64))
     assert jnp.allclose(
-        cf.linear_vertical, jnp.array([0, 1, 0], dtype=jnp.complex64), atol=1e-7
+        cf.linear(jnp.pi / 2), jnp.array([0, 1, 0], dtype=jnp.complex64), atol=1e-7
     )
-    assert jnp.allclose(cf.left_circular, jnp.array([0, 1j, 1]) / jnp.sqrt(2))
-    assert jnp.allclose(cf.right_circular, jnp.array([0, -1j, 1]) / jnp.sqrt(2))
+    assert jnp.allclose(cf.left_circular(), jnp.array([0, 1j, 1]) / jnp.sqrt(2))
+    assert jnp.allclose(cf.right_circular(), jnp.array([0, -1j, 1]) / jnp.sqrt(2))
 
 
 @pytest.mark.parametrize(
@@ -73,3 +73,19 @@ def test_right_circular_polarizer():
     field = cf.right_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
     # TODO: add another test
+
+
+def test_quarter_waveplate():
+    field = VectorField.create(1.0, 0.532, 1.0, shape=(512, 512))
+
+    k = jnp.array([0.0, 0.0])
+    E0 = cf.linear(0)
+    field = cf.vector_plane_wave(
+        field, k, E0, power=1.0, pupil=partial(cf.square_pupil, w=10.0)
+    )
+
+    # Linear with quarterwave at pi/4 yields right circular.
+    field = cf.quarterwave_plate(field, jnp.pi / 4)
+    u = field.u[0, 256, 256, 0]
+    u = u / jnp.linalg.norm(u)
+    assert jnp.allclose(u, cf.right_circular(), atol=1e-7)
