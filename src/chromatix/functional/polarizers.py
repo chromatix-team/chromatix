@@ -4,6 +4,7 @@ from chex import Array
 import jax.numpy as jnp
 
 __all__ = [
+    "polarizer",
     "linear_polarizer",
     "left_circular_polarizer",
     "right_circular_polarizer",
@@ -15,6 +16,8 @@ __all__ = [
     "left_circular",
     "right_circular",
 ]
+
+# ===================== Initializers for amplitudes ================================
 
 
 def jones_vector(theta: float, beta: float) -> Array:
@@ -40,14 +43,17 @@ linear_vertical = linear(jnp.pi / 2)
 left_circular = circular(jnp.pi / 2)
 right_circular = circular(-jnp.pi / 2)
 
+# ===================== Jones Polarisers ================================
 
-def field_after_polarizer(
+
+def polarizer(
     field: VectorField,
     J00: Union[float, complex, Array],
     J01: Union[float, complex, Array],
     J10: Union[float, complex, Array],
     J11: Union[float, complex, Array],
 ) -> VectorField:
+    """Apply polarisation to incoming field defined by Jones coefficients."""
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
     return field.replace(u=jnp.dot(field.u, LP))
@@ -70,7 +76,7 @@ def linear_polarizer(field: VectorField, angle: float) -> VectorField:
     J11 = s**2
     J01 = s * c
     J10 = J01
-    return field_after_polarizer(field, J00, J01, J10, J11)
+    return polarizer(field, J00, J01, J10, J11)
 
 
 def left_circular_polarizer(field: VectorField) -> VectorField:
@@ -87,7 +93,7 @@ def left_circular_polarizer(field: VectorField) -> VectorField:
     J11 = 1
     J01 = -1j
     J10 = 1j
-    return field_after_polarizer(field, J00, J01, J10, J11)
+    return polarizer(field, J00, J01, J10, J11)
 
 
 def right_circular_polarizer(field: VectorField) -> VectorField:
@@ -104,4 +110,4 @@ def right_circular_polarizer(field: VectorField) -> VectorField:
     J11 = 1
     J01 = 1j
     J10 = -1j
-    return field_after_polarizer(field, J00, J01, J10, J11)
+    return polarizer(field, J00, J01, J10, J11)
