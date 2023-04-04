@@ -3,7 +3,42 @@ from typing import Union
 from chex import Array
 import jax.numpy as jnp
 
-__all__ = ["linear_polarizer", "left_circular_polarizer", "right_circular_polarizer"]
+__all__ = [
+    "linear_polarizer",
+    "left_circular_polarizer",
+    "right_circular_polarizer",
+    "jones_vector",
+    "linear",
+    "circular",
+    "linear_horizontal",
+    "linear_vertical",
+    "left_circular",
+    "right_circular",
+]
+
+
+def jones_vector(theta: float, beta: float) -> Array:
+    """Generates a jones vector with a given beta = alpha_y - alpha_x.
+    Assumes alpha_x=0."""
+    return jnp.array(
+        [0, jnp.sin(theta) * jnp.exp(1j * beta), jnp.cos(theta)], dtype=jnp.complex64
+    )
+
+
+def linear(theta: float) -> Array:
+    """Generates a jones vector for linearly polarised light."""
+    return jones_vector(theta, 0)
+
+
+def circular(beta: float) -> Array:
+    """Generates a jones vector for circularly polarised light."""
+    return jones_vector(jnp.pi / 4, beta)
+
+
+linear_horizontal = linear(0)
+linear_vertical = linear(jnp.pi / 2)
+left_circular = circular(jnp.pi / 2)
+right_circular = circular(-jnp.pi / 2)
 
 
 def field_after_polarizer(
