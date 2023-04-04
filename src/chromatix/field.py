@@ -376,3 +376,10 @@ class VectorField(Field):
         dx = _broadcast_2d_to_grid(dx, ndim)
 
         return cls(u, dx, spectrum, spectral_density)
+
+    @property
+    def jones_vector(self) -> Array:
+        """Return Jones vector of field."""
+        norm = jnp.linalg.norm(self.u, axis=-1, keepdims=True)
+        norm = jnp.where(norm == 0, 1, norm)  # set zeros to 1; u =0 anyway
+        return self.u / norm

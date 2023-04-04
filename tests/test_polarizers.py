@@ -86,6 +86,6 @@ def test_quarter_waveplate():
 
     # Linear with quarterwave at pi/4 yields right circular.
     field = cf.quarterwave_plate(field, jnp.pi / 4)
-    u = field.u[0, 256, 256, 0]
-    u = u / jnp.linalg.norm(u)
-    assert jnp.allclose(u, cf.right_circular(), atol=1e-7)
+    assert jnp.allclose(
+        field.jones_vector[0, 256, 256, 0], cf.right_circular(), atol=1e-7
+    )
