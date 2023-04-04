@@ -18,24 +18,22 @@ def test_inits():
 @pytest.mark.parametrize(
     ["E0", "angle", "power"],
     [
-        (jnp.array([0, 1, 0]), 0, 0),
-        (jnp.array([0, 1, 0]), 1 / 4 * jnp.pi, jnp.cos(1 / 4 * jnp.pi) ** 2),
-        (jnp.array([0, 1, 0]), 1 / 2 * jnp.pi, 1),
-        (jnp.array([0, 0, 1]), 0, 1),
-        (jnp.array([0, 0, 1]), 1 / 4 * jnp.pi, jnp.cos(1 / 4 * jnp.pi) ** 2),
-        (jnp.array([0, 0, 1]), 1 / 2 * jnp.pi, 0),
+        (cf.linear(1 / 2 * jnp.pi), 0, 0),
+        (cf.linear(1 / 2 * jnp.pi), 1 / 4 * jnp.pi, jnp.cos(1 / 4 * jnp.pi) ** 2),
+        (cf.linear(1 / 2 * jnp.pi), 1 / 2 * jnp.pi, 1),
+        (cf.linear(0), 0, 1),
+        (cf.linear(0), 1 / 4 * jnp.pi, jnp.cos(1 / 4 * jnp.pi) ** 2),
+        (cf.linear(0), 1 / 2 * jnp.pi, 0),
     ],
 )
 def test_linear_polarizer(E0, angle, power):
     field = VectorField.create(1.0, 0.532, 1.0, shape=(512, 512))
 
-    k = jnp.array([0.0, 0.0])
-
-    # Vertical polarized light
-    field = cf.vector_plane_wave(
-        field, k, E0, power=1.0, pupil=partial(cf.square_pupil, w=10.0)
+    field = cf.plane_wave(
+        field,
+        amplitude=E0,
+        pupil=partial(cf.square_pupil, w=10.0),
     )
-
     field = cf.linear_polarizer(field, angle=angle)
 
     # check shape
@@ -48,11 +46,11 @@ def test_linear_polarizer(E0, angle, power):
 def test_left_circular_polarizer():
     field = VectorField.create(1.0, 0.532, 1.0, shape=(512, 512))
 
-    k = jnp.array([0.0, 1.0])
-    E0 = jnp.ones((3,))
-
-    field = cf.vector_plane_wave(
-        field, k, E0, power=2.0, pupil=partial(cf.square_pupil, w=10.0)
+    field = cf.plane_wave(
+        field,
+        amplitude=cf.linear(0),
+        power=1.0,
+        pupil=partial(cf.square_pupil, w=10.0),
     )
 
     field = cf.left_circular_polarizer(field)
@@ -62,14 +60,12 @@ def test_left_circular_polarizer():
 
 def test_right_circular_polarizer():
     field = VectorField.create(1.0, 0.532, 1.0, shape=(512, 512))
-
-    k = jnp.array([0.0, 1.0])
-    E0 = jnp.ones((3,))
-
-    field = cf.vector_plane_wave(
-        field, k, E0, power=2.0, pupil=partial(cf.square_pupil, w=10.0)
+    field = cf.plane_wave(
+        field,
+        amplitude=cf.linear(0),
+        power=1.0,
+        pupil=partial(cf.square_pupil, w=10.0),
     )
-
     field = cf.right_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
     # TODO: add another test
@@ -77,11 +73,10 @@ def test_right_circular_polarizer():
 
 def test_quarter_waveplate():
     field = VectorField.create(1.0, 0.532, 1.0, shape=(512, 512))
-
-    k = jnp.array([0.0, 0.0])
-    E0 = cf.linear(0)
-    field = cf.vector_plane_wave(
-        field, k, E0, power=1.0, pupil=partial(cf.square_pupil, w=10.0)
+    field = cf.plane_wave(
+        field,
+        amplitude=cf.linear(0),
+        pupil=partial(cf.square_pupil, w=10.0),
     )
 
     # Linear with quarterwave at pi/4 yields right circular.

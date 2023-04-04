@@ -1,27 +1,30 @@
 import jax.numpy as jnp
-from ..field import Field, VectorField
-from typing import Optional, Callable
+from ..field import Field, ScalarField, VectorField
+from typing import Optional, Callable, Union
 from chex import Array, assert_rank
 from .pupils import circular_pupil
 from ..utils.grids import l2_sq_norm
-from ..utils.shapes import _broadcast_1d_to_innermost_batch, _broadcast_1d_to_grid
+from ..utils.shapes import (
+    _broadcast_1d_to_innermost_batch,
+    _broadcast_1d_to_grid,
+    _broadcast_1d_to_polarisation,
+)
 
 __all__ = [
     "point_source",
     "objective_point_source",
     "plane_wave",
     "generic_field",
-    "vector_plane_wave",
 ]
 
 
 def point_source(
-    field: Field,
+    field: ScalarField,
     z: float,
     n: float,
     power: float = 1.0,
-    pupil: Optional[Callable[[Field], Field]] = None,
-) -> Field:
+    pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
+) -> ScalarField:
     """
     Generates field due to point source a distance ``z`` away.
 
@@ -52,8 +55,8 @@ def point_source(
 
 
 def objective_point_source(
-    field: Field, z: float, f: float, n: float, NA: float, power: float = 1.0
-) -> Field:
+    field: ScalarField, z: float, f: float, n: float, NA: float, power: float = 1.0
+) -> ScalarField:
     """
     Generates field due to a point source defocused by an amount ``z`` away
     from the focal plane, just after passing through a lens with focal length
@@ -89,6 +92,7 @@ def objective_point_source(
 def plane_wave(
     field: Field,
     power: float = 1.0,
+    amplitude: Union[float, Array] = 1.0,
     kykx: Array = jnp.zeros((2,)),
     pupil: Optional[Callable[[Field], Field]] = None,
 ) -> Field:
@@ -101,13 +105,17 @@ def plane_wave(
         field: The ``Field`` which will be filled with the result of the plane
             wave (should be empty).
         power: The total power that the result should be normalized to,
-            defaults to 1.0.
+            defaults to 1.0
+        amplitude: The amplitude of the electric field. For ``ScalarField`` this doesnt
+        do anything, but it is required for ``VectorField`` to set the polarisation.
         kykx: Defines the orientation of the plane wave. Should be an
             array of shape `[2,]` in the format [ky, kx].
         pupil: If provided, will be called on the field to apply a pupil.
     """
-    u = jnp.exp(1j * (kykx[0] * field.grid[0] + kykx[1] * field.grid[1]))
 
+    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
+    amplitude = _broadcast_1d_to_polarisation(amplitude, field.ndim)
+    u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
     field = field.replace(u=u)
 
     # Applying pupil
@@ -119,12 +127,12 @@ def plane_wave(
 
 
 def generic_field(
-    field: Field,
+    field: ScalarField,
     amplitude: Array,
     phase: Array,
     power: Optional[float] = 1.0,
-    pupil: Optional[Callable[[Field], Field]] = None,
-) -> Field:
+    pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
+) -> ScalarField:
     """
     Generates field with arbitrary ``phase`` and ``amplitude``.
 
@@ -155,40 +163,4 @@ def generic_field(
     if pupil is not None:
         field = pupil(field)
     # Setting to correct power
-    return field * jnp.sqrt(power / field.power)
-
-
-def vector_plane_wave(
-    field: VectorField,
-    kykx: Array,
-    Ep: Array,
-    power: float = 1.0,
-    pupil: Optional[Callable[[Field], Field]] = None,
-) -> VectorField:
-    """
-    Generates plane wave of given ``phase`` and ``power``.
-
-    Can also be given ``pupil`` and ``k`` vector.
-
-    Args:
-        field: The ``Field`` which will be filled with the result of the plane
-            wave (should be empty).
-        power: The total power that the result should be normalized to,
-            defaults to 1.0.
-        phase: The phase of the plane wave in radians, defaults to 0.0.
-        pupil: If provided, will be called on the field to apply a pupil.
-        k: If provided, defines the orientation of the plane wave. Should be an
-            array of shape `[2 H W]`. If provided, ``phase`` is ignored.
-    """
-    # Field values
-    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-
-    u = Ep * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
-    field = field.replace(u=u)
-
-    # Applying pupil
-    if pupil is not None:
-        field = pupil(field)
-
-    # Normalizing to given power
     return field * jnp.sqrt(power / field.power)
