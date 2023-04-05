@@ -4,7 +4,7 @@ from chex import Array, PRNGKey, assert_rank
 
 from ..field import Field
 from ..functional.amplitude_masks import amplitude_change
-from ..ops.binarize import binarize
+from ..ops import binarize
 
 __all__ = ["AmplitudeMask"]
 

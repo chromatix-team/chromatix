@@ -1,9 +1,6 @@
 import jax.numpy as jnp
-from jax.nn.initializers import lecun_normal
-from jax.lax import complex
 from jax.random import PRNGKey
 import numpy as np
-
 from einops import rearrange
 from typing import Any, Sequence, Callable, Optional
 

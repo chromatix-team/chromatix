@@ -2,6 +2,7 @@ import jax.numpy as jnp
 from scipy.special import fresnel
 from chromatix import Field
 import chromatix.functional as cf
+from functools import partial
 
 D = 40
 z = 100
@@ -30,7 +31,7 @@ def test_transform_propagation():
 
     # Input field
     field = cf.empty_field((N, N), dxi, 0.532, 1.0)
-    field = cf.plane_wave(field, pupil=lambda field: cf.square_pupil(field, dxi * N))
+    field = cf.plane_wave(field, pupil=partial(cf.square_pupil, w=dxi * N))
     out_field = cf.transform_propagate(field, z, n, N_pad=N_pad)
     I_numerical = out_field.intensity.squeeze()
     xi = out_field.dx.squeeze() * jnp.arange(-N / 2, N / 2)
@@ -52,7 +53,7 @@ def test_transfer_propagation():
 
     # Input field
     field = cf.empty_field((N, N), dxi, 0.532, 1.0)
-    field = cf.plane_wave(field, pupil=lambda field: cf.square_pupil(field, dxi * N))
+    field = cf.plane_wave(field, pupil=partial(cf.square_pupil, w=dxi * N))
     out_field = cf.transfer_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
     xi = out_field.dx.squeeze() * jnp.arange(-N / 2, N / 2)
@@ -74,7 +75,7 @@ def test_exact_propagation():
 
     # Input field
     field = cf.empty_field((N, N), dxi, 0.532, 1.0)
-    field = cf.plane_wave(field, pupil=lambda field: cf.square_pupil(field, dxi * N))
+    field = cf.plane_wave(field, pupil=partial(cf.square_pupil, w=dxi * N))
     out_field = cf.exact_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
     xi = out_field.dx.squeeze() * jnp.arange(-N / 2, N / 2)
