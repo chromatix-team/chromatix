@@ -30,7 +30,7 @@ def test_plane_wave(power, shape, pupil):
     ],
 )
 def test_plane_wave_vectorial(power, amplitude, shape, pupil):
-    field = ScalarField.create(0.1, 0.532, 1.0, shape=shape)
+    field = VectorField.create(0.1, 0.532, 1.0, shape=shape)
     field = cf.plane_wave(field, amplitude=amplitude, power=power, pupil=pupil)
 
     assert jnp.allclose(field.power, power)
