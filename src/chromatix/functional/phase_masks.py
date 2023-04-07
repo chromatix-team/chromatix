@@ -4,7 +4,7 @@ from ..field import Field
 from einops import rearrange
 from chex import Array, assert_rank
 from typing import Sequence, Tuple
-from chromatix.utils import create_grid, grid_spatial_to_pupil
+from ..utils import create_grid, grid_spatial_to_pupil
 from scipy.special import comb
 import math
 

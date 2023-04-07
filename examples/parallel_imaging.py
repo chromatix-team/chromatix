@@ -45,7 +45,7 @@ def compute_image(params, volume, z):
     return microscope.apply(params, volume, z)
 
 
-volume = jnp.ones((num_planes, *shape, 1))  # fill in your volume here
+volume = jnp.ones((num_planes, *shape, 1, 1))  # fill in your volume here
 z = jnp.linspace(-4, 4, num=num_planes)
 params = init_params(jax.random.PRNGKey(6022), volume, z)
 widefield_image = compute_image(params, volume, z)
@@ -91,7 +91,7 @@ def compute_image(params, volume, z):
 
 
 volume = jnp.ones(
-    (num_devices, num_planes_per_device, *shape, 1)
+    (num_devices, num_planes_per_device, *shape, 1, 1)
 )  # fill in your volume here
 z = jnp.linspace(-4, 4, num=num_planes).reshape(num_devices, num_planes_per_device)
 params = init_params(jax.random.split(jax.random.PRNGKey(6022), num_devices), volume, z)
