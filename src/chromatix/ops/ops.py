@@ -10,7 +10,7 @@ import jax.numpy as jnp
 
 def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> Array:
     """
-    Wrapper for downsampling input of shape `(B... H W C)` along `(H W)`.
+    Wrapper for downsampling input of shape `(B... H W C P)` along `(H W)`.
 
     By default, downsampling is performed as a 2D average pooling. Also
     accepts various reduction functions that will be applied with the given
@@ -18,7 +18,7 @@ def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> A
     default `'mean'`.
 
     Args:
-        data: The data to be downsampled of shape `(B... H W C)`.
+        data: The data to be downsampled of shape `(B... H W C P)`.
         window_size: A tuple of 2 elements defining the window shape (height
             and width) for downsampling along `(H W)`.
         reduction: A string defining the reduction function applied with the
@@ -26,7 +26,7 @@ def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> A
     """
     return reduce(
         data,
-        "... (h h_size) (w w_size) c -> ... h w c",
+        "... (h h_size) (w w_size) c p -> ... h w c p",
         reduction,
         h_size=window_size[0],
         w_size=window_size[1],
@@ -46,7 +46,7 @@ def init_plane_resample(
                 w=out_shape[1],
             )
         else:
-            _in_shape, _out_shape = jnp.array(x.shape[:-1]), jnp.array(out_shape[:-1])
+            _in_shape, _out_shape = jnp.array(x.shape[:-2]), jnp.array(out_shape[:-2])
             scale = jnp.full((2,), in_spacing / out_spacing)
             translation = -0.5 * (_in_shape * scale - _out_shape)
             total = x.sum(axis=(0, 1))
