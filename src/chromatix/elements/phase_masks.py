@@ -68,8 +68,8 @@ class PhaseMask(nn.Module):
                 "phase_pixels",
                 self.phase,
                 field.spatial_shape,
-                field.dx[..., 0].squeeze(),
-                field.spectrum[..., 0].squeeze(),
+                field.dx[..., 0, 0].squeeze(),
+                field.spectrum[..., 0, 0].squeeze(),
                 *pupil_args,
             )
             if callable(self.phase)
@@ -78,7 +78,7 @@ class PhaseMask(nn.Module):
         assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
         phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
 
@@ -148,7 +148,7 @@ class SpatialLightModulator(nn.Module):
                 self.phase,
                 self.shape,
                 self.spacing,
-                field.spectrum[..., 0].squeeze(),
+                field.spectrum[..., 0, 0].squeeze(),
                 *pupil_args,
             )
             if callable(self.phase)
@@ -167,7 +167,7 @@ class SpatialLightModulator(nn.Module):
         phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
         phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
 
@@ -213,8 +213,8 @@ class SeidelAberrations(nn.Module):
         )
         phase = seidel_aberrations(
             field.spatial_shape,
-            field.dx[..., 0].squeeze(),
-            field.spectrum[..., 0].squeeze(),
+            field.dx[..., 0, 0].squeeze(),
+            field.spectrum[..., 0, 0].squeeze(),
             self.n,
             self.f,
             self.NA,
@@ -224,7 +224,7 @@ class SeidelAberrations(nn.Module):
         )
         phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
 
@@ -268,8 +268,8 @@ class ZernikeAberrations(nn.Module):
 
         phase = zernike_aberrations(
             field.spatial_shape,
-            field.dx[..., 0].squeeze(),
-            field.spectrum[..., 0].squeeze(),
+            field.dx[..., 0, 0].squeeze(),
+            field.spectrum[..., 0, 0].squeeze(),
             self.n,
             self.f,
             self.NA,
@@ -278,6 +278,6 @@ class ZernikeAberrations(nn.Module):
         )
         phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
