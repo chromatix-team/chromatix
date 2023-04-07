@@ -8,7 +8,7 @@ def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -
         pad_width = (pad_width, pad_width)
     u = jnp.pad(
         field.u,
-        [(n, n) for n in (0,) * (field.ndim - 3) + (*pad_width, 0)],
+        [(n, n) for n in (0,) * (field.ndim - 4) + (*pad_width, 0, 0)],
         constant_values=cval,
     )
     return field.replace(u=u)
@@ -19,6 +19,6 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
         crop_width = (crop_width, crop_width)
     crop = [
         slice(n, size - n)
-        for size, n in zip(field.shape, (0,) * (field.ndim - 3) + (*crop_width, 0))
+        for size, n in zip(field.shape, (0,) * (field.ndim - 4) + (*crop_width, 0, 0))
     ]
     return field.replace(u=field.u[tuple(crop)])
