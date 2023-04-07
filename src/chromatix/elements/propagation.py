@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import flax.linen as nn
 from typing import Callable, Literal, Optional, Union
-from chromatix import Field
+from ..field import Field
 from chex import PRNGKey, Array
 from ..functional import (
     transform_propagate,

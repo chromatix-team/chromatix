@@ -6,7 +6,7 @@ from flax import struct
 from einops import rearrange
 from typing import Union, Optional, Tuple, Any
 from numbers import Number
-from chromatix.utils.shapes import (
+from .utils.shapes import (
     _broadcast_1d_to_channels,
     _broadcast_1d_to_grid,
     _broadcast_2d_to_grid,
@@ -162,7 +162,6 @@ class Field(struct.PyTreeNode):
     def ndim(self) -> int:
         return self.u.ndim
 
-    # FIXME: how to add non-polarised to polarised?
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
