@@ -26,7 +26,7 @@ def _broadcast_1d_to_polarisation(x: Union[float, Array], ndim: int) -> Array:
 
 
 def _broadcast_1d_to_innermost_batch(x: Union[float, Array], ndim: int) -> Array:
-    """Broadcast 1D array of size `B` to left of `(H W)` in `(B... H W C 1)`."""
+    """Broadcast 1D array of size `B` to left of `(H W)` in `(B... H W C P)`."""
     shape_spec = "b ->" + " 1" * (ndim - 5) + " b 1 1 1 1"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
@@ -47,5 +47,5 @@ def _broadcast_2d_to_grid(x: Union[float, Array], ndim: int) -> Array:
 
 def _broadcast_2d_to_spatial(x: Array, ndim: int) -> Array:
     """Broadcast 2D array of shape `(H W)` to `(B... H W C 1)`."""
-    shape_spec = "h w ->" + ("1 " * (ndim - 2)) + "h w 1 1"
+    shape_spec = "h w ->" + ("1 " * (ndim - 4)) + "h w 1 1"
     return rearrange(x, shape_spec)
