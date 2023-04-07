@@ -12,7 +12,7 @@ __all__ = [
     "linear",
     "left_circular",
     "right_circular",
-    # Polarisers
+    # Polarizers
     "linear_polarizer",
     "left_circular_polarizer",
     "right_circular_polarizer",
@@ -22,11 +22,9 @@ __all__ = [
     "quarterwave_plate",
 ]
 
-# ===================== Initializers for amplitudes ================================
-
 
 def jones_vector(theta: float, beta: float) -> Array:
-    """Generates a jones vector with a given beta = alpha_y - alpha_x.
+    """Generates a Jones vector with a given beta = alpha_y - alpha_x.
     Assumes alpha_x=0."""
     return jnp.array(
         [0, jnp.sin(theta) * jnp.exp(1j * beta), jnp.cos(theta)], dtype=jnp.complex64
@@ -34,21 +32,18 @@ def jones_vector(theta: float, beta: float) -> Array:
 
 
 def linear(theta: float) -> Array:
-    """Generates a jones vector for linearly polarised light."""
+    """Generates a Jones vector for linearly polarized light."""
     return jones_vector(theta, 0)
 
 
 def left_circular() -> Array:
-    """Generates a jones vector for circularly polarised light."""
+    """Generates a Jones vector for circularly polarized light."""
     return jones_vector(jnp.pi / 4, jnp.pi / 2)
 
 
 def right_circular() -> Array:
-    """Generates a jones vector for circularly polarised light."""
+    """Generates a Jones vector for circularly polarized light."""
     return jones_vector(jnp.pi / 4, -jnp.pi / 2)
-
-
-# ===================== Jones Polarisers ================================
 
 
 def polarizer(
@@ -58,7 +53,7 @@ def polarizer(
     J10: Union[float, complex, Array],
     J11: Union[float, complex, Array],
 ) -> VectorField:
-    """Apply polarisation to incoming field defined by Jones coefficients."""
+    """Apply polarization to incoming field defined by Jones coefficients."""
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
     return field.replace(u=jnp.dot(field.u, LP))
@@ -118,7 +113,6 @@ def right_circular_polarizer(field: VectorField) -> VectorField:
     return polarizer(field, J00, J01, J10, J11)
 
 
-# ================== Wave plates =======================
 def phase_retarder(
     field: VectorField, theta: float, eta: float, phi: float
 ) -> VectorField:
