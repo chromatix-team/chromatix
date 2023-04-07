@@ -34,9 +34,9 @@ def shot_noise_intensity_sensor(
             name.
     """
     if resample is not None:
-        for i in range(field.ndim - 3):
+        for i in range(field.ndim - 4):
             resample = vmap(resample, in_axes=(0, None))
-        image = resample(field.intensity, field.dx[..., 0].squeeze())
+        image = resample(field.intensity, field.dx[..., 0, 0].squeeze())
     else:
         image = field.intensity
     if reduce_axis is not None:
