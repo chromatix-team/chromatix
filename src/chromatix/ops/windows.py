@@ -6,7 +6,7 @@ from typing import Tuple
 from ..utils import _broadcast_2d_to_spatial
 
 
-def sigmoid_taper(shape: Tuple[int, int], width: float, ndim: int = 4) -> Array:
+def sigmoid_taper(shape: Tuple[int, int], width: float, ndim: int = 5) -> Array:
     dist = distance_transform_edt(np.pad(np.ones((shape[0] - 2, shape[1] - 2)), 1))
     taper = 2 * (nn.sigmoid(dist / width) - 0.5)
     return _broadcast_2d_to_spatial(taper, ndim)
