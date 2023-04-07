@@ -93,7 +93,7 @@ class Microscope(nn.Module):
     def setup(self):
         if self.psf_resampling_method is not None:
             self.resample = init_plane_resample(
-                (*self.sensor_shape, 1), self.sensor_spacing, self.psf_resampling_method
+                (*self.sensor_shape, 1, 1), self.sensor_spacing, self.psf_resampling_method
             )
 
     def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
@@ -101,7 +101,7 @@ class Microscope(nn.Module):
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
         Args:
-            sample: The sample to be imaged of shape `(B H W 1)`.
+            sample: The sample to be imaged of shape `(B... H W 1 1)`.
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
@@ -132,11 +132,11 @@ class Microscope(nn.Module):
         # when calculating intensity!
         if isinstance(system_psf, Field):
             psf = system_psf.intensity
-            spacing = system_psf.dx[..., 0].squeeze()
+            spacing = system_psf.dx[..., 0, 0].squeeze()
         else:
             psf = system_psf
             spacing = self.sensor_spacing * (
-                self.sensor_shape[0] / (psf.shape[1] - padding[0])
+                self.sensor_shape[0] / (psf.shape[-4] - padding[0])
             )
         if self.padding_ratio > 0:
             pad_spec = [None for _ in range(ndim)]
