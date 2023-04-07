@@ -112,7 +112,7 @@ class Microscope(nn.Module):
         # NOTE(dd): We have to manually calculate the spatial dimensions here
         # because we can have system_psf functions return Arrays in addition
         # to Fields.
-        spatial_dims = (1 + ndim - 4, 2 + ndim - 4)
+        spatial_dims = (-4, -3)
         psf = self._process_psf(system_psf, ndim, spatial_dims)
         return self.image(sample, psf, axes=spatial_dims)
 
@@ -148,7 +148,7 @@ class Microscope(nn.Module):
         if self.taper_width > 0:
             psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
         if self.psf_resampling_method is not None:
-            for i in range(ndim - 3):
+            for i in range(ndim - 4):
                 resample = vmap(self.resample, in_axes=(0, None))
             psf = resample(psf, spacing)
         return psf
