@@ -18,7 +18,7 @@ def test_shot_noise_intensity_sensor():
     )
     params = sensor.init({"params": key, "noise": key}, field)
     image = sensor.apply(params, field, rngs={"noise": key})
-    assert image.shape[1:3] == shape
+    assert image.squeeze().shape == shape
     assert image.shape[0] == field.shape[0]
     sensor = ShotNoiseIntensitySensor(
         shape,
@@ -29,5 +29,5 @@ def test_shot_noise_intensity_sensor():
     )
     params = sensor.init({"params": key, "noise": key}, field)
     image = sensor.apply(params, field, rngs={"noise": key})
-    assert image.shape[1:3] == shape
-    assert image.shape[0] == 1
+    assert image.squeeze().shape == shape
+    assert image.shape[0] == field.shape[0]
