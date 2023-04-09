@@ -1,12 +1,10 @@
-from chromatix import ScalarField
 from chromatix.functional.pupils import circular_pupil, square_pupil
 from chromatix.functional.sources import plane_wave
 import jax.numpy as jnp
 
 
 def test_circular_pupil():
-    field = ScalarField.create(1.0, 0.532, 1.0, shape=(512, 512))
-    field = plane_wave(field, 1.0)
+    field = plane_wave((512, 512), 1.0, 0.532, 1.0)
 
     w = 100
     field = circular_pupil(field, w)
@@ -17,8 +15,7 @@ def test_circular_pupil():
 
 
 def test_square_pupil():
-    field = ScalarField.create(1.0, 0.532, 1.0, shape=(512, 512))
-    field = plane_wave(field, 1.0)
+    field = plane_wave((512, 512), 1.0, 0.532, 1.0)
 
     w = 100
     field = square_pupil(field, w)
