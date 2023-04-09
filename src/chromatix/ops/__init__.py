@@ -1,6 +1,6 @@
 from .ops import (
     fourier_convolution,
-    downsample,
+    pooling_downsample,
     init_plane_resample,
 )
 from .noise import *

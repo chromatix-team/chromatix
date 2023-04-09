@@ -8,7 +8,9 @@ from chex import Array
 import jax.numpy as jnp
 
 
-def downsample(data: Array, window_size: Tuple[int, int], reduction="mean") -> Array:
+def pooling_downsample(
+    data: Array, window_size: Tuple[int, int], reduction="mean"
+) -> Array:
     """
     Wrapper for downsampling input of shape `(B... H W C P)` along `(H W)`.
 
