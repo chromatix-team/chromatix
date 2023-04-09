@@ -7,7 +7,6 @@ from ..functional.sources import (
     objective_point_source,
     generic_field,
 )
-
 from typing import Optional, Callable, Tuple, Union
 from chex import PRNGKey, Array
 
@@ -50,7 +49,7 @@ class PointSource(nn.Module):
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
-    scalar: bool = (True,)
+    scalar: bool = True
 
     def setup(self):
         self._z = self.param("_z", self.z) if isinstance(self.z, Callable) else self.z
@@ -85,7 +84,7 @@ class ObjectivePointSource(nn.Module):
     """
     Generates field due to a point source defocused by an amount ``z`` away from
     the focal plane, just after passing through a lens with focal length ``f``
-    and numerical aperture ``NA``. Always returns a ``ScalarField``.
+    and numerical aperture ``NA``.
 
     The attributes ``f``, ``n``, ``NA``, and ``power`` can be learned by using
     ``chromatix.utils.trainable``.
@@ -101,6 +100,11 @@ class ObjectivePointSource(nn.Module):
         NA: The numerical aperture of the objective lens.
         power: The total power that the result should be normalized to,
             defaults to 1.0.
+        amplitude: The amplitude of the electric field. For ``ScalarField`` this
+            doesnt do anything, but it is required for ``VectorField`` to set
+            the polarisation.
+        scalar: Whether the result should be ``ScalarField`` (if True) or
+            ``VectorField`` (if False). Defaults to True.
     """
 
     shape: Tuple[int, int]
@@ -111,6 +115,8 @@ class ObjectivePointSource(nn.Module):
     n: Union[float, Callable[[PRNGKey], float]]
     NA: Union[float, Callable[[PRNGKey], float]]
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
+    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
+    scalar: bool = True
 
     def setup(self):
         self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
@@ -123,8 +129,13 @@ class ObjectivePointSource(nn.Module):
             if isinstance(self.power, Callable)
             else self.power
         )
+        self._amplitude = (
+            self.param("_amplitude", self.amplitude)
+            if isinstance(self.amplitude, Callable)
+            else self.amplitude
+        )
 
-    def __call__(self, z: float) -> ScalarField:
+    def __call__(self, z: float) -> Field:
         return objective_point_source(
             self.shape,
             self.dx,
@@ -135,6 +146,8 @@ class ObjectivePointSource(nn.Module):
             self._n,
             self._NA,
             self._power,
+            self._amplitude,
+            self.scalar,
         )
 
 
@@ -174,7 +187,7 @@ class PlaneWave(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     kykx: Array = jnp.zeros((2,))
     pupil: Optional[Callable[[Field], Field]] = None
-    scalar: bool = (True,)
+    scalar: bool = True
 
     def setup(self):
         self._kykx = (

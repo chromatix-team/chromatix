@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from ..field import Field, ScalarField, VectorField
 from typing import Optional, Callable, Union, Tuple
-from chex import Array, assert_rank, assert_equal_shape, assert_axis_dimension
+from chex import Array, assert_equal_shape, assert_axis_dimension
 from .pupils import circular_pupil
 from ..utils.grids import l2_sq_norm
 from ..utils.shapes import (
@@ -45,6 +45,9 @@ def point_source(
         n: Refractive index.
         power: The total power that the result should be normalized to,
             defaults to 1.0.
+        amplitude: The amplitude of the electric field. For ``ScalarField`` this
+            doesnt do anything, but it is required for ``VectorField`` to set
+            the polarisation.
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
@@ -72,11 +75,13 @@ def objective_point_source(
     n: float,
     NA: float,
     power: float = 1.0,
-) -> ScalarField:
+    amplitude: Union[float, Array] = 1.0,
+    scalar: bool = True,
+) -> Field:
     """
     Generates field due to a point source defocused by an amount ``z`` away from
     the focal plane, just after passing through a lens with focal length ``f``
-    and numerical aperture ``NA``. Always returns a ``ScalarField``.
+    and numerical aperture ``NA``.
 
     Args:
         shape: The shape (height and width) of the ``Field`` to be created.
@@ -90,13 +95,19 @@ def objective_point_source(
         NA: The numerical aperture of the objective lens.
         power: The total power that the result should be normalized to,
             defaults to 1.0.
+        amplitude: The amplitude of the electric field. For ``ScalarField`` this
+            doesnt do anything, but it is required for ``VectorField`` to set
+            the polarisation.
+        scalar: Whether the result should be ``ScalarField`` (if True) or
+            ``VectorField`` (if False). Defaults to True.
     """
-    create = ScalarField.create
+    create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
+    amplitude = _broadcast_1d_to_polarisation(amplitude, field.ndim)
     L = jnp.sqrt(field.spectrum * f / n)
     phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid) / L**2
-    u = -1j / L**2 * jnp.exp(1j * phase)
+    u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
     D = 2 * f * NA / n
     field = circular_pupil(field, D)
