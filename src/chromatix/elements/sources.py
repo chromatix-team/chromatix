@@ -50,7 +50,7 @@ class PointSource(nn.Module):
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
-    scalar: bool = True,
+    scalar: bool = (True,)
 
     def setup(self):
         self._z = self.param("_z", self.z) if isinstance(self.z, Callable) else self.z
@@ -67,7 +67,18 @@ class PointSource(nn.Module):
         )
 
     def __call__(self) -> Field:
-        return point_source(self.shape, self.dx, self.spectrum, self.spectral_density, self._z, self._n, self._power, self._amplitude, self.pupil, self.scalar)
+        return point_source(
+            self.shape,
+            self.dx,
+            self.spectrum,
+            self.spectral_density,
+            self._z,
+            self._n,
+            self._power,
+            self._amplitude,
+            self.pupil,
+            self.scalar,
+        )
 
 
 class ObjectivePointSource(nn.Module):
@@ -115,7 +126,15 @@ class ObjectivePointSource(nn.Module):
 
     def __call__(self, z: float) -> ScalarField:
         return objective_point_source(
-            self.shape, self.dx, self.spectrum, self.spectral_density, z, self._f, self._n, self._NA, self._power
+            self.shape,
+            self.dx,
+            self.spectrum,
+            self.spectral_density,
+            z,
+            self._f,
+            self._n,
+            self._NA,
+            self._power,
         )
 
 
@@ -155,7 +174,7 @@ class PlaneWave(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     kykx: Array = jnp.zeros((2,))
     pupil: Optional[Callable[[Field], Field]] = None
-    scalar: bool = True,
+    scalar: bool = (True,)
 
     def setup(self):
         self._kykx = (
@@ -175,7 +194,17 @@ class PlaneWave(nn.Module):
         )
 
     def __call__(self) -> Field:
-        return plane_wave(self.shape, self.dx, self.spectrum, self.spectral_density, self._power, self._amplitude, self._kykx, self.pupil, self.scalar)
+        return plane_wave(
+            self.shape,
+            self.dx,
+            self.spectrum,
+            self.spectral_density,
+            self._power,
+            self._amplitude,
+            self._kykx,
+            self.pupil,
+            self.scalar,
+        )
 
 
 class GenericField(nn.Module):
@@ -236,5 +265,5 @@ class GenericField(nn.Module):
             self._phase,
             self._power,
             self.pupil,
-            self.scalar
+            self.scalar,
         )
