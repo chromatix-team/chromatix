@@ -3,7 +3,6 @@ from jax import vmap
 from jax.lax import psum
 from chex import PRNGKey, Array
 from typing import Callable, Optional, Literal
-
 from ..field import Field
 from ..ops import approximate_shot_noise, shot_noise
 
@@ -17,7 +16,7 @@ def shot_noise_intensity_sensor(
     reduce_axis: Optional[int] = None,
     reduce_parallel_axis_name: Optional[str] = None,
     noise_key: Optional[PRNGKey] = None,
-) -> Field:
+) -> Array:
     """
     Produces an intensity image from an incoming ``Field`` with shot noise.
 
