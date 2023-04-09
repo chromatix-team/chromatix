@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import jax.numpy as jnp
 from chex import Array, assert_equal_shape, assert_rank
 from flax import struct
@@ -87,8 +86,8 @@ class Field(struct.PyTreeNode):
     @property
     def grid(self) -> Array:
         """
-        The grid for each spatial dimension as an array of shape `(2 [B | 1]...
-        H W C)`. The 2 entries along the first dimension represent the y and x
+        The grid for each spatial dimension as an array of shape `(2 B... H W
+        C 1)`. The 2 entries along the first dimension represent the y and x
         grids, respectively. This grid assumes that the center of the ``Field``
         is the origin and that the elements are sampling from the center, not
         the corner.
@@ -127,7 +126,7 @@ class Field(struct.PyTreeNode):
 
     @property
     def amplitude(self) -> Array:
-        """Amplitude of the complex scalar field, shape `(B... H W C [1|3])`."""
+        """Amplitude of the complex scalar field, shape `(B... H W C [1 | 3])`."""
         return jnp.abs(self.u)
 
     @property
