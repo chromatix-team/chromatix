@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 
 def pooling_downsample(
-    data: Array, window_size: Tuple[int, int], reduction="mean"
+    data: Array, window_size: Tuple[int, int], reduction: str = "mean"
 ) -> Array:
     """
     Wrapper for downsampling input of shape `(B... H W C P)` along `(H W)`.
