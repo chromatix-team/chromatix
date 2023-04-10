@@ -126,7 +126,7 @@ def multislice_thick_sample(
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
     """
-    assert_equal_shape(absorption_stack, dn_stack)
+    assert_equal_shape((absorption_stack, dn_stack))
     field = pad(field, N_pad)
     if propagator is None:
         propagator = compute_exact_propagator(field, thickness_per_slice, n, kykx)
