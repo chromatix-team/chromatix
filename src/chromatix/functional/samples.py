@@ -98,23 +98,24 @@ def multislice_thick_sample(
     kykx: Array = jnp.zeros((2,)),
 ) -> ScalarField:
     """
-    Perturbs incoming ``Field`` as if it went through a thick sample. The
+    Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
     thick sample is modeled as being made of many thin slices each of a given
     thickness. The ``absorption_stack`` and ``dn_stack`` contain the absorbance
-    and phase delay of each sample slice.
+    and phase delay of each sample slice. Expects that the same sample is being
+    applied to all elements across the batch of the incoming ``ScalarField``.
 
     A propagator that propagates the field through each slice can be provided.
     By default, a propagtor is calculated inside the function. After passing
     through all slices, the field is propagated backwards to the center of
     the stack.
 
-    Returns a ``Field`` with the result of the perturbation.
+    Returns a ``ScalarField`` with the result of the perturbation.
 
     Args:
         field: The complex field to be perturbed.
         absorption_stack: The sample absorption per micrometre for each slice
-            defined as (D H W) array, where D is the total number of slices
-        dn_stack: sample refractive index change for each slice (D H W) array.
+            defined as ``(D H W)`` array, where D is the total number of slices
+        dn_stack: sample refractive index change for each slice ``(D H W)`` array.
             Shape should be the same that for ``absorption_stack``.
         thickness_per_slice: thickness of each slice
         N_pad: A keyword argument integer defining the pad length for the
@@ -123,7 +124,7 @@ def multislice_thick_sample(
             calculator utilities from ``chromatix.functional.propagation`` to
             calculate the padding.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
+            be an array of shape ``(2,)`` in the format ``[ky, kx]``.
     """
     assert_equal_shape(absorption_stack, dn_stack)
     field = pad(field, N_pad)
