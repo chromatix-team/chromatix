@@ -4,7 +4,7 @@ from ..field import Field
 from einops import rearrange
 from chex import Array, assert_rank
 from typing import Sequence, Tuple
-from chromatix.utils import create_grid, grid_spatial_to_pupil
+from ..utils import create_grid, grid_spatial_to_pupil
 from scipy.special import comb
 import math
 
@@ -19,7 +19,6 @@ __all__ = [
 ]
 
 
-# Field function
 def phase_change(field: Field, phase: Array) -> Field:
     """
     Perturbs ``field`` by ``phase`` (given in radians).
@@ -30,18 +29,21 @@ def phase_change(field: Field, phase: Array) -> Field:
         field: The complex field to be perturbed.
         phase: The phase to apply.
     """
-    assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+    assert_rank(
+        phase,
+        field.ndim,
+        custom_message="Phase must have same ndim as incoming ``Field``.",
+    )
     return field * jnp.exp(1j * phase)
 
 
-# Phase mask initializations
-def flat_phase(shape: Tuple[int, ...], *args, value: float = 0.0) -> Array:
+def flat_phase(shape: Tuple[int, int], *args, value: float = 0.0) -> Array:
     """
     Computes a flat phase mask (one with constant value).
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            integers of the form (1 H W 1).
+            integers of the form (H W).
         value: The constant value to use for the phase mask, defaults to 0.
     """
     return jnp.full(shape, value)
@@ -69,7 +71,7 @@ def potato_chip(
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            integers of the form (1 H W 1).
+            integers of the form (H W).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
         n: Refractive index.
@@ -95,7 +97,7 @@ def potato_chip(
 
 
 def seidel_aberrations(
-    shape: Tuple[int, ...],
+    shape: Tuple[int, int],
     spacing: float,
     wavelength: float,
     n: float,
@@ -115,7 +117,7 @@ def seidel_aberrations(
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            integers of the form (1 H W 1).
+            integers of the form (H W).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
         n: Refractive index.
@@ -155,7 +157,7 @@ def seidel_aberrations(
 
 
 def zernike_aberrations(
-    shape: Tuple[int, ...],
+    shape: Tuple[int, int],
     spacing: float,
     wavelength: float,
     n: float,
@@ -169,7 +171,7 @@ def zernike_aberrations(
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            integers of the form (1 H W 1).
+            integers of the form (H W).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
         n: Refractive index.
@@ -209,7 +211,7 @@ def zernike_aberrations(
     # in order to be jittable
     grid = create_grid(shape, spacing)
     # Normalize coordinates from -1 to 1 within radius R
-    grid = grid_spatial_to_pupil(grid, f, NA, n).squeeze()
+    grid = grid_spatial_to_pupil(grid, f, NA, n)
 
     rho = jnp.sum(grid**2, axis=0)  # radial coordinate
 
@@ -240,13 +242,11 @@ def zernike_aberrations(
 
     phase = jnp.dot(zernike_polynomials, jnp.asarray(coefficients))
 
-    phase = phase[jnp.newaxis, ..., jnp.newaxis]
-
     return phase
 
 
 def defocused_ramps(
-    shape: Tuple[int, ...],
+    shape: Tuple[int, int],
     spacing: float,
     wavelength: float,
     n: float,
@@ -275,7 +275,7 @@ def defocused_ramps(
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
-            integers of the form (1 H W 1).
+            integers of the form (H W).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
         n: Refractive index.
@@ -334,7 +334,6 @@ def defocused_ramps(
     return phase
 
 
-# Utility functions
 def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
     """
     Wraps values of ``phase`` to the range given by ``limits``.
@@ -363,7 +362,11 @@ def spectrally_modulate_phase(
     phase: Array, spectrum: Array, central_wavelength: float
 ) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
-    assert_rank(spectrum, 4, custom_message="Spectrum must be array of shape [1 1 1 C]")
+    assert_rank(
+        spectrum,
+        phase.ndim,
+        custom_message="Spectrum must have same ndim as phase",
+    )
 
     spectral_modulation = central_wavelength / spectrum
     return phase * spectral_modulation

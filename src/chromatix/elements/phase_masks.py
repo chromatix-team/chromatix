@@ -1,5 +1,8 @@
 import jax.numpy as jnp
-
+from flax import linen as nn
+from chex import Array, PRNGKey, assert_rank
+from jax.scipy.ndimage import map_coordinates
+from typing import Callable, Optional, Tuple, Union
 from ..field import Field
 from ..functional.phase_masks import (
     wrap_phase,
@@ -8,11 +11,7 @@ from ..functional.phase_masks import (
     seidel_aberrations,
     zernike_aberrations,
 )
-from typing import Callable, Optional, Tuple, Union
-from einops import rearrange
-from flax import linen as nn
-from chex import Array, PRNGKey, assert_rank
-from jax.scipy.ndimage import map_coordinates
+from ..utils import _broadcast_2d_to_spatial
 
 __all__ = [
     "PhaseMask",
@@ -46,13 +45,13 @@ class PhaseMask(nn.Module):
     and you will get an error.
 
         Attributes:
-        phase: The phase to be applied. Should have shape `[1 H W 1]`.
+        phase: The phase to be applied. Should have shape `(H W)`.
         f: Focal length of the system's objective. Defaults to None.
         n: Refractive index of the system's objective. Defaults to None.
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...], float, float], Array]]
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
     f: Optional[float] = None
     n: Optional[float] = None
     NA: Optional[float] = None
@@ -68,17 +67,18 @@ class PhaseMask(nn.Module):
             self.param(
                 "phase_pixels",
                 self.phase,
-                (1, *field.shape[1:3], 1),
-                field.dx[..., 0].squeeze(),
-                field.spectrum[..., 0].squeeze(),
+                field.spatial_shape,
+                field.dx[..., 0, 0].squeeze(),
+                field.spectrum[..., 0, 0].squeeze(),
                 *pupil_args,
             )
             if callable(self.phase)
             else self.phase
         )
-        assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+        assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
+        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
 
@@ -114,7 +114,7 @@ class SpatialLightModulator(nn.Module):
     ``chromatix.utils.trainable``.
 
     Attributes:
-        phase: The phase to be applied. Should have shape `[1 H W 1]`.
+        phase: The phase to be applied. Should have shape `(H W)`.
         shape: The shape of the SLM, provided as (H W).
         spacing: The pitch of the SLM pixels.
         phase_range: The phase range that the SLM can simulate, provided as
@@ -126,7 +126,7 @@ class SpatialLightModulator(nn.Module):
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...], float, float], Array]]
+    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
     shape: Tuple[int, int]
     spacing: float
     phase_range: Tuple[float, float]
@@ -146,30 +146,28 @@ class SpatialLightModulator(nn.Module):
             self.param(
                 "slm_pixels",
                 self.phase,
-                (1, *self.shape, 1),
+                self.shape,
                 self.spacing,
-                field.spectrum[..., 0].squeeze(),
+                field.spectrum[..., 0, 0].squeeze(),
                 *pupil_args,
             )
             if callable(self.phase)
             else self.phase
         )
-        assert_rank(phase, 4, custom_message="Phase must be array of shape [1 H W 1]")
+        assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
         assert (
-            phase.shape[1:3] == self.shape
+            phase.shape == self.shape
         ), "Provided phase shape should match provided SLM shape"
         phase = wrap_phase(phase, self.phase_range)
         field_pixel_grid = jnp.meshgrid(
-            jnp.linspace(0, self.shape[0] - 1, num=field.shape[1]) + 0.5,
-            jnp.linspace(0, self.shape[1] - 1, num=field.shape[2]) + 0.5,
+            jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
+            jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,
             indexing="ij",
         )
-        phase = map_coordinates(
-            phase.squeeze(), field_pixel_grid, self.interpolation_order
-        )
-        phase = rearrange(phase, "h w -> 1 h w 1")
+        phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
+        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
 
@@ -214,9 +212,9 @@ class SeidelAberrations(nn.Module):
             else self.coefficients
         )
         phase = seidel_aberrations(
-            field.shape,
-            field.dx,
-            field.spectrum[..., 0].squeeze(),
+            field.spatial_shape,
+            field.dx[..., 0, 0].squeeze(),
+            field.spectrum[..., 0, 0].squeeze(),
             self.n,
             self.f,
             self.NA,
@@ -224,8 +222,9 @@ class SeidelAberrations(nn.Module):
             self.u,
             self.v,
         )
+        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)
 
@@ -268,16 +267,17 @@ class ZernikeAberrations(nn.Module):
         )
 
         phase = zernike_aberrations(
-            field.shape,
-            field.dx,
-            field.spectrum[..., 0].squeeze(),
+            field.spatial_shape,
+            field.dx[..., 0, 0].squeeze(),
+            field.spectrum[..., 0, 0].squeeze(),
             self.n,
             self.f,
             self.NA,
             self.ansi_indices,
             coefficients,
         )
+        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0].squeeze()
+            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
         return phase_change(field, phase)

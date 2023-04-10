@@ -1,9 +1,9 @@
 import jax.numpy as jnp
-
-from ..field import Field
 from typing import Optional
+from ..field import Field
 from .pupils import circular_pupil
 from ..ops.fft import optical_fft
+from ..utils import l2_sq_norm
 
 __all__ = ["thin_lens", "ff_lens", "df_lens"]
 
@@ -23,7 +23,7 @@ def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> F
         The ``Field`` directly after the lens.
     """
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * field.l2_sq_grid / L**2
+    phase = -jnp.pi * l2_sq_norm(field.grid) / L**2
 
     if NA is not None:
         D = 2 * f * NA / n  # Expression for NA yields width of pupil
@@ -38,7 +38,6 @@ def ff_lens(
     n: float,
     NA: Optional[float] = None,
     inverse: bool = False,
-    loop_axis: Optional[int] = None,
 ) -> Field:
     """
     Applies a thin lens placed a distance ``f`` after the incoming ``Field``.
@@ -60,7 +59,7 @@ def ff_lens(
     if inverse:
         # if inverse, propagate over negative distance
         f = -f
-    return optical_fft(field, f, n, loop_axis)
+    return optical_fft(field, f, n)
 
 
 def df_lens(
@@ -70,7 +69,6 @@ def df_lens(
     n: float,
     NA: Optional[float] = None,
     inverse: bool = False,
-    loop_axis: Optional[int] = None,
 ) -> Field:
     """
     Applies a thin lens placed a distance ``d`` after the incoming ``Field``.
@@ -94,11 +92,9 @@ def df_lens(
         # if inverse, propagate over negative distance
         f = -d
         d = -f
-
-    # Preliminaries
-    L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
+    field = optical_fft(field, f, n)
 
     # Phase factor due to distance d from lens
-    phase = jnp.pi * (1 - d / f) * field.l2_sq_grid / jnp.abs(L) ** 2
-
-    return optical_fft(field, f, n, loop_axis) * jnp.exp(1j * phase)
+    L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
+    phase = jnp.pi * (1 - d / f) * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
+    return field * jnp.exp(1j * phase)

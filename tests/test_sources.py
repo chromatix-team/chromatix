@@ -1,4 +1,3 @@
-# %%
 import jax.numpy as jnp
 import chromatix.functional as cf
 from functools import partial
@@ -7,41 +6,63 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "power, phase, size, pupil",
+    "power, shape, pupil",
     [
-        (1.0, jnp.pi, (512, 512), partial(cf.circular_pupil, w=10.0)),
-        (100.0, -jnp.pi, (256, 1024), None),
+        (1.0, (512, 512), partial(cf.circular_pupil, w=10.0)),
+        (100.0, (256, 256), None),
     ],
 )
-def test_plane_wave(power, phase, size, pupil):
-    field = cf.empty_field(size, 0.1, 0.532, 1.0)
-    field = cf.plane_wave(field, power, pupil=pupil)
+def test_plane_wave(power, shape, pupil):
+    field = cf.plane_wave(shape, 0.1, 0.532, 1.0, power=power, pupil=pupil)
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *size, 1))
+    assert_shape(field.u, (1, *shape, 1, 1))
 
 
 @pytest.mark.parametrize(
-    "power, z, size, pupil",
+    "power, amplitude, shape, pupil",
+    [
+        (1.0, cf.linear(jnp.pi / 2), (512, 512), partial(cf.circular_pupil, w=10.0)),
+        (100.0, cf.left_circular(), (256, 256), None),
+    ],
+)
+def test_plane_wave_vectorial(power, amplitude, shape, pupil):
+    field = cf.plane_wave(
+        shape,
+        0.1,
+        0.532,
+        1.0,
+        power=power,
+        amplitude=amplitude,
+        pupil=pupil,
+        scalar=False,
+    )
+
+    assert jnp.allclose(field.power, power)
+    assert_shape(field.u, (1, *shape, 1, 3))
+
+
+@pytest.mark.parametrize(
+    "power, z, shape, pupil",
     [
         (1.0, 0.5, (512, 512), partial(cf.square_pupil, w=10.0)),
-        (100.0, 1.0, (256, 1024), None),
+        (100.0, 1.0, (256, 256), None),
     ],
 )
-def test_point_source(power, z, size, pupil):
-    field = cf.empty_field(size, 0.1, 0.532, 1.0)
-    field = cf.point_source(field, z, 1.33, power, pupil)
+def test_point_source(power, z, shape, pupil):
+    field = cf.point_source(shape, 0.1, 0.532, 1.0, z, 1.33, power=power, pupil=pupil)
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *size, 1))
+    assert_shape(field.u, (1, *shape, 1, 1))
 
 
 @pytest.mark.parametrize(
-    "power, z, size", [(1.0, 0.5, (512, 512)), (100.0, 1.0, (256, 1024))]
+    "power, z, shape", [(1.0, 0.5, (512, 512)), (100.0, 1.0, (256, 256))]
 )
-def test_objective_point_source(power, z, size):
-    field = cf.empty_field(size, 0.1, 0.532, 1.0)
-    field = cf.objective_point_source(field, z, 100.0, 1.33, NA=0.8, power=power)
+def test_objective_point_source(power, z, shape):
+    field = cf.objective_point_source(
+        shape, 0.1, 0.532, 1.0, z, 100.0, 1.33, NA=0.8, power=power
+    )
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *size, 1))
+    assert_shape(field.u, (1, *shape, 1, 1))
