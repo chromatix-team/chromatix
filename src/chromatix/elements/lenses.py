@@ -1,8 +1,8 @@
 import flax.linen as nn
 from typing import Callable, Optional, Union
 from chex import PRNGKey
-from chromatix import Field
-import chromatix.functional as cf
+from ..field import Field
+from .. import functional as cf
 
 __all__ = ["ThinLens", "FFLens", "DFLens"]
 

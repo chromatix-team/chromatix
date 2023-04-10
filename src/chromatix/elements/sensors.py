@@ -33,7 +33,7 @@ class ShotNoiseIntensitySensor(nn.Module):
     def setup(self):
         if self.resampling_method is not None:
             self.resample = init_plane_resample(
-                (*self.shape, 1), self.spacing, self.resampling_method
+                (*self.shape, 1, 1), self.spacing, self.resampling_method
             )
 
     def __call__(self, field: Field) -> Array:

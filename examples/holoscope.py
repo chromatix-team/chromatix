@@ -29,7 +29,7 @@ holoscope = Microscope(
 
 key = random.PRNGKey(42)
 z = jnp.linspace(-125, 125, 5)
-data = random.normal(key, (z.size, 512, 512, 1))
+data = random.normal(key, (z.size, 512, 512, 1, 1))
 params = holoscope.init({"params": key, "noise": key}, data, z)
 forward = jit(holoscope.apply)
 

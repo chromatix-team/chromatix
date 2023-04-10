@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 import flax.linen as nn
 from ..field import Field
 from chex import Array
@@ -17,7 +18,7 @@ class Flip(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         # TODO: Add in support for both axes?
-        return field.replace(u=field.u[:, ::-1, :, :])
+        return field.replace(u=jnp.flip(field.u, axis=field.spatial_dims[0]))
 
 
 class ScaleAndBias(nn.Module):
