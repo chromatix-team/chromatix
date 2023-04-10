@@ -12,6 +12,7 @@ nav:
   - Examples:
     - Holoscope: examples/holoscope.ipynb
     - Computer Generated Holography: examples/cgh.ipynb
+    - Digital Micromirror Device: examples/dmd.ipynb
     - Fourier Ptychography: examples/fourier_ptychography.md
     - Synchrotron X-ray Holography: examples/tomography.md
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
