@@ -2,6 +2,7 @@ site_name: Chromatix
 repo_url: https://github.com/TuragaLab/chromatix/
 
 nav:
+  - Home: index.md
   - Getting started:
     - Installing: installing.md
     - Chromatix 101: 101.ipynb
