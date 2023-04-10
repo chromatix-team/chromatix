@@ -6,6 +6,7 @@ nav:
     - Installing: installing.md
     - Chromatix 101: 101.ipynb
     - Parallelism: parallelism.md
+    - Higher Rank Fields: higher_rank.ipynb
     - FAQ: FAQ.md
   - Examples:
     - Holoscope: examples/holoscope.ipynb

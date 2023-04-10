@@ -51,7 +51,7 @@ NA = 0.8 # numerical aperture of objective
 optical_model = chromatix.OpticalSystem(
     [
         chromatix.elements.ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        chromatix.elements.PhaseMask(jnp.ones(shape)[jnp.newaxis, ..., jnp.newaxis]),
+        chromatix.elements.PhaseMask(jnp.ones(shape)),
         chromatix.elements.FFLens(f, n)
     ]
 )
@@ -65,10 +65,12 @@ When we obtain the intensity, `chromatix` took the spectrum as described by `spe
 Chromatix supports a variety of optical phenomena and elements including:
 
 * phase masks
+* amplitude masks
 * lenses
-* propagation of light (both with Fresnel approximations and exact transfer functions)
+* wave propagation
 * multiple wavelengths
-* shot noise simulation
+* polarization
+* shot noise simulation and sensors
 
 Check out our full documentation at [https://chromatix.readthedocs.io/en/latest](https://chromatix.readthedocs.io/en/latest) for more details.
 

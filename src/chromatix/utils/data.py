@@ -11,7 +11,7 @@ except ModuleNotFoundError:
 
 def siemens_star(num_pixels: int = 512, num_spokes: int = 32) -> np.ndarray:
     """
-    Generates a 2D Siemens star image of shape ``[num_pixels num_pixels]``.
+    Generates a 2D Siemens star image of shape ``(num_pixels num_pixels)``.
 
     Number of spokes in the star can be controlled with ``num_spokes``. Spokes
     will alternate between black and white (0.0 and 1.0).

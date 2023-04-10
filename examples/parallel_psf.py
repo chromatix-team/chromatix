@@ -3,7 +3,6 @@ from chromatix import OpticalSystem
 import jax
 import jax.numpy as jnp
 import numpy as np
-from flax import linen as nn
 from time import perf_counter_ns
 
 num_devices = 4
@@ -19,7 +18,7 @@ NA = 0.8  # numerical aperture of objective
 optical_model = OpticalSystem(
     [
         ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        PhaseMask(jnp.ones(shape)[jnp.newaxis, ..., jnp.newaxis]),
+        PhaseMask(jnp.ones(shape)),
         FFLens(f, n),
     ]
 )

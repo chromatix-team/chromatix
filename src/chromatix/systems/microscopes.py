@@ -57,11 +57,11 @@ class Microscope(nn.Module):
             added to simulate the PSF. That means the final shape will be shape
             * (1.0 + padding) in each dimension. This will then automatically
             be cropped to the original desired shape after simulation. Defaults
-            to None, in which case no cropping occurs.
+            to 0, in which case no cropping occurs.
         taper_width: The width in pixels of the sigmoid that will be used to
             smoothly bring the edges of the PSF to 0. This helps to prevent
             edge artifacts in the image if the PSF has edge artifacts. Defaults
-            to None, in which case no tapering is applied.
+            to 0, in which case no tapering is applied.
         shot_noise_mode: A string of either 'approximate' or 'poisson' that
             determines how to add noise to the image. Defaults to None, in
             which case no noise is applied.
@@ -83,8 +83,8 @@ class Microscope(nn.Module):
     NA: float
     spectrum: Array
     spectral_density: Array
-    padding_ratio: Optional[float] = None
-    taper_width: Optional[float] = None
+    padding_ratio: float = 0
+    taper_width: float = 0
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
     psf_resampling_method: Optional[Literal["pool", "linear", "cubic"]] = None
     reduce_axis: Optional[int] = None
@@ -93,7 +93,9 @@ class Microscope(nn.Module):
     def setup(self):
         if self.psf_resampling_method is not None:
             self.resample = init_plane_resample(
-                (*self.sensor_shape, 1), self.sensor_spacing, self.psf_resampling_method
+                (*self.sensor_shape, 1, 1),
+                self.sensor_spacing,
+                self.psf_resampling_method,
             )
 
     def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
@@ -101,50 +103,65 @@ class Microscope(nn.Module):
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
         Args:
-            sample: The sample to be imaged of shape `[B H W 1]`.
+            sample: The sample to be imaged of shape `(B... H W 1 1)`.
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
         system_psf = self.psf(*args, **kwargs)
-        psf = self._process_psf(system_psf)
-        return self.image(sample, psf)
+        ndim = system_psf.ndim
+        # NOTE(dd): We have to manually calculate the spatial dimensions here
+        # because we can have system_psf functions return Arrays in addition
+        # to Fields.
+        spatial_dims = (-4, -3)
+        psf = self._process_psf(system_psf, ndim, spatial_dims)
+        return self.image(sample, psf, axes=spatial_dims)
 
     def psf(self, *args: Any, **kwargs: Any) -> Union[Field, Array]:
         """Computes PSF of system, taking any necessary arguments."""
         return self.system_psf(self, *args, **kwargs)
 
-    def _process_psf(self, system_psf: Union[Field, Array]) -> Array:
+    def _process_psf(
+        self, system_psf: Union[Field, Array], ndim: int, spatial_dims: Tuple[int, int]
+    ) -> Array:
+        shape = system_psf.shape[spatial_dims[0] : spatial_dims[1] + 1]
         if self.padding_ratio is not None:
-            shape = system_psf.shape[1:3]
             unpadded_shape = tuple(int(s / (1.0 + self.padding_ratio)) for s in shape)
             padding = tuple(s - u for s, u in zip(shape, unpadded_shape))
         else:
+            unpadded_shape = shape
             padding = (0, 0)
+        # WARNING(dd): Assumes that field has same spacing at all wavelengths
+        # when calculating intensity!
         if isinstance(system_psf, Field):
             psf = system_psf.intensity
-            spacing = system_psf.dx[..., 0].squeeze()
+            spacing = system_psf.dx[..., 0, 0].squeeze()
         else:
             psf = system_psf
             spacing = self.sensor_spacing * (
-                self.sensor_shape[0] / (psf.shape[1] - padding[0])
+                self.sensor_shape[0] / (psf.shape[-4] - padding[0])
             )
-        if self.padding_ratio is not None:
-            psf = center_crop(psf, (None, padding[0] // 2, padding[1] // 2, None))
-        if self.taper_width is not None:
-            psf = psf * sigmoid_taper(psf.shape[1:3], self.taper_width)
+        if self.padding_ratio > 0:
+            pad_spec = [None for _ in range(ndim)]
+            pad_spec[spatial_dims[0]] = padding[0] // 2
+            pad_spec[spatial_dims[1]] = padding[1] // 2
+            psf = center_crop(psf, pad_spec)
+        if self.taper_width > 0:
+            psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
         if self.psf_resampling_method is not None:
-            psf = vmap(self.resample, in_axes=(0, None))(psf, spacing)
+            for i in range(ndim - 4):
+                resample = vmap(self.resample, in_axes=(0, None))
+            psf = resample(psf, spacing)
         return psf
 
-    def image(self, sample: Array, psf: Array) -> Array:
+    def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
         """
         Computes image or batch of images using the specified PSF and sample.
 
         Args:
-            sample: The sample volume to image with, has shape `[B H W 1]`.
-            psf: The PSF intensity volume to image with, has shape `[B H W 1]`.
+            sample: The sample volume to image with, has shape `(B... H W 1 1)`.
+            psf: The PSF intensity volume to image with, has shape `(B... H W 1 1)`.
         """
-        image = vmap(fourier_convolution, in_axes=(0, 0))(psf, sample)
+        image = fourier_convolution(psf, sample, axes=axes)
         if self.reduce_axis is not None:
             image = jnp.sum(image, axis=self.reduce_axis, keepdims=True)
         if self.reduce_parallel_axis_name is not None:
@@ -167,13 +184,13 @@ class Optical4FSystemPSF(nn.Module):
 
     Attributes:
         shape: A tuple of form (H W) defining the number of pixels used to
-            simulate the PSF.
+            simulate the PSF at each plane.
         spacing: The desired output spacing of the PSF once it is simulated,
             i.e. the spacing at the camera plane when the PSF is measured. Note
             that this **does not** need to match the actual spacing of the
             sensor, and often should be a finer spacing than the camera.
-        phase: The phase mask for the 4f simulation. Must be an array of shape
-            (1 H W 1) where (H W) match the shape of the simulation, or an
+        phase: The phase mask for the 4f simulation. Must be an array of
+            shape (H W) where (H W) match the shape of the simulation, or an
             initialization function (e.g. using trainable).
     """
 
