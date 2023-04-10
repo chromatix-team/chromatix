@@ -53,21 +53,23 @@ def thin_sample(
     field: ScalarField, absorption: Array, dn: Array, thickness: Union[float, Array]
 ) -> ScalarField:
     """
-    Perturbs a ``field`` as if it went through a thin sample object with a
-    given ``absorption`` and refractive index change ``dn`` and of a given
-    ``thickness`` in micrometres.
+    Perturbs an incoming ``ScalarField`` as if it went through a thin sample
+    object with a given ``absorption``, refractive index change ``dn`` and of
+    a given ``thickness`` in the same units as the spectrum of the incoming
+    ``ScalarField``.
 
     The sample is supposed to follow the thin sample approximation, so the
-    sample perturbation is calculated as
-    ``exp(1j * 2*pi * (dn + 1j*absorption) * thickness / lambda)``.
+    sample perturbation is calculated as:
+    ``exp(1j * 2 * pi * (dn + 1j * absorption) * thickness / lambda)``.
 
-    Returns a ``Field`` with the result of the perturbation.
+    Returns a ``ScalarField`` with the result of the perturbation.
 
     Args:
         field: The complex field to be perturbed.
-        absorption: The sample absorption per micrometre defined as (B... H W C) array
-        dn: sample refractive index change (B... H W C) array
-        thickness: thickness at each sample location (B... H W C) array
+        absorption: The sample absorption defined as ``(B... H W 1 1)`` array
+        dn: Sample refractive index change ``(B... H W 1 1)`` array
+        thickness: Thickness at each sample location as array broadcastable
+            to ``(B... H W 1 1)``
     """
     assert_rank(
         absorption,
