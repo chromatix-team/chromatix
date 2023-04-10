@@ -47,6 +47,9 @@ plugins:
     handlers:
       python:
         paths: [src]
+        options:
+          heading_level: 3
+          show_root_toc_entry: false
 - mkdocs-jupyter
 - search:
     separator: '[\s\-\.]+'
