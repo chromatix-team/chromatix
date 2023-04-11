@@ -5,12 +5,16 @@ import jax.numpy as jnp
 from jax import random
 import flax.linen as nn
 import numpy as np
+
 from optax import adam
 import optax
+
 import matplotlib.pyplot as plt
+
 from chromatix.elements import ObjectivePointSource, FFLens, ZernikeAberrations
 from chromatix.ops.noise import shot_noise
 from chromatix.utils import trainable
+
 from typing import Callable, Optional, Tuple
 
 key = random.PRNGKey(42)
@@ -21,8 +25,8 @@ key = random.PRNGKey(42)
 camera_shape: Tuple[int, int] = (256, 256)
 camera_pixel_pitch: float = 0.125
 f: float = 100
-n: float = 1.33
 NA: float = 0.8
+n: float = 1.33
 wavelength: float = 0.532
 wavelength_ratio: float = 1.0
 upsample: int = 4
@@ -48,10 +52,11 @@ class ZernikePSF(nn.Module):
         field = ObjectivePointSource(
             shape, spacing, wavelength, wavelength_ratio, f, n, NA, power=1e7
         )(z)
+        # The only learnable parameters are the Zernike coefficients (since we use the trainable flag)
         field = ZernikeAberrations(
             trainable(jnp.array([0.0] * len(ansi_indices))), f, n, NA, ansi_indices
         )(field)
-        field = FFLens(f, n)(field)  # TODO: Add padding to FFLens
+        field = FFLens(f, n)(field)
         return field
 
 
@@ -68,9 +73,11 @@ params_truth = {
 psf_truth = model.apply(params_truth, z=0)
 psf_truth = shot_noise(key, psf_truth.intensity)  # add shot noise
 
-plt.figure()
-plt.imshow(psf_truth.squeeze()[crop:-crop, crop:-crop])
-plt.title("Ground truth PSF")
+plt.figure(dpi=150)
+plt.imshow(psf_truth.squeeze()[crop:-crop, crop:-crop], cmap="afmhot")
+plt.colorbar()
+plt.title("'Measured' PSF")
+plt.axis("off")
 plt.show()
 
 
@@ -110,8 +117,11 @@ step = jax.jit(
 params = model.init(key, z=0)  # dummy parameters for init
 psf_init = model.apply(params, z=0).intensity.squeeze()
 
-plt.imshow(psf_init[crop:-crop, crop:-crop])
+plt.figure(dpi=150)
+plt.imshow(psf_init[crop:-crop, crop:-crop], cmap="afmhot")
+plt.colorbar()
 plt.title("Initial Guess")
+plt.axis("off")
 plt.show()
 
 # Optimize
@@ -140,18 +150,7 @@ mean_coefficients_error = jnp.mean(
 )
 print("Mean coefficients error:", mean_coefficients_error)
 
-psf_estimated = model.apply(params, z=0).intensity.squeeze()
-
-fig, ax = plt.subplots(1, 2)
-ax[0].imshow(psf_estimated[crop:-crop, crop:-crop])
-ax[0].title.set_text("Estimated PSF")
-ax[1].imshow(psf_truth.squeeze()[crop:-crop, crop:-crop])
-ax[1].title.set_text("True PSF")
-
-for ax in ax:
-    ax.set_xticks([])
-    ax.set_yticks([])
-
+# Plots of ground truth, estimates and errors
 fig, ax = plt.subplots(1, 2, figsize=(15, 5))
 fontsize = 20
 ax[0].plot(ansi_indices, coefficients_truth, "-o", label="Ground truth")
@@ -162,3 +161,19 @@ ax[0].legend(fontsize=fontsize)
 ax[1].semilogy(ansi_indices, coefficients_error, "k-o")
 ax[1].set_xlabel("Zernike index", fontsize=fontsize)
 ax[1].set_ylabel("Estimation error", fontsize=fontsize)
+
+
+# PSF plots
+psf_estimated = model.apply(params, z=0).intensity.squeeze()
+
+fig, ax = plt.subplots(1, 2, dpi=300)
+m = ax[0].imshow(psf_estimated[crop:-crop, crop:-crop], cmap="afmhot")
+plt.colorbar(m, fraction=0.046, pad=0.04)
+ax[0].title.set_text("Estimated PSF")
+m = ax[1].imshow(psf_truth.squeeze()[crop:-crop, crop:-crop], cmap="afmhot")
+plt.colorbar(m, fraction=0.046, pad=0.04)
+ax[1].title.set_text("True PSF")
+for ax in ax:
+    ax.set_xticks([])
+    ax.set_yticks([])
+plt.tight_layout()
