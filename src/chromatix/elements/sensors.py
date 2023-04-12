@@ -6,6 +6,8 @@ from ..field import Field
 from ..ops import init_plane_resample
 from ..functional import basic_shot_noise_sensor
 
+__all__ = ["BasicShotNoiseSensor"]
+
 
 class BasicShotNoiseSensor(nn.Module):
     """
