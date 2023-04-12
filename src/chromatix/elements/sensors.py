@@ -24,6 +24,7 @@ class ShotNoiseIntensitySensor(nn.Module):
         reduce_parallel_axis_name: If provided, psum along the axis with this
             name.
     """
+
     shape: Tuple[int, int]
     spacing: float
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
@@ -33,17 +34,23 @@ class ShotNoiseIntensitySensor(nn.Module):
 
     def setup(self):
         if self.resampling_method is not None:
-            self.resample = init_plane_resample(
+            self.resample_fn = init_plane_resample(
                 (*self.shape, 1, 1), self.spacing, self.resampling_method
             )
 
     def __call__(
         self, sensor_input: Union[Field, Array], input_spacing: Optional[float] = None
     ) -> Array:
-        if self.resampling_method is not None:
-            resample = self.resample
+        if isinstance(sensor_input, Field):
+            # WARNING(dd): @copypaste(Microscope) Assumes that field has same
+            # spacing at all wavelengths when calculating intensity, and also
+            # that spacing is square!
+            input_spacing = sensor_input.dx[..., 0, 0].squeeze()
+        # Only want to resample if the spacing does not match
+        if self.resampling_method is not None and input_spacing != self.spacing:
+            resample_fn = self.resample_fn
         else:
-            resample = None
+            resample_fn = None
         if self.shot_noise_mode is not None:
             noise_key = self.make_rng("noise")
         else:
@@ -51,9 +58,15 @@ class ShotNoiseIntensitySensor(nn.Module):
         return shot_noise_intensity_sensor(
             sensor_input,
             self.shot_noise_mode,
-            resample,
+            resample_fn,
             self.reduce_axis,
             self.reduce_parallel_axis_name,
             input_spacing=input_spacing,
             noise_key=noise_key,
         )
+
+    def resample(self, resample_input: Array, input_spacing: float) -> Array:
+        if self.resampling_method is not None:
+            return self.resample_fn(resample_input, input_spacing)
+        else:
+            return resample_input
