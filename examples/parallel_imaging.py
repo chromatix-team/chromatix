@@ -1,4 +1,5 @@
 from chromatix.systems import Microscope, Optical4FSystemPSF
+from chromatix.elements import BasicShotNoiseSensor
 from chromatix.utils import trainable
 from chromatix.functional.phase_masks import flat_phase
 import jax
@@ -22,16 +23,19 @@ microscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=shape,
         spacing=spacing,
-        phase=trainable(flat_phase),
+        phase=trainable(flat_phase)
     ),
-    sensor_shape=shape,
-    sensor_spacing=spacing,
+    sensor=BasicShotNoiseSensor(
+        shape=shape,
+        spacing=spacing,
+        resampling_method=None,
+        reduce_axis=0
+    ),
     f=f,
     n=n,
     NA=NA,
     spectrum=spectrum,
     spectral_density=spectral_density,
-    reduce_axis=0,
 )
 
 
@@ -65,17 +69,20 @@ microscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=shape,
         spacing=spacing,
-        phase=trainable(flat_phase),
+        phase=trainable(flat_phase)
     ),
-    sensor_shape=shape,
-    sensor_spacing=spacing,
+    sensor=BasicShotNoiseSensor(
+        shape=shape,
+        spacing=spacing,
+        resampling_method=None,
+        reduce_axis=0,
+        reduce_parallel_axis_name="devices"
+    ),
     f=f,
     n=n,
     NA=NA,
     spectrum=spectrum,
     spectral_density=spectral_density,
-    reduce_axis=0,
-    reduce_parallel_axis_name="devices",
 )
 
 
