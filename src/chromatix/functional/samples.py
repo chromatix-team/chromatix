@@ -97,6 +97,7 @@ def multislice_thick_sample(
     N_pad: int,
     propagator: Optional[Array] = None,
     kykx: Array = jnp.zeros((2,)),
+    backpropagate_distance: Optional[float] = None,
 ) -> ScalarField:
     """
     Perturbs incoming ``Field`` as if it went through a thick sample. The
@@ -146,6 +147,7 @@ def multislice_thick_sample(
 
     # Propagate field backwards to the middle of the stack
     # TODO(dd): Allow choosing how far back we propagate here
-    backpropagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
+    if backpropagate_distance is None:
+        backpropagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
     field = exact_propagate(field, z=-backpropagate_distance, n=n, kykx=kykx, N_pad=0)
     return crop(field, N_pad)
