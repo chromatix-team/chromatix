@@ -84,9 +84,10 @@ class Microscope(nn.Module):
         system_psf = self.psf(*args, **kwargs)
         ndim = system_psf.ndim
         # NOTE(dd): We have to manually calculate the spatial dimensions here
-        # because we can have system_psf functions return Arrays in addition
-        # to Fields.
-        spatial_dims = (-4, -3)
+        # because we can have system_psf functions return Arrays in addition to
+        # Fields. The explicit calculation also prevents incorrect cropping in
+        # fourier_convolution.
+        spatial_dims = (ndim - 4, ndim - 3)
         psf = self._process_psf(system_psf, ndim, spatial_dims)
         return self.image(sample, psf, axes=spatial_dims)
 
