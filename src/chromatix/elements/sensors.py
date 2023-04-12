@@ -1,5 +1,5 @@
 import flax.linen as nn
-from typing import Literal, Optional, Tuple
+from typing import Optional, Literal, Tuple, Union
 from chex import Array
 from ..field import Field
 from ..ops import init_plane_resample
@@ -9,6 +9,8 @@ from ..functional import shot_noise_intensity_sensor
 class ShotNoiseIntensitySensor(nn.Module):
     """
     Produces an intensity image from an incoming ``Field`` with shot noise.
+    Optionally, can also accept an intensity Array if ``input_spacing`` is
+    specified.
 
     Attributes:
         shape: The shape in pixels of the sensor. Should be of the form (H W).
@@ -22,7 +24,6 @@ class ShotNoiseIntensitySensor(nn.Module):
         reduce_parallel_axis_name: If provided, psum along the axis with this
             name.
     """
-
     shape: Tuple[int, int]
     spacing: float
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
@@ -36,7 +37,9 @@ class ShotNoiseIntensitySensor(nn.Module):
                 (*self.shape, 1, 1), self.spacing, self.resampling_method
             )
 
-    def __call__(self, field: Field) -> Array:
+    def __call__(
+        self, sensor_input: Union[Field, Array], input_spacing: Optional[float] = None
+    ) -> Array:
         if self.resampling_method is not None:
             resample = self.resample
         else:
@@ -46,10 +49,11 @@ class ShotNoiseIntensitySensor(nn.Module):
         else:
             noise_key = None
         return shot_noise_intensity_sensor(
-            field,
+            sensor_input,
             self.shot_noise_mode,
             resample,
             self.reduce_axis,
             self.reduce_parallel_axis_name,
+            input_spacing=input_spacing,
             noise_key=noise_key,
         )
