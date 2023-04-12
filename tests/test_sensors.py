@@ -32,12 +32,12 @@ def test_shot_noise_intensity_sensor():
     params = sensor.init(
         {"params": key, "noise": key},
         field.intensity,
-        spacing=field.dx[..., 0, 0].squeeze(),
+        input_spacing=field.dx[..., 0, 0].squeeze(),
     )
     image_from_intensity = sensor.apply(
         params,
         field.intensity,
-        spacing=field.dx[..., 0, 0].squeeze(),
+        input_spacing=field.dx[..., 0, 0].squeeze(),
         rngs={"noise": key},
     )
     assert image_from_intensity.squeeze().shape == shape
