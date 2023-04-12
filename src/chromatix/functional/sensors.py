@@ -12,7 +12,7 @@ __all__ = ["shot_noise_intensity_sensor"]
 def shot_noise_intensity_sensor(
     sensor_input: Union[Field, Array],
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None,
-    resample: Optional[Callable[[Array, float], Array]] = None,
+    resample_fn: Optional[Callable[[Array, float], Array]] = None,
     reduce_axis: Optional[int] = None,
     reduce_parallel_axis_name: Optional[str] = None,
     input_spacing: Optional[float] = None,
@@ -28,7 +28,7 @@ def shot_noise_intensity_sensor(
             be sampled by the sensor with shot noise.
         shot_noise_mode: What type of shot noise simulation to use. Defaults to
             None, in which case no shot noise is simulated.
-        resample: If provided, will be called to resample the incoming
+        resample_fn: If provided, will be called to resample the incoming
             ``Field`` to the given ``shape``.
         reduce_axis: If provided, the result will be summed along this
             dimension.
@@ -41,14 +41,18 @@ def shot_noise_intensity_sensor(
     """
     if isinstance(sensor_input, Field):
         intensity = sensor_input.intensity
-        spacing = sensor_input.dx[..., 0, 0].squeeze()
+        # WARNING(dd): @copypaste(Microscope) Assumes that field has same
+        # spacing at all wavelengths when calculating intensity, and also that
+        # spacing is square!
+        input_spacing = sensor_input.dx[..., 0, 0].squeeze()
     else:
-        assert input_spacing is not None, "Must provide input_spacing for intensity"
         intensity = sensor_input
-    if resample is not None:
+    if resample_fn is not None:
+        assert input_spacing is not None, "Must provide input_spacing for intensity"
+    if resample_fn is not None:
         for i in range(sensor_input.ndim - 4):
-            resample = vmap(resample, in_axes=(0, None))
-        image = resample(intensity, spacing)
+            resample_fn = vmap(resample_fn, in_axes=(0, None))
+        image = resample_fn(intensity, input_spacing)
     else:
         image = intensity
     if reduce_axis is not None:
