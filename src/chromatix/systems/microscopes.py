@@ -1,18 +1,13 @@
 from __future__ import annotations
 import jax.numpy as jnp
-from jax import vmap
-from jax.lax import psum
 from flax import linen as nn
 from chex import Array, PRNGKey
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Tuple, Union
 from ..field import Field
 from ..elements import FFLens, ObjectivePointSource, PhaseMask
 from ..ops import (
     fourier_convolution,
-    shot_noise,
     sigmoid_taper,
-    approximate_shot_noise,
-    init_plane_resample,
 )
 from ..utils import center_crop
 from .optical_system import OpticalSystem
@@ -44,8 +39,11 @@ class Microscope(nn.Module):
             assumed to be the intensity and the spacing of the PSF will be
             automatically determined based on the ratio of the specified
             ``sensor_shape`` to the shape of the PSF.
-        sensor_shape: A tuple of form (H W) defining the camera sensor shape.
-        sensor_spacing: A float defining the pixel pitch of the camera sensor.
+        sensor: The sensor used for imaging the sample. Must be an ``Module``
+            with an attribute ``shape`` of the form ``(H W)`` for the sensor
+            pixels and an attribute ``spacing`` that defines the pitch of the
+            sensor pixels. Must also have a ``resample`` method, which will be
+            used to resample the computed PSF to the shape of the sensor.
         f: Focal length of the system's objective.
         n: Refractive index of the system's objective.
         NA: The numerical aperture of the system's objective.
@@ -62,22 +60,10 @@ class Microscope(nn.Module):
             smoothly bring the edges of the PSF to 0. This helps to prevent
             edge artifacts in the image if the PSF has edge artifacts. Defaults
             to 0, in which case no tapering is applied.
-        shot_noise_mode: A string of either 'approximate' or 'poisson' that
-            determines how to add noise to the image. Defaults to None, in
-            which case no noise is applied.
-        psf_resampling_method: A string of either 'linear' or 'cubic' that
-            determines how the PSF is resampled to the shape of the sensor.
-            Note that this assumes that the PSF that is computed has the same
-            field of view as the sensor.
-        reduce_axis: If provided, the input will be summed along this
-            dimension.
-        reduce_parallel_axis_name: If provided, psum along the axis with this
-            name.
     """
 
     system_psf: Callable[[Microscope], Union[Field, Array]]
-    sensor_shape: Tuple[int, int]
-    sensor_spacing: float
+    sensor: nn.Module
     f: float
     n: float
     NA: float
@@ -85,18 +71,6 @@ class Microscope(nn.Module):
     spectral_density: Array
     padding_ratio: float = 0
     taper_width: float = 0
-    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
-    psf_resampling_method: Optional[Literal["pool", "linear", "cubic"]] = None
-    reduce_axis: Optional[int] = None
-    reduce_parallel_axis_name: Optional[str] = None
-
-    def setup(self):
-        if self.psf_resampling_method is not None:
-            self.resample = init_plane_resample(
-                (*self.sensor_shape, 1, 1),
-                self.sensor_spacing,
-                self.psf_resampling_method,
-            )
 
     def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
         """
@@ -131,14 +105,14 @@ class Microscope(nn.Module):
             unpadded_shape = shape
             padding = (0, 0)
         # WARNING(dd): Assumes that field has same spacing at all wavelengths
-        # when calculating intensity!
+        # when calculating intensity, and also that spacing is square!
         if isinstance(system_psf, Field):
             psf = system_psf.intensity
             spacing = system_psf.dx[..., 0, 0].squeeze()
         else:
             psf = system_psf
-            spacing = self.sensor_spacing * (
-                self.sensor_shape[0] / (psf.shape[-4] - padding[0])
+            spacing = self.sensor.spacing * (
+                self.sensor.shape[0] / (psf.shape[-4] - padding[0])
             )
         if self.padding_ratio > 0:
             pad_spec = [None for _ in range(ndim)]
@@ -147,10 +121,7 @@ class Microscope(nn.Module):
             psf = center_crop(psf, pad_spec)
         if self.taper_width > 0:
             psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
-        if self.psf_resampling_method is not None:
-            for i in range(ndim - 4):
-                resample = vmap(self.resample, in_axes=(0, None))
-            psf = resample(psf, spacing)
+        psf = self.sensor.resample(psf, spacing)
         return psf
 
     def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
@@ -162,16 +133,12 @@ class Microscope(nn.Module):
             psf: The PSF intensity volume to image with, has shape `(B... H W 1 1)`.
         """
         image = fourier_convolution(psf, sample, axes=axes)
-        if self.reduce_axis is not None:
-            image = jnp.sum(image, axis=self.reduce_axis, keepdims=True)
-        if self.reduce_parallel_axis_name is not None:
-            image = psum(image, axis_name=self.reduce_parallel_axis_name)
-        if self.shot_noise_mode is not None:
-            noise_key = self.make_rng("noise")
-            if self.shot_noise_mode == "approximate":
-                image = approximate_shot_noise(noise_key, image)
-            elif self.shot_noise_mode == "poisson":
-                image = shot_noise(noise_key, image)
+        # NOTE(dd): By this point, the image should already be at the same
+        # spacing as the sensor. Any resampling to the pixels of the sensor
+        # should already have happened to the PSF. The intent of passing
+        # the sensor spacing as the input spacing is to bypass any further
+        # resampling.
+        image = self.sensor(image, self.sensor.spacing)
         return image
 
 
