@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 import flax.linen as nn
 from typing import Optional, Literal, Tuple, Union
 from chex import Array
@@ -46,6 +47,7 @@ class ShotNoiseIntensitySensor(nn.Module):
             # spacing at all wavelengths when calculating intensity, and also
             # that spacing is square!
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
+        input_spacing = jnp.atleast_1d(input_spacing)[0]
         # Only want to resample if the spacing does not match
         if self.resampling_method is not None and input_spacing != self.spacing:
             resample_fn = self.resample_fn
