@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from jax import vmap
 import flax.linen as nn
 from typing import Optional, Literal, Tuple, Union
 from chex import Array
@@ -71,6 +72,9 @@ class BasicShotNoiseSensor(nn.Module):
 
     def resample(self, resample_input: Array, input_spacing: float) -> Array:
         if self.resampling_method is not None:
-            return self.resample_fn(resample_input, input_spacing)
+            resample_fn = self.resample_fn
+            for i in range(resample_input.ndim - 4):
+                resample_fn = vmap(resample_fn, in_axes=(0, None))
+            return resample_fn(resample_input, input_spacing)
         else:
             return resample_input
