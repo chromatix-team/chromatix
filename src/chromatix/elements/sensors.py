@@ -71,6 +71,13 @@ class BasicShotNoiseSensor(nn.Module):
         )
 
     def resample(self, resample_input: Array, input_spacing: float) -> Array:
+        """
+        Resample the given ``resample_input`` to the pixels of the sensor.
+
+        Args:
+            resample_input: The ``Array`` to resample of shape ``(B... H W 1 1)``
+            input_spacing: The spacing of the input
+        """
         if self.resampling_method is not None:
             resample_fn = self.resample_fn
             for i in range(resample_input.ndim - 4):

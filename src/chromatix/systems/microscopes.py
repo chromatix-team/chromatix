@@ -98,6 +98,14 @@ class Microscope(nn.Module):
     def _process_psf(
         self, system_psf: Union[Field, Array], ndim: int, spatial_dims: Tuple[int, int]
     ) -> Array:
+        """
+        Prepare PSF to be convolved with a sample by doing the following:
+
+        1. If the PSF was provided as a ``Field``, compute the intensity PSF
+        2. Crop the PSF if it was padded
+        3. Taper the edges of the PSF with the specified ``taper_width``
+        4. Resample the PSF to the shape of the specified ``sensor``
+        """
         shape = system_psf.shape[spatial_dims[0] : spatial_dims[1] + 1]
         if self.padding_ratio is not None:
             unpadded_shape = tuple(int(s / (1.0 + self.padding_ratio)) for s in shape)
@@ -127,11 +135,13 @@ class Microscope(nn.Module):
 
     def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
         """
-        Computes image or batch of images using the specified PSF and sample.
+        Computes image or batch of images using the specified ``psf`` and
+        ``sample``. Assumes that both the ``sample`` and ``psf`` have already
+        been sampled to the pixels of the sensor.
 
         Args:
-            sample: The sample volume to image with, has shape `(B... H W 1 1)`.
-            psf: The PSF intensity volume to image with, has shape `(B... H W 1 1)`.
+            sample: The sample volume to image with of shape `(B... H W 1 1)`.
+            psf: The PSF intensity volume to image with of shape `(B... H W 1 1)`.
         """
         image = fourier_convolution(psf, sample, axes=axes)
         # NOTE(dd): By this point, the image should already be at the same

@@ -19,15 +19,15 @@ def basic_shot_noise_sensor(
     noise_key: Optional[PRNGKey] = None,
 ) -> Array:
     """
-    Produces an intensity image from an incoming ``Field`` with shot noise.
-    Optionally, can also accept an intensity Array if ``input_spacing`` is
-    specified.
+    Produces an intensity image from an incoming ``Field`` or intensity
+    ``Array`` and simulates shot noise.
 
     Args:
         sensor_input: Either the incoming ``Field`` or an intensity ``Array`` to
             be sampled by the sensor with shot noise.
-        shot_noise_mode: What type of shot noise simulation to use. Defaults to
-            None, in which case no shot noise is simulated.
+        shot_noise_mode: What type of shot noise simulation to use. Can be
+            either "approximate", "poisson", or None. Defaults to None, in which
+            case no shot noise is simulated (the sensor is perfect).
         resample_fn: If provided, will be called to resample the incoming
             ``Field`` to the given ``shape``.
         reduce_axis: If provided, the result will be summed along this
