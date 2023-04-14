@@ -30,7 +30,7 @@ class BasicShotNoiseSensor(nn.Module):
     """
 
     shape: Tuple[int, int]
-    spacing: float
+    spacing: Union[float, Array]
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
     resampling_method: Optional[str] = "linear"
     reduce_axis: Optional[int] = None
@@ -39,7 +39,7 @@ class BasicShotNoiseSensor(nn.Module):
     def setup(self):
         if self.resampling_method is not None:
             self.resample_fn = init_plane_resample(
-                (*self.shape, 1, 1), self.spacing, self.resampling_method
+                self.shape, self.spacing, self.resampling_method
             )
 
     def __call__(
@@ -47,12 +47,13 @@ class BasicShotNoiseSensor(nn.Module):
     ) -> Array:
         if isinstance(sensor_input, Field):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same
-            # spacing at all wavelengths when calculating intensity, and also
-            # that spacing is square!
+            # spacing at all wavelengths when calculating intensity!
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
-        input_spacing = jnp.atleast_1d(input_spacing)[0]
+        input_spacing = jnp.atleast_1d(input_spacing)
         # Only want to resample if the spacing does not match
-        if self.resampling_method is not None and input_spacing != self.spacing:
+        if self.resampling_method is not None and jnp.any(
+            input_spacing != self.spacing
+        ):
             resample_fn = self.resample_fn
         else:
             resample_fn = None

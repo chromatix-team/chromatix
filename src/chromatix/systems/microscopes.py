@@ -114,14 +114,17 @@ class Microscope(nn.Module):
             unpadded_shape = shape
             padding = (0, 0)
         # WARNING(dd): Assumes that field has same spacing at all wavelengths
-        # when calculating intensity, and also that spacing is square!
+        # when calculating intensity!
         if isinstance(system_psf, Field):
             psf = system_psf.intensity
             spacing = system_psf.dx[..., 0, 0].squeeze()
         else:
             psf = system_psf
-            spacing = self.sensor.spacing * (
-                self.sensor.shape[0] / (psf.shape[-4] - padding[0])
+            spacing = self.sensor.spacing * jnp.array(
+                [
+                    self.sensor.shape[0] / (psf.shape[-4] - padding[0]),
+                    self.sensor.shape[1] / (psf.shape[-3] - padding[1]),
+                ]
             )
         if self.padding_ratio > 0:
             pad_spec = [None for _ in range(ndim)]

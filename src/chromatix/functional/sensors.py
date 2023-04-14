@@ -15,7 +15,7 @@ def basic_shot_noise_sensor(
     resample_fn: Optional[Callable[[Array, float], Array]] = None,
     reduce_axis: Optional[int] = None,
     reduce_parallel_axis_name: Optional[str] = None,
-    input_spacing: Optional[float] = None,
+    input_spacing: Optional[Union[float, Array]] = None,
     noise_key: Optional[PRNGKey] = None,
 ) -> Array:
     """
@@ -42,8 +42,7 @@ def basic_shot_noise_sensor(
     if isinstance(sensor_input, Field):
         intensity = sensor_input.intensity
         # WARNING(dd): @copypaste(Microscope) Assumes that field has same
-        # spacing at all wavelengths when calculating intensity, and also that
-        # spacing is square!
+        # spacing at all wavelengths when calculating intensity!
         input_spacing = sensor_input.dx[..., 0, 0].squeeze()
     else:
         intensity = sensor_input
