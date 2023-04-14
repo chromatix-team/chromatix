@@ -35,8 +35,8 @@ on) may be lacking.
 
 A common style of parallelism is across a batch dimension. Chromatix already
 describes ``Field`` objects with arbitrary batch dimensions, such that they
-have a shape `(B... H W C)`. This means that across a single device, any
-computations across the (potentially multiple) batch (`B`) and channel (`C`)
+have a shape `(B... H W C [1 | 3])`. This means that across a single device,
+any computations across the (potentially multiple) batch (`B`) and channel (`C`)
 dimensions are already performed in parallel. It is possible to parallelize
 additional dimensions using `jax.vmap` on a single device. For example, we can
 look at the widefield PSF example from the README (but adjusted so that the
@@ -111,6 +111,7 @@ First, let's look at the single device version:
 
 ```python
 from chromatix.systems import Microscope, Optical4FSystemPSF
+from chromatix.elements import BasicShotNoiseSensor
 from chromatix.utils import trainable
 from chromatix.functional.phase_masks import flat_phase
 
@@ -118,16 +119,19 @@ microscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=shape,
         spacing=spacing,
-        phase=trainable(flat_phase),
+        phase=trainable(flat_phase)
     ),
-    sensor_shape=shape,
-    sensor_spacing=spacing,
+    sensor=BasicShotNoiseSensor(
+        shape=shape,
+        spacing=spacing,
+        resampling_method=None,
+        reduce_axis=0
+    ),
     f=f,
     n=n,
     NA=NA,
     spectrum=spectrum,
     spectral_density=spectral_density,
-    reduce_axis=0,
 )
 
 def init_params(key, volume, z):
@@ -138,7 +142,7 @@ def init_params(key, volume, z):
 def compute_image(params, volume, z):
     return microscope.apply(params, volume, z)
 
-volume = jnp.ones((128, *shape, 1)) # fill in your volume here
+volume = jnp.ones((128, *shape, 1, 1)) # fill in your volume here
 z = jnp.linspace(-4, 4, num=128)
 params = init_params(jax.random.PRNGKey(6022), volume, z)
 widefield_image = compute_image(params, volume, z)
@@ -148,10 +152,10 @@ Here, we constructed a ``Microscope`` with a 4f system PSF, but this time we
 specified that the phase is a trainable parameter. This means that we have to
 initialize the parameters for this ``flax.linen.Module`` and also pass these
 parameters when we want to call the ``Microscope``. This ``Microscope`` also
-accepted a ``reduce_axis`` argument, which we have specified to sum across the
-batch dimension (axis 0) to simulate a camera collecting light from multiple
-planes. This computation ran in **172.86ms** on a single NVIDIA A100 GPU
-(average over 10 runs).
+accepted a ``BasicShotNoiseSensor`` with a ``reduce_axis`` argument, which we
+have specified to sum across the batch dimension (axis 0) to simulate a camera
+collecting light from multiple planes. This computation ran in **172.86ms** on a
+single NVIDIA A100 GPU (average over 10 runs).
 
 Just like last time, we can parallelize this to multiple devices along the
 batch dimension by using ``jax.pmap``:
@@ -163,17 +167,20 @@ microscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=shape,
         spacing=spacing,
-        phase=trainable(flat_phase),
+        phase=trainable(flat_phase)
     ),
-    sensor_shape=shape,
-    sensor_spacing=spacing,
+    sensor=BasicShotNoiseSensor(
+        shape=shape,
+        spacing=spacing,
+        resampling_method=None,
+        reduce_axis=0,
+        reduce_parallel_axis_name="devices"
+    ),
     f=f,
     n=n,
     NA=NA,
     spectrum=spectrum,
     spectral_density=spectral_density,
-    reduce_axis=0,
-    reduce_parallel_axis_name="devices",
 )
 
 @partial(jax.pmap, axis_name='devices')
@@ -185,20 +192,20 @@ def init_params(key, volume, z):
 def compute_image(params, volume, z):
     return microscope.apply(params, volume, z)
 
-volume = jnp.ones((128, *shape, 1)).reshape(4, 32, *shape, 1) # volume is chunked
+volume = jnp.ones((128, *shape, 1, 1)).reshape(4, 32, *shape, 1, 1) # volume is chunked
 z = jnp.linspace(-4, 4, num=128).reshape(4, 32) # z is chunked
 params = init_params(jax.random.split(jax.random.PRNGKey(6022), 4), volume, z)
 widefield_image = compute_image(params, volume, z)
 ```
 
-This time, we ended up having to make a change to how we define the optics.
-That is because each device first computes a partial image of just the chunk
-that it received, which are summed across the batch dimension on each device
-(because we specified ``reduce_axis``). So, we need to make sure that we are
-summing these partial images together across all the devices. We can tell
-`jax` to do that by using ``jax.lax.psum``, which happens internally in the
-``Microscope`` because we specified ``reduce_parallel_axis_name`` in addition
-to ``reduce_axis``. Now, each device has a copy of the same final image.
+This time, we ended up having to make a change to how we define the optics. That
+is because each device first computes a partial image of just the chunk that it
+received, which are summed across the batch dimension on each device (because we
+specified ``reduce_axis``). So, we need to make sure that we are summing these
+partial images together across all the devices. We can tell `jax` to do that by
+using ``jax.lax.psum``, which happens internally in the ``BasicShotNoiseSensor``
+because we specified ``reduce_parallel_axis_name`` in addition to
+``reduce_axis``. Now, each device has a copy of the same final image.
 
 That means that if we look at the shape of ``widefield_image``, we'll see that
 it has shape `[4 1536 1536 1]` because we ran on 4 devices. Each of those 4
