@@ -22,7 +22,11 @@ class BasicShotNoiseSensor(nn.Module):
         shot_noise_mode: What type of shot noise simulation to use. Defaults to
             None, in which case no shot noise is simulated.
         resampling_method: What kind of sampling to use when resampling the
-            incoming ``Field`` to the pitch of the sensor.
+            incoming ``Field`` to the pitch of the sensor. Can be either
+            `'pooling'` which uses sum pooling (for downsampling only) or any
+            method supported by ``jax.image.scale_and_translate`` (`'linear'`,
+            `'cubic'`, `'lanczos3'`, or `'lanczos5'`). If None, then no
+            resampling will occur.
         reduce_axis: If provided, the result will be summed along this
             dimension.
         reduce_parallel_axis_name: If provided, psum along the axis with this

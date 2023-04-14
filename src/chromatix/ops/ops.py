@@ -40,6 +40,23 @@ def init_plane_resample(
     out_spacing: Union[float, Array],
     resampling_method: str = "linear",
 ) -> Callable[[Array, float], Array]:
+    """
+    Returns a function that resamples 2D planes to the specified output shape
+    and spacing.
+
+    The returned function is allowed to be jitted because the shape of the
+    output will no longer depend on the input of this function.
+
+    Multiple ``resampling_methods`` are supported: either `'pooling'` which
+    uses sum pooling (for downsampling only) or any method supported by
+    ``jax.image.scale_and_translate`` (`'linear'`, `'cubic'`, `'lanczos3'`,
+    or `'lanczos5'`).
+
+    The input may have any number of dimensions after the first two, but the
+    returned function assumes that the 2D planes to be downsampled is contained
+    in the first two axes. In order to add arbitrary batch dimensions before the
+    first two dimensions, use ``jax.vmap``.
+    """
     assert len(out_shape) == 2, "Shape must be tuple of form (height, width)"
     out_spacing = jnp.atleast_1d(out_spacing).squeeze()
     assert (
