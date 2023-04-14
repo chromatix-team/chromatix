@@ -28,17 +28,20 @@ class Microscope(nn.Module):
     Optical4FSystemPSF.
 
     Attributes:
-        system_psf: A function or ``Module`` that will compute the field at the
-            sensor plane due to a point source for this imaging system. Must
-            take a ``Microscope`` as the first argument to read any relevant
-            optical properties of the system. Can take any other arguments
-            passed during a call to this ``Microscope`` (e.g. z values to
-            compute a 3D PSF at for imaging). Can either return a ``Field``, in
-            which case the intensity and spacing of the PSF will automatically
-            be determined, or an ``Array``, in which case the ``Array`` is
-            assumed to be the intensity and the spacing of the PSF will be
-            automatically determined based on the ratio of the specified
-            ``sensor_shape`` to the shape of the PSF.
+        system_psf: A function or ``Module`` that will compute the field at
+            the sensor plane due to a point source for this imaging system.
+            Must take a ``Microscope`` as the first argument to read any
+            relevant optical properties of the system. Can take any other
+            arguments passed during a call to this ``Microscope`` (e.g. z
+            values to compute a 3D PSF at for imaging). Can either return a
+            ``Field``, in which case the intensity and spacing of the PSF will
+            be automatically determined, or an ``Array``, in which case the
+            ``Array`` is assumed to be the intensity and the spacing of the PSF
+            will be automatically determined based on the ratio of the specified
+            ``sensor_shape`` to the shape of the PSF. When the input is a
+            ``Field``, the spacing is assumed to be equal for all wavelengths
+            of the ``spectrum`` of the ``Field`` and the spacing for the first
+            wavelength is used to calculate the resampling.
         sensor: The sensor used for imaging the sample. Must be an ``Module``
             with an attribute ``shape`` of the form ``(H W)`` for the sensor
             pixels and an attribute ``spacing`` that defines the pitch of the

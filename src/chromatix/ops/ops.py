@@ -52,12 +52,14 @@ def init_plane_resample(
     ``jax.image.scale_and_translate`` (`'linear'`, `'cubic'`, `'lanczos3'`,
     or `'lanczos5'`).
 
-    The input may have any number of dimensions after the first two, but the
-    returned function assumes that the 2D planes to be downsampled is contained
-    in the first two axes. In order to add arbitrary batch dimensions before the
-    first two dimensions, use ``jax.vmap``.
+    The input may have any number of dimensions after the first two, but
+    the returned function assumes that the 2D planes to be downsampled are
+    contained in the first two axes. Any other dimensions are treated as batch
+    dimensions, i.e. resampling is parallelized across those dimensions. In
+    order to add arbitrary batch dimensions before the first two dimensions,
+    use ``jax.vmap``.
     """
-    assert len(out_shape) == 2, "Shape must be tuple of form (height, width)"
+    assert len(out_shape) == 2, "Shape must be tuple of form (H W)"
     out_spacing = jnp.atleast_1d(out_spacing).squeeze()
     assert (
         out_spacing.size <= 2

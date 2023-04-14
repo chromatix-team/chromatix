@@ -17,7 +17,7 @@ class BasicShotNoiseSensor(nn.Module):
     specified.
 
     Attributes:
-        shape: The shape in pixels of the sensor. Should be of the form (H W).
+        shape: The shape in pixels of the sensor. Should be of the form `(H W)`.
         spacing: The pitch of the sensor pixels.
         shot_noise_mode: What type of shot noise simulation to use. Defaults to
             None, in which case no shot noise is simulated.
@@ -25,7 +25,7 @@ class BasicShotNoiseSensor(nn.Module):
             incoming ``Field`` to the pitch of the sensor. Can be either
             `'pooling'` which uses sum pooling (for downsampling only) or any
             method supported by ``jax.image.scale_and_translate`` (`'linear'`,
-            `'cubic'`, `'lanczos3'`, or `'lanczos5'`). If None, then no
+            `'cubic'`, `'lanczos3'`, or `'lanczos5'`). If ``None``, then no
             resampling will occur.
         reduce_axis: If provided, the result will be summed along this
             dimension.
@@ -47,8 +47,19 @@ class BasicShotNoiseSensor(nn.Module):
             )
 
     def __call__(
-        self, sensor_input: Union[Field, Array], input_spacing: Optional[float] = None
+        self,
+        sensor_input: Union[Field, Array],
+        input_spacing: Optional[Union[float, Array]] = None,
     ) -> Array:
+        """
+        Resample the given ``sensor_input`` to the pixels of the sensor and
+        potentially reduce the result and add shot noise.
+
+        Args:
+            sensor_input: The incoming ``Field`` or intensity ``Array``.
+            input_spacing: The spacing of the input, only required if resampling
+                is required and the input is an ``Array``.
+        """
         if isinstance(sensor_input, Field):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same
             # spacing at all wavelengths when calculating intensity!
