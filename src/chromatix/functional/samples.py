@@ -130,7 +130,7 @@ def multislice_thick_sample(
             this amount from the top of the stack. By default, field is propagated
             backwards to the middle of the sample.
     """
-    assert_equal_shape((absorption_stack, dn_stack))
+    assert_equal_shape([absorption_stack, dn_stack])
     field = pad(field, N_pad)
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
