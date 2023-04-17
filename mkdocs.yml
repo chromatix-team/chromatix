@@ -2,6 +2,7 @@ site_name: Chromatix
 repo_url: https://github.com/TuragaLab/chromatix/
 
 nav:
+  - Home: index.md
   - Getting started:
     - Installing: installing.md
     - Chromatix 101: 101.ipynb
@@ -11,9 +12,11 @@ nav:
   - Examples:
     - Holoscope: examples/holoscope.ipynb
     - Computer Generated Holography: examples/cgh.ipynb
+    - Digital Micromirror Device: examples/dmd.ipynb
     - Fourier Ptychography: examples/fourier_ptychography.md
     - Synchrotron X-ray Holography: examples/tomography.md
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
+    - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
   - API:
     - Field: api/field.md
     - Functional: api/functional.md
@@ -45,6 +48,9 @@ plugins:
     handlers:
       python:
         paths: [src]
+        options:
+          heading_level: 3
+          show_root_toc_entry: false
 - mkdocs-jupyter
 - search:
     separator: '[\s\-\.]+'

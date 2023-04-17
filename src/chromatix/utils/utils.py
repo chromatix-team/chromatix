@@ -80,7 +80,7 @@ def trainable(x: Any) -> Callable:
     also accept a ``jax.random.PRNGKey`` and a shape.
 
     Args:
-        ``x``: The value that will be used to initialize the trainable
+        x: The value that will be used to initialize the trainable
             parameter.
 
     Returns:

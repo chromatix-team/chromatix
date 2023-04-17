@@ -81,4 +81,15 @@ Check out our full documentation at [https://chromatix.readthedocs.io/en/latest]
 We're happy to take contributions of either examples, new optical elements, or expanded simulation capabilities (within reasonable scope)! Simply submit a pull request and we'll be happy to help you along. We're also grateful to people who find and report issues here, so we can fix or improve things as soon as possible.
 
 ### Contributor list
-Chromatix was started by Diptodip Deb, Gert-Jan Both, and Srinivas C. Turaga at HHMI Janelia Research Campus.
+Chromatix was started by Diptodip Deb, Gert-Jan Both, and Srinivas C. Turaga at HHMI Janelia Research Campus, along with contributions by:
+
+* Amey Chaware
+* Amit Kholi
+* Cédric Allier
+* Changjia Cai
+* Geneva Schlafly
+* Guanghan Meng
+* Hoss Eybposh
+* Magdalena Schneider
+* Xi Yang
+ 

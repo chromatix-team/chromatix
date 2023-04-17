@@ -99,7 +99,7 @@ class Field(struct.PyTreeNode):
         return self.dx * grid
 
     @property
-    def k_grid(self) -> jnp.ndarray:
+    def k_grid(self) -> Array:
         N_x, N_y = self.spatial_shape
         grid = jnp.meshgrid(
             jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
@@ -110,7 +110,7 @@ class Field(struct.PyTreeNode):
         return self.dk * grid
 
     @property
-    def dk(self) -> jnp.ndarray:
+    def dk(self) -> Array:
         shape = jnp.array(self.spatial_shape)
         shape = _broadcast_1d_to_grid(shape, self.ndim)
         return 1 / (self.dx * shape)
@@ -133,7 +133,7 @@ class Field(struct.PyTreeNode):
         )
 
     @property
-    def power(self) -> jnp.ndarray:
+    def power(self) -> Array:
         """Power of the complex field, shape `(B... 1 1 1)`."""
         area = jnp.prod(self.dx, axis=0, keepdims=False)
         return jnp.sum(self.intensity, axis=(-4, -3), keepdims=True) * area
