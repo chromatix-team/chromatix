@@ -195,9 +195,7 @@ def compute_transfer_propagator(
     incoming Field, as performed by kernel_propagate.
 
     Args:
-        shape: Shape of the propagator.
-        dx: The spacing of the incoming ``Field``.
-        spectrum: Spectrum of the incoming ``Field``.
+        field: ``Field`` to be propagated.
         z: Distance(s) to propagate, either a float or a 1D array.
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
@@ -224,9 +222,7 @@ def compute_exact_propagator(
     Field, as performed by kernel_propagate.
 
     Args:
-        shape: Shape of the propagator.
-        dx: The spacing of the incoming ``Field``.
-        spectrum: Spectrum of the incoming ``Field``.
+        field: ``Field`` to be propagated.
         z: Distance(s) to propagate, either a float or an array of shape (Z 1
             1 1).
         n: A float that defines the refractive index of the medium.
@@ -256,9 +252,7 @@ def compute_asm_propagator(
     performed by kernel_propagate.
 
     Args:
-        shape: Shape of the propagator.
-        dx: The spacing of the incoming ``Field``.
-        spectrum: Spectrum of the incoming ``Field``.
+        field: ``Field`` to be propagated.
         z: Distance(s) to propagate, either a float or an array of shape (Z 1
             1 1).
         n: A float that defines the refractive index of the medium.
