@@ -96,7 +96,7 @@ def multislice_thick_sample(
     N_pad: int,
     propagator: Optional[Array] = None,
     kykx: Array = jnp.zeros((2,)),
-    backpropagate_distance: Optional[float] = None,
+    reverse_propagate_distance: Optional[float] = None,
 ) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
@@ -126,28 +126,24 @@ def multislice_thick_sample(
             calculate the padding.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
-        backpropagate_distance: If provided, backpropagates the field at the end
-            this amount from the top of the stack. By default, field is propagated
-            backwards to the middle of the sample.
+        reverse_propagate_distance: If provided, propagates field at the end
+            backwards by this amount from the top of the stack. By default,
+            field is propagated backwards to the middle of the sample.
     """
     assert_equal_shape([absorption_stack, dn_stack])
     field = pad(field, N_pad)
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
-
     if propagator is None:
         propagator = compute_exact_propagator(field, thickness_per_slice, n, kykx)
-
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
     for absorption, dn in zip(absorption_stack, dn_stack):
         absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
         dn = _broadcast_2d_to_spatial(dn, field.ndim)
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         field = kernel_propagate(field, propagator)
-
-    # Propagate field backwards to the middle of the stack
-    # TODO(dd): Allow choosing how far back we propagate here
-    if backpropagate_distance is None:
-        backpropagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
-    field = exact_propagate(field, z=-backpropagate_distance, n=n, kykx=kykx, N_pad=0)
+    # Propagate field backwards to the middle (or chosen distance) of the stack
+    if reverse_propagate_distance is None:
+        reverse_propagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
+    field = exact_propagate(field, z=-reverse_propagate_distance, n=n, kykx=kykx, N_pad=0)
     return crop(field, N_pad)
