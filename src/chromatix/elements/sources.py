@@ -53,26 +53,26 @@ class PointSource(nn.Module):
     scalar: bool = True
     learnable: List[str] = []
 
-    @nn.compact
-    def __call__(self) -> Field:
-        z, n, power, amplitude = parse_learnable(
+    def setup(self) -> None:
+        parse_learnable(
             self,
             self.learnable,
-            z=self.z,
-            n=self.n,
-            power=self.power,
-            amplitude=self.amplitude,
+            _z=self.z,
+            _n=self.n,
+            _power=self.power,
+            _amplitude=self.amplitude,
         )
 
+    def __call__(self) -> Field:
         return point_source(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
-            z,
-            n,
-            power,
-            amplitude,
+            self._z,
+            self._n,
+            self._power,
+            self._amplitude,
             self.pupil,
             self.scalar,
         )
@@ -117,29 +117,29 @@ class ObjectivePointSource(nn.Module):
     scalar: bool = True
     learnable: List[str] = []
 
-    @nn.compact
-    def __call__(self, z: float) -> Field:
-        f, n, NA, power, amplitude = parse_learnable(
+    def setup(self):
+        parse_learnable(
             self,
             self.learnable,
-            f=self.f,
-            n=self.n,
-            NA=self.NA,
-            power=self.power,
-            amplitude=self.amplitude,
+            _f=self.f,
+            _n=self.n,
+            _NA=self.NA,
+            _power=self.power,
+            _amplitude=self.amplitude,
         )
 
+    def __call__(self, z: float) -> Field:
         return objective_point_source(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
             z,
-            f,
-            n,
-            NA,
-            power,
-            amplitude,
+            self._f,
+            self._n,
+            self._NA,
+            self._power,
+            self._amplitude,
             self.scalar,
         )
 
@@ -183,23 +183,25 @@ class PlaneWave(nn.Module):
     scalar: bool = True
     learnable: List[str] = []
 
-    @nn.compact
-    def __call__(self) -> Field:
-        kykx, power, amplitude = parse_learnable(
+    def setup(self):
+        parse_learnable(
             self,
             self.learnable,
-            kykyx=self.kykx,
-            power=self.power,
-            amplitude=self.amplitude,
+            _kykyx=self.kykx,
+            _power=self.power,
+            _amplitude=self.amplitude,
         )
+
+    @nn.compact
+    def __call__(self) -> Field:
         return plane_wave(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
-            power,
-            amplitude,
-            kykx,
+            self._power,
+            self._amplitude,
+            self._kykx,
             self.pupil,
             self.scalar,
         )
@@ -238,22 +240,23 @@ class GenericField(nn.Module):
     scalar: bool = True
     learnable: List[str] = []
 
-    @nn.compact
-    def __call__(self) -> Field:
-        amplitude, phase, power = parse_learnable(
+    def setup(self):
+        parse_learnable(
             self,
             self.learnable,
-            amplitude=self.amplitude,
-            phase=self.phase,
-            power=self.power,
+            _amplitude=self.amplitude,
+            _phase=self.phase,
+            _power=self.power,
         )
+
+    def __call__(self) -> Field:
         return generic_field(
             self.dx,
             self.spectrum,
             self.spectral_density,
-            amplitude,
-            phase,
-            power,
+            self._amplitude,
+            self._phase,
+            self._power,
             self.pupil,
             self.scalar,
         )

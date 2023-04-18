@@ -1,11 +1,7 @@
 def parse_learnable(self, learnable, **kwargs):
-    def parse(key, value):
+    for key, value in kwargs.items():
         if key in learnable:
-            if callable(value):
-                return self.param(f"_{key}", value)
-            else:
-                return self.param(f"_{key}", lambda _: value)
+            assert callable(value), "when training this must be a callable"
+            self.__setattr__(key, self.param(key, value))
         else:
-            return value
-
-    return [parse(key, value) for key, value in kwargs.items()]
+            self.__setattr__(key, value)
