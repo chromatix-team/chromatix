@@ -17,3 +17,6 @@
 
 ## Propagation
 ::: chromatix.functional.propagation
+
+## Polarisation
+::: chromatix.functional.polarizers
