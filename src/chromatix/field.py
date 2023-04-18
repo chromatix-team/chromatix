@@ -89,10 +89,10 @@ class Field(struct.PyTreeNode):
         the corner.
         """
         # We must use meshgrid instead of mgrid here in order to be jittable
-        N_x, N_y = self.spatial_shape
+        N_y, N_x = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
             jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
@@ -100,10 +100,10 @@ class Field(struct.PyTreeNode):
 
     @property
     def k_grid(self) -> Array:
-        N_x, N_y = self.spatial_shape
+        N_y, N_x = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
             jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
