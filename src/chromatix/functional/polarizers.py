@@ -33,9 +33,9 @@ def jones_vector(theta: float, beta: float) -> Array:
     Returns:
         Array: Jones vector.
     """
-    
-    #Generates a Jones vector with a given beta = alpha_y - alpha_x.
-    #Assumes alpha_x=0.
+
+    # Generates a Jones vector with a given beta = alpha_y - alpha_x.
+    # Assumes alpha_x=0.
     return jnp.array(
         [0, jnp.sin(theta) * jnp.exp(1j * beta), jnp.cos(theta)], dtype=jnp.complex64
     )
@@ -82,8 +82,8 @@ def polarizer(
     J11: Union[float, complex, Array],
 ) -> VectorField:
     """Applies a Jones matrix with given components to the field.
-    Note that the components here refer to the common choice of coordinate 
-    system and are inverted by us - i.e. J00 refers to Jxx.  
+    Note that the components here refer to the common choice of coordinate
+    system and are inverted by us - i.e. J00 refers to Jxx.
 
     Args:
         field (VectorField): field to apply polarisation to.
@@ -110,7 +110,7 @@ def linear_polarizer(field: VectorField, angle: float) -> VectorField:
     Returns:
         VectorField: outgoing field.
     """
-   
+
     c, s = jnp.cos(angle), jnp.sin(angle)
     J00 = c**2
     J11 = s**2
