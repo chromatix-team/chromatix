@@ -1,34 +1,24 @@
 from flax import linen as nn
-from typing import Optional
+from typing import Optional, Any
+from dataclasses import dataclass
 
 
 def register(
     module: nn.Module,
     name: str,
     *args,
-    param_dict_name: Optional[str] = None,
-    learnable: Optional[bool] = None,
 ):
     try:
         init = getattr(module, name)
     except AttributeError:
         print("Variable does not exist.")
 
-    if learnable is None:
-        try:
-            learnable = name in getattr(module, "learnables")
-        except AttributeError:
-            print("Need either self.learnables or learnable keyword.")
-
-    if param_dict_name is None:
-        param_dict_name = f"_{name}"
-
-    if learnable:
-        return module.param(param_dict_name, parse_init(init), *args)
+    if isinstance(init, Trainable):
+        return module.param(f"_{name}", parse_init(init.val), *args)
     else:
         return module.variable(
             "fixed_params",
-            param_dict_name,
+            f"_{name}",
             parse_init(init),
             module.make_rng("params"),
             *args,
@@ -41,9 +31,11 @@ def parse_init(x):
 
     return x if callable(x) else init
 
+
 def trainable(x):
-    
+    return Trainable(x)
+
+
 @dataclass
 class Trainable:
-    val:
-    
+    val: Any

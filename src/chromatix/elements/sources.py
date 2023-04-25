@@ -7,10 +7,9 @@ from ..functional.sources import (
     objective_point_source,
     generic_field,
 )
-from typing import Optional, Callable, Tuple, Union, List
+from typing import Optional, Callable, Tuple, Union
 from chex import PRNGKey, Array
 from chromatix.elements.utils import register
-from dataclasses import field
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
 
@@ -52,7 +51,6 @@ class PointSource(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    learnables: List[str] = field(default_factory=list)
 
     @nn.compact
     def __call__(self) -> Field:
@@ -111,7 +109,6 @@ class ObjectivePointSource(nn.Module):
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     scalar: bool = True
-    learnables: List[str] = field(default_factory=list)
 
     @nn.compact
     def __call__(self, z: float) -> Field:
@@ -173,22 +170,12 @@ class PlaneWave(nn.Module):
     kykx: Array = jnp.zeros((2,))
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    learnable: List[str] = field(default_factory=list)
-
-    def setup(self):
-        parse_learnable(
-            self,
-            self.learnable,
-            _kykyx=self.kykx,
-            _power=self.power,
-            _amplitude=self.amplitude,
-        )
 
     @nn.compact
     def __call__(self) -> Field:
-        kykx = register(self, self.learnable, "_kykx", self.kykx)
-        power = register(self, self.learnable, "_power", self.kykx)
-        amplitude = register(self, self.learnable, "_amplitude", self.kykx)
+        kykx = register(self, "kykx")
+        power = register(self, "power")
+        amplitude = register(self, "amplitude")
         return plane_wave(
             self.shape,
             self.dx,
@@ -233,25 +220,20 @@ class GenericField(nn.Module):
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    learnable: List[str] = field(default_factory=list)
 
-    def setup(self):
-        parse_learnable(
-            self,
-            self.learnable,
-            _amplitude=self.amplitude,
-            _phase=self.phase,
-            _power=self.power,
-        )
-
+    @nn.compact
     def __call__(self) -> Field:
+        amplitude = register(self, "amplitude")
+        phase = register(self, "phase")
+        power = register(self, "power")
+
         return generic_field(
             self.dx,
             self.spectrum,
             self.spectral_density,
-            self._amplitude,
-            self._phase,
-            self._power,
+            amplitude,
+            phase,
+            power,
             self.pupil,
             self.scalar,
         )
