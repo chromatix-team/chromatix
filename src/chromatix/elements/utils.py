@@ -1,6 +1,5 @@
 from flax import linen as nn
-from typing import Optional, Any
-from dataclasses import dataclass
+from chromatix.utils import Trainable
 
 
 def register(
@@ -8,6 +7,14 @@ def register(
     name: str,
     *args,
 ):
+    """Registers the parameter `self.{name}` as a Flax parameter or variable depending
+    on whether the parameter is of type `Trainable`. Only used for internal ease-of-use.
+
+    Name in Flax's parameterdict becomes `_{name}`, and if variable under collection
+    `fixed_params`. Supports initializing both with callables (*args are passed as arguments)
+    and fixed values.
+
+    """
     try:
         init = getattr(module, name)
     except AttributeError:
@@ -30,12 +37,3 @@ def parse_init(x):
         return x
 
     return x if callable(x) else init
-
-
-def trainable(x):
-    return Trainable(x)
-
-
-@dataclass
-class Trainable:
-    val: Any
