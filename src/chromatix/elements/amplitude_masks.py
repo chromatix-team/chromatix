@@ -6,6 +6,7 @@ from ..field import Field
 from ..functional.amplitude_masks import amplitude_change
 from ..utils import _broadcast_2d_to_spatial
 from ..ops import binarize
+from chromatix.elements.utils import register
 
 __all__ = ["AmplitudeMask"]
 
@@ -31,12 +32,7 @@ class AmplitudeMask(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``amplitude`` mask to incoming ``Field``."""
-        amplitude = (
-            self.param("amplitude_pixels", self.amplitude, field.spatial_shape)
-            if callable(self.amplitude)
-            else self.amplitude
-        )
-
+        amplitude = register(self, "amplitude", field.spatial_shape)
         assert_rank(
             amplitude, 2, custom_message="Amplitude must be array of shape (H W)"
         )
