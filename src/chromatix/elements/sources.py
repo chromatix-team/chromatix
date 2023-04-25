@@ -9,7 +9,8 @@ from ..functional.sources import (
 )
 from typing import Optional, Callable, Tuple, Union, List
 from chex import PRNGKey, Array
-from chromatix.elements.utils import parse_learnable
+from chromatix.elements.utils import register
+from dataclasses import field
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
 
@@ -51,28 +52,23 @@ class PointSource(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    learnable: List[str] = []
+    learnables: List[str] = field(default_factory=list)
 
-    def setup(self) -> None:
-        parse_learnable(
-            self,
-            self.learnable,
-            _z=self.z,
-            _n=self.n,
-            _power=self.power,
-            _amplitude=self.amplitude,
-        )
-
+    @nn.compact
     def __call__(self) -> Field:
+        power = register(self, "power")
+        z = register(self, "z")
+        n = register(self, "n")
+        amplitude = register(self, "amplitude")
         return point_source(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
-            self._z,
-            self._n,
-            self._power,
-            self._amplitude,
+            z,
+            n,
+            power,
+            amplitude,
             self.pupil,
             self.scalar,
         )
@@ -115,31 +111,27 @@ class ObjectivePointSource(nn.Module):
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     scalar: bool = True
-    learnable: List[str] = []
+    learnables: List[str] = field(default_factory=list)
 
-    def setup(self):
-        parse_learnable(
-            self,
-            self.learnable,
-            _f=self.f,
-            _n=self.n,
-            _NA=self.NA,
-            _power=self.power,
-            _amplitude=self.amplitude,
-        )
-
+    @nn.compact
     def __call__(self, z: float) -> Field:
+        f = register(self, "f")
+        n = register(self, "n")
+        NA = register(self, "NA")
+        power = register(self, "power")
+        amplitude = register(self, "amplitude")
+
         return objective_point_source(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
             z,
-            self._f,
-            self._n,
-            self._NA,
-            self._power,
-            self._amplitude,
+            f,
+            n,
+            NA,
+            power,
+            amplitude,
             self.scalar,
         )
 
@@ -181,7 +173,7 @@ class PlaneWave(nn.Module):
     kykx: Array = jnp.zeros((2,))
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    learnable: List[str] = []
+    learnable: List[str] = field(default_factory=list)
 
     def setup(self):
         parse_learnable(
@@ -194,14 +186,17 @@ class PlaneWave(nn.Module):
 
     @nn.compact
     def __call__(self) -> Field:
+        kykx = register(self, self.learnable, "_kykx", self.kykx)
+        power = register(self, self.learnable, "_power", self.kykx)
+        amplitude = register(self, self.learnable, "_amplitude", self.kykx)
         return plane_wave(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
-            self._power,
-            self._amplitude,
-            self._kykx,
+            power,
+            amplitude,
+            kykx,
             self.pupil,
             self.scalar,
         )
@@ -238,7 +233,7 @@ class GenericField(nn.Module):
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    learnable: List[str] = []
+    learnable: List[str] = field(default_factory=list)
 
     def setup(self):
         parse_learnable(

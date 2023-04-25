@@ -1,8 +1,9 @@
 import jax.numpy as jnp
 from flax import linen as nn
+from dataclasses import field
 from chex import Array, PRNGKey, assert_rank
 from jax.scipy.ndimage import map_coordinates
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union, List
 from ..field import Field
 from ..functional.phase_masks import (
     wrap_phase,
@@ -12,6 +13,7 @@ from ..functional.phase_masks import (
     zernike_aberrations,
 )
 from ..utils import _broadcast_2d_to_spatial
+from chromatix.elements.utils import register
 
 __all__ = [
     "PhaseMask",
@@ -52,31 +54,13 @@ class PhaseMask(nn.Module):
     """
 
     phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    learnables: List[str] = field(default_factory=list)
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        if all(x is not None for x in [self.n, self.f, self.NA]):
-            pupil_args = (self.n, self.f, self.NA)
-        else:
-            pupil_args = ()
-        phase = (
-            self.param(
-                "phase_pixels",
-                self.phase,
-                field.spatial_shape,
-                field.dx[..., 0, 0].squeeze(),
-                field.spectrum[..., 0, 0].squeeze(),
-                *pupil_args,
-            )
-            if callable(self.phase)
-            else self.phase
-        )
-        assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
-        phase = _broadcast_2d_to_spatial(phase, field.ndim)
+        phase = register(self, "phase", field)
+
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
