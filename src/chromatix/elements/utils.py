@@ -11,7 +11,7 @@ def register(
     on whether the parameter is of type `Trainable`. Only used for internal ease-of-use.
 
     Name in Flax's parameterdict becomes `_{name}`, and if variable under collection
-    `fixed_params`. Supports initializing both with callables (*args are passed as
+    `state`. Supports initializing both with callables (*args are passed as
     arguments) and fixed values.
 
     """
@@ -24,10 +24,10 @@ def register(
         return module.param(f"_{name}", parse_init(init.val), *args)
     else:
         return module.variable(
-            "fixed_params",
+            "state",
             f"_{name}",
             parse_init(init),
-            module.make_rng("params"),
+            None,
             *args,
         ).value
 

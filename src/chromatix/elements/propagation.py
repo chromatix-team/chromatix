@@ -105,19 +105,19 @@ class Propagate(nn.Module):
             )
             if self.method == "transfer":
                 propagator = self.variable(
-                    "propagation",
+                    "state",
                     "kernel",
                     lambda: compute_transfer_propagator(*propagator_args),
                 )
             elif self.method == "exact":
                 propagator = self.variable(
-                    "propagation",
+                    "state",
                     "kernel",
                     lambda: compute_exact_propagator(*propagator_args),
                 )
             elif self.method == "asm":
                 propagator = self.variable(
-                    "propagation",
+                    "state",
                     "kernel",
                     lambda: compute_asm_propagator(*propagator_args),
                 )
