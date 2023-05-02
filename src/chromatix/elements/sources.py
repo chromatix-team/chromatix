@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import flax.linen as nn
-from ..field import Field, ScalarField, VectorField
+from ..field import Field
 from ..functional.sources import (
     plane_wave,
     point_source,
@@ -9,6 +9,7 @@ from ..functional.sources import (
 )
 from typing import Optional, Callable, Tuple, Union
 from chex import PRNGKey, Array
+from chromatix.elements.utils import register
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
 
@@ -51,30 +52,21 @@ class PointSource(nn.Module):
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
 
-    def setup(self):
-        self._z = self.param("_z", self.z) if isinstance(self.z, Callable) else self.z
-        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
-        self._power = (
-            self.param("_power", self.power)
-            if isinstance(self.power, Callable)
-            else self.power
-        )
-        self._amplitude = (
-            self.param("_amplitude", self.amplitude)
-            if isinstance(self.amplitude, Callable)
-            else self.amplitude
-        )
-
+    @nn.compact
     def __call__(self) -> Field:
+        power = register(self, "power")
+        z = register(self, "z")
+        n = register(self, "n")
+        amplitude = register(self, "amplitude")
         return point_source(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
-            self._z,
-            self._n,
-            self._power,
-            self._amplitude,
+            z,
+            n,
+            power,
+            amplitude,
             self.pupil,
             self.scalar,
         )
@@ -118,35 +110,25 @@ class ObjectivePointSource(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     scalar: bool = True
 
-    def setup(self):
-        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
-        self._NA = (
-            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
-        )
-        self._power = (
-            self.param("_power", self.power)
-            if isinstance(self.power, Callable)
-            else self.power
-        )
-        self._amplitude = (
-            self.param("_amplitude", self.amplitude)
-            if isinstance(self.amplitude, Callable)
-            else self.amplitude
-        )
-
+    @nn.compact
     def __call__(self, z: float) -> Field:
+        f = register(self, "f")
+        n = register(self, "n")
+        NA = register(self, "NA")
+        power = register(self, "power")
+        amplitude = register(self, "amplitude")
+
         return objective_point_source(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
             z,
-            self._f,
-            self._n,
-            self._NA,
-            self._power,
-            self._amplitude,
+            f,
+            n,
+            NA,
+            power,
+            amplitude,
             self.scalar,
         )
 
@@ -189,32 +171,19 @@ class PlaneWave(nn.Module):
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
 
-    def setup(self):
-        self._kykx = (
-            self.param("_kykx", self.kykx)
-            if isinstance(self.kykx, Callable)
-            else self.kykx
-        )
-        self._power = (
-            self.param("_power", self.power)
-            if isinstance(self.power, Callable)
-            else self.power
-        )
-        self._amplitude = (
-            self.param("_amplitude", self.amplitude)
-            if isinstance(self.amplitude, Callable)
-            else self.amplitude
-        )
-
+    @nn.compact
     def __call__(self) -> Field:
+        kykx = register(self, "kykx")
+        power = register(self, "power")
+        amplitude = register(self, "amplitude")
         return plane_wave(
             self.shape,
             self.dx,
             self.spectrum,
             self.spectral_density,
-            self._power,
-            self._amplitude,
-            self._kykx,
+            power,
+            amplitude,
+            kykx,
             self.pupil,
             self.scalar,
         )
@@ -252,31 +221,19 @@ class GenericField(nn.Module):
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
 
-    def setup(self):
-        self._amplitude = (
-            self.param("_amplitude", self.amplitude)
-            if isinstance(self.amplitude, Callable)
-            else self.amplitude
-        )
-        self._phase = (
-            self.param("_phase", self.phase)
-            if isinstance(self.phase, Callable)
-            else self.phase
-        )
-        self._power = (
-            self.param("_power", self.power)
-            if isinstance(self.power, Callable)
-            else self.power
-        )
-
+    @nn.compact
     def __call__(self) -> Field:
+        amplitude = register(self, "amplitude")
+        phase = register(self, "phase")
+        power = register(self, "power")
+
         return generic_field(
             self.dx,
             self.spectrum,
             self.spectral_density,
-            self._amplitude,
-            self._phase,
-            self._power,
+            amplitude,
+            phase,
+            power,
             self.pupil,
             self.scalar,
         )

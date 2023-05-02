@@ -3,9 +3,15 @@ import numpy as np
 from chex import Array, PRNGKey
 from einops import rearrange
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
+from dataclasses import dataclass
 
 
-def trainable(x: Any) -> Callable:
+@dataclass
+class Trainable:
+    val: Any
+
+
+def trainable(x: Any) -> Trainable:
     """
     Returns a function with a valid signature for a Flax parameter initializer
     function (accepts a ``jax.random.PRNGKey`` as the first argument), which
@@ -86,15 +92,7 @@ def trainable(x: Any) -> Callable:
     Returns:
         A function that takes a ``jax.random.PRNGKey`` as its first parameter.
     """
-
-    def init_fn(key: PRNGKey, *args, **kwargs) -> Any:
-        if callable(x):
-            y = x(*args, **kwargs)
-        else:
-            y = x
-        return y
-
-    return init_fn
+    return Trainable(x)
 
 
 def next_order(val: int) -> int:

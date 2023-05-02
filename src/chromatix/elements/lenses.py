@@ -3,6 +3,7 @@ from typing import Callable, Optional, Union
 from chex import PRNGKey
 from ..field import Field
 from .. import functional as cf
+from chromatix.elements.utils import register
 
 __all__ = ["ThinLens", "FFLens", "DFLens"]
 
@@ -29,15 +30,12 @@ class ThinLens(nn.Module):
     n: Union[float, Callable[[PRNGKey], float]]
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
 
-    def setup(self):
-        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
-        self._NA = (
-            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
-        )
-
+    @nn.compact
     def __call__(self, field: Field) -> Field:
-        return cf.thin_lens(field, self._f, self._n, self._NA)
+        f = register(self, "f")
+        n = register(self, "n")
+        NA = register(self, "NA")
+        return cf.thin_lens(field, f, n, NA)
 
 
 class FFLens(nn.Module):
@@ -64,15 +62,12 @@ class FFLens(nn.Module):
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
     inverse: bool = False
 
-    def setup(self):
-        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
-        self._NA = (
-            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
-        )
-
+    @nn.compact
     def __call__(self, field: Field) -> Field:
-        return cf.ff_lens(field, self._f, self._n, self._NA, inverse=self.inverse)
+        f = register(self, "f")
+        n = register(self, "n")
+        NA = register(self, "NA")
+        return cf.ff_lens(field, f, n, NA, inverse=self.inverse)
 
 
 class DFLens(nn.Module):
@@ -101,15 +96,10 @@ class DFLens(nn.Module):
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
     inverse: bool = False
 
-    def setup(self):
-        self._d = self.param("_d", self.d) if isinstance(self.d, Callable) else self.d
-        self._f = self.param("_f", self.f) if isinstance(self.f, Callable) else self.f
-        self._n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
-        self._NA = (
-            self.param("_NA", self.NA) if isinstance(self.NA, Callable) else self.NA
-        )
-
+    @nn.compact
     def __call__(self, field: Field) -> Field:
-        return cf.df_lens(
-            field, self._d, self._f, self._n, self._NA, inverse=self.inverse
-        )
+        d = register(self, "d")
+        f = register(self, "f")
+        n = register(self, "n")
+        NA = register(self, "NA")
+        return cf.df_lens(field, d, f, n, NA, inverse=self.inverse)

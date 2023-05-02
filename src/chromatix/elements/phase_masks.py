@@ -12,6 +12,7 @@ from ..functional.phase_masks import (
     zernike_aberrations,
 )
 from ..utils import _broadcast_2d_to_spatial
+from chromatix.elements.utils import register
 
 __all__ = [
     "PhaseMask",
@@ -63,18 +64,8 @@ class PhaseMask(nn.Module):
             pupil_args = (self.n, self.f, self.NA)
         else:
             pupil_args = ()
-        phase = (
-            self.param(
-                "phase_pixels",
-                self.phase,
-                field.spatial_shape,
-                field.dx[..., 0, 0].squeeze(),
-                field.spectrum[..., 0, 0].squeeze(),
-                *pupil_args,
-            )
-            if callable(self.phase)
-            else self.phase
-        )
+
+        phase = register(self, "phase", field, *pupil_args)
         assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
         phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
@@ -142,17 +133,14 @@ class SpatialLightModulator(nn.Module):
             pupil_args = (self.n, self.f, self.NA)
         else:
             pupil_args = ()
-        phase = (
-            self.param(
-                "slm_pixels",
-                self.phase,
-                self.shape,
-                self.spacing,
-                field.spectrum[..., 0, 0].squeeze(),
-                *pupil_args,
-            )
-            if callable(self.phase)
-            else self.phase
+
+        phase = register(
+            self,
+            "phase",
+            self.shape,
+            self.spacing,
+            field.spectrum[..., 0, 0].squeeze(),
+            *pupil_args,
         )
         assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
         assert (
@@ -206,11 +194,7 @@ class SeidelAberrations(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        coefficients = (
-            self.param("seidel_coefficients", self.coefficients)
-            if callable(self.coefficients)
-            else self.coefficients
-        )
+        coefficients = register(self, "coefficients")
         phase = seidel_aberrations(
             field.spatial_shape,
             field.dx[..., 0, 0].squeeze(),
@@ -260,11 +244,7 @@ class ZernikeAberrations(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        coefficients = (
-            self.param("zernike_coefficients", self.coefficients)
-            if callable(self.coefficients)
-            else self.coefficients
-        )
+        coefficients = register(self, "coefficients")
 
         phase = zernike_aberrations(
             field.spatial_shape,

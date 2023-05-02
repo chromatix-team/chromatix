@@ -14,6 +14,8 @@ from ..functional import (
     compute_asm_propagator,
 )
 from ..ops.field import pad, crop
+from chromatix.elements.utils import register
+from chromatix.utils import Trainable
 
 __all__ = ["Propagate"]
 
@@ -84,15 +86,15 @@ class Propagate(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         if self.cache_propagator and (
-            isinstance(self.z, Callable) or isinstance(self.n, Callable)
+            isinstance(self.z, Trainable) or isinstance(self.n, Trainable)
         ):
             raise ValueError("Cannot cache propagation kernel if z or n are trainable.")
         if self.cache_propagator and self.method not in ["transfer", "exact", "asm"]:
             raise ValueError(
                 "Can only cache kernel for 'transfer', 'exact', or 'asm' methods."
             )
-        z = self.param("_z", self.z) if isinstance(self.z, Callable) else self.z
-        n = self.param("_n", self.n) if isinstance(self.n, Callable) else self.n
+        z = register(self, "z")
+        n = register(self, "n")
         if self.cache_propagator:
             field = pad(field, self.N_pad, cval=self.cval)
             propagator_args = (
@@ -103,19 +105,19 @@ class Propagate(nn.Module):
             )
             if self.method == "transfer":
                 propagator = self.variable(
-                    "propagation",
+                    "state",
                     "kernel",
                     lambda: compute_transfer_propagator(*propagator_args),
                 )
             elif self.method == "exact":
                 propagator = self.variable(
-                    "propagation",
+                    "state",
                     "kernel",
                     lambda: compute_exact_propagator(*propagator_args),
                 )
             elif self.method == "asm":
                 propagator = self.variable(
-                    "propagation",
+                    "state",
                     "kernel",
                     lambda: compute_asm_propagator(*propagator_args),
                 )
@@ -209,17 +211,15 @@ class KernelPropagate(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         field = pad(field, self.N_pad, cval=self.cval)
-        if isinstance(self.propagator, Callable):
-            propagator = self.param(
-                "_propagator",
-                self.propagator,
-                field,
-                self.z,
-                self.n,
-                self.kykx,
-            )
-        else:
-            propagator = self.propagator
+        propagator = register(
+            self,
+            "propagator",
+            field,
+            self.z,
+            self.n,
+            self.kykx,
+        )
+
         field = kernel_propagate(field, propagator)
         if self.mode == "same":
             field = crop(field, self.N_pad)
