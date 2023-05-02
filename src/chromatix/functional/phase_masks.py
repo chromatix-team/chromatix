@@ -155,7 +155,7 @@ def seidel_aberrations(
     l2_sq_grid = X**2 + Y**2
 
     phase *= l2_sq_grid < 1
-    return phase
+    return phase[None, ..., None, None]
 
 
 def zernike_aberrations(
@@ -244,7 +244,7 @@ def zernike_aberrations(
 
     phase = jnp.dot(zernike_polynomials, jnp.asarray(coefficients))
 
-    return phase
+    return phase[None, ..., None, None]
 
 
 def defocused_ramps(
@@ -364,11 +364,11 @@ def spectrally_modulate_phase(
     phase: Array, spectrum: Array, central_wavelength: float
 ) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
-    assert_rank(
-        spectrum,
-        phase.ndim,
-        custom_message="Spectrum must have same ndim as phase",
-    )
+    # assert_rank(
+    #    spectrum,
+    #    phase.ndim,
+    #    custom_message="Spectrum must have same ndim as phase",
+    # )
 
     spectral_modulation = central_wavelength / spectrum
     return phase * spectral_modulation

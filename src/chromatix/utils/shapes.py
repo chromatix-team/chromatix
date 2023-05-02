@@ -47,5 +47,8 @@ def _broadcast_2d_to_grid(x: Union[float, Array], ndim: int) -> Array:
 
 def _broadcast_2d_to_spatial(x: Array, ndim: int) -> Array:
     """Broadcast 2D array of shape `(H W)` to `(B... H W C [1 | 3])`."""
-    shape_spec = "h w ->" + ("1 " * (ndim - 4)) + "h w 1 1"
-    return rearrange(x, shape_spec)
+    if x.ndim != ndim:
+        shape_spec = "h w ->" + ("1 " * (ndim - 4)) + "h w 1 1"
+        return rearrange(x, shape_spec)
+    else:
+        return x
