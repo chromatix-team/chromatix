@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 from ..field import Field
 from einops import rearrange
-from chex import Array, assert_rank
+from chex import Array, assert_equal_rank
 from typing import Sequence, Tuple
 from ..utils import create_grid, grid_spatial_to_pupil
 from scipy.special import comb
@@ -20,7 +20,7 @@ __all__ = [
 ]
 
 
-def phase_change(field: Field, phase: Array) -> Field:
+def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -> Field:
     """
     Perturbs ``field`` by ``phase`` (given in radians).
 
@@ -31,11 +31,9 @@ def phase_change(field: Field, phase: Array) -> Field:
         phase: The phase to apply.
     """
     phase = _broadcast_2d_to_spatial(phase, field.ndim)
-    assert_rank(
-        phase,
-        field.ndim,
-        custom_message="Phase must have same ndim as incoming ``Field``.",
-    )
+    assert_equal_rank(phase, field.u)
+    if spectrally_modulate:
+        phase = spectrally_modulate_phase(phase, field)
     return field * jnp.exp(1j * phase)
 
 
@@ -360,15 +358,8 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
     return phase
 
 
-def spectrally_modulate_phase(
-    phase: Array, spectrum: Array, central_wavelength: float
-) -> Array:
+def spectrally_modulate_phase(phase: Array, field: Field) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
-    # assert_rank(
-    #    spectrum,
-    #    phase.ndim,
-    #    custom_message="Spectrum must have same ndim as phase",
-    # )
-
-    spectral_modulation = central_wavelength / spectrum
+    central_wavelength = field.spectrum[..., 0, 0].squeeze()
+    spectral_modulation = central_wavelength / field.spectrum
     return phase * spectral_modulation

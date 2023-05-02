@@ -1,12 +1,11 @@
 import jax.numpy as jnp
 from flax import linen as nn
-from chex import Array, PRNGKey, assert_rank
+from chex import Array, PRNGKey
 from jax.scipy.ndimage import map_coordinates
 from typing import Callable, Optional, Tuple, Union
 from ..field import Field
 from ..functional.phase_masks import (
     wrap_phase,
-    spectrally_modulate_phase,
     phase_change,
     seidel_aberrations,
     zernike_aberrations,
@@ -72,10 +71,7 @@ class PhaseMask(nn.Module):
             field.spectrum[..., 0, 0].squeeze(),
             *pupil_args,
         )
-        assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
-        phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
-        )
+
         return phase_change(field, phase)
 
 
@@ -157,9 +153,7 @@ class SpatialLightModulator(nn.Module):
             indexing="ij",
         )
         phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
-        phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
-        )
+
         return phase_change(field, phase)
 
 
@@ -209,9 +203,7 @@ class SeidelAberrations(nn.Module):
             self.u,
             self.v,
         )
-        phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
-        )
+
         return phase_change(field, phase)
 
 
@@ -258,7 +250,5 @@ class ZernikeAberrations(nn.Module):
             self.ansi_indices,
             coefficients,
         )
-        phase = spectrally_modulate_phase(
-            phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
-        )
+
         return phase_change(field, phase)
