@@ -11,7 +11,6 @@ from ..functional.phase_masks import (
     seidel_aberrations,
     zernike_aberrations,
 )
-from ..utils import _broadcast_2d_to_spatial
 from chromatix.elements.utils import register
 
 __all__ = [
@@ -74,7 +73,6 @@ class PhaseMask(nn.Module):
             *pupil_args,
         )
         assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
-        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
@@ -149,7 +147,6 @@ class SpatialLightModulator(nn.Module):
             field.spectrum[..., 0, 0].squeeze(),
             *pupil_args,
         )
-        assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
         assert (
             phase.shape == self.shape
         ), "Provided phase shape should match provided SLM shape"
@@ -160,7 +157,6 @@ class SpatialLightModulator(nn.Module):
             indexing="ij",
         )
         phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
-        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
@@ -213,7 +209,6 @@ class SeidelAberrations(nn.Module):
             self.u,
             self.v,
         )
-        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
@@ -263,7 +258,6 @@ class ZernikeAberrations(nn.Module):
             self.ansi_indices,
             coefficients,
         )
-        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )
