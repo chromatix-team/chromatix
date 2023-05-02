@@ -53,12 +53,21 @@ class PhaseMask(nn.Module):
     """
 
     phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
+    f: Optional[float] = None
+    n: Optional[float] = None
+    NA: Optional[float] = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        phase = register(self, "phase", field)
+        if all(x is not None for x in [self.n, self.f, self.NA]):
+            pupil_args = (self.n, self.f, self.NA)
+        else:
+            pupil_args = ()
 
+        phase = register(self, "phase", field, *pupil_args)
+        assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
+        phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
             phase, field.spectrum, field.spectrum[..., 0, 0].squeeze()
         )

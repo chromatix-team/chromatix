@@ -96,6 +96,7 @@ class DFLens(nn.Module):
     NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
     inverse: bool = False
 
+    @nn.compact
     def __call__(self, field: Field) -> Field:
         d = register(self, "d")
         f = register(self, "f")
