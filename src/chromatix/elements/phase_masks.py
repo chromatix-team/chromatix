@@ -65,7 +65,14 @@ class PhaseMask(nn.Module):
         else:
             pupil_args = ()
 
-        phase = register(self, "phase", field, *pupil_args)
+        phase = register(
+            self,
+            "phase",
+            field.spatial_shape,
+            field.dx[..., 0, 0].squeeze(),
+            field.spectrum[..., 0, 0].squeeze(),
+            *pupil_args,
+        )
         assert_rank(phase, 2, custom_message="Phase must be array of shape (H W)")
         phase = _broadcast_2d_to_spatial(phase, field.ndim)
         phase = spectrally_modulate_phase(
