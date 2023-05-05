@@ -56,6 +56,7 @@ spectral_density = 1.0
 f = 100.0 # focal length, microns
 n = 1.33 # refractive index of medium
 NA = 0.8 # numerical aperture of objective
+z = jnp.linspace(-4, 4, num=num_planes)  # planes to compute PSF at
 optical_model = OpticalSystem(
     [
         ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
@@ -63,10 +64,11 @@ optical_model = OpticalSystem(
         FFLens(f, n),
     ]
 )
+variables = optical_model.init(jax.random.PRNGKey(4), z)
 
 @jax.jit
 def compute_psf(z):
-    return optical_model.apply({}, z).intensity
+    return optical_model.apply(variables, z).intensity
 
 
 single_z = jnp.linspace(-4, 4, num=128)
@@ -84,7 +86,7 @@ using ``jax.pmap``:
 ```python
 @jax.pmap
 def compute_psf(z):
-    return optical_model.apply({}, z).intensity
+    return optical_model.apply(variables, z).intensity
 
 
 pmap_z = jnp.linspace(-4, 4, num=128).reshape(4, 32)
@@ -117,15 +119,10 @@ from chromatix.functional.phase_masks import flat_phase
 
 microscope = Microscope(
     system_psf=Optical4FSystemPSF(
-        shape=shape,
-        spacing=spacing,
-        phase=trainable(flat_phase)
+        shape=shape, spacing=spacing, phase=trainable(flat_phase, rng=False)
     ),
     sensor=BasicShotNoiseSensor(
-        shape=shape,
-        spacing=spacing,
-        resampling_method=None,
-        reduce_axis=0
+        shape=shape, spacing=spacing, resampling_method=None, reduce_axis=0
     ),
     f=f,
     n=n,
@@ -134,9 +131,11 @@ microscope = Microscope(
     spectral_density=spectral_density,
 )
 
+
 def init_params(key, volume, z):
     params = microscope.init(key, volume, z)
     return params
+
 
 @jax.jit
 def compute_image(params, volume, z):
@@ -165,16 +164,14 @@ from functools import partial
 
 microscope = Microscope(
     system_psf=Optical4FSystemPSF(
-        shape=shape,
-        spacing=spacing,
-        phase=trainable(flat_phase)
+        shape=shape, spacing=spacing, phase=trainable(flat_phase, rng=False)
     ),
     sensor=BasicShotNoiseSensor(
         shape=shape,
         spacing=spacing,
         resampling_method=None,
         reduce_axis=0,
-        reduce_parallel_axis_name="devices"
+        reduce_parallel_axis_name="devices",
     ),
     f=f,
     n=n,
@@ -183,10 +180,12 @@ microscope = Microscope(
     spectral_density=spectral_density,
 )
 
+
 @partial(jax.pmap, axis_name='devices')
 def init_params(key, volume, z):
     params = microscope.init(key, volume, z)
     return params
+
 
 @partial(jax.pmap, axis_name='devices')
 def compute_image(params, volume, z):
