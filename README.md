@@ -56,11 +56,11 @@ optical_model = chromatix.OpticalSystem(
     ]
 )
 # Calculate widefield PSF at multiple defocuses in parallel.
-# This system has no optimizable parameters, so we have to
-# pass an empty parameter dictionary when calling the system:
-widefield_psf = optical_model.apply({}, jnp.linspace(-5, 5, num=11)).intensity
+# We first have to initialize any parameters or state of the system:
+variables = optical_model.init(jax.random.PRNGKey(4), jnp.linspace(-5, 5, num=11))
+widefield_psf = optical_model.apply(variables, jnp.linspace(-5, 5, num=11)).intensity
 ```
-When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the spacing at the output: ``optical_model.apply({}, jnp.linspace(-5, 5, num=11)).dx`` and we would know the pixel spacing of the final PSF.
+When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the spacing at the output: ``optical_model.apply(variables, jnp.linspace(-5, 5, num=11)).dx`` and we would know the pixel spacing of the final PSF.
 
 Chromatix supports a variety of optical phenomena and elements including:
 
