@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 __all__ = [
     "_broadcast_1d_to_channels",
-    "_broadcast_1d_to_polarisation",
+    "_broadcast_1d_to_polarization",
     "_broadcast_1d_to_innermost_batch",
     "_broadcast_1d_to_grid",
     "_broadcast_2d_to_grid",
@@ -19,7 +19,7 @@ def _broadcast_1d_to_channels(x: Union[float, Array], ndim: int) -> Array:
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_polarisation(x: Union[float, Array], ndim: int) -> Array:
+def _broadcast_1d_to_polarization(x: Union[float, Array], ndim: int) -> Array:
     """Broadcast 1D array of size `P` to `(B... H W C [1 | 3])`."""
     shape_spec = "p -> " + ("1 " * (ndim - 1)) + "p"
     return rearrange(jnp.atleast_1d(x), shape_spec)
