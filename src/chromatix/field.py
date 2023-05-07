@@ -104,11 +104,11 @@ class Field(struct.PyTreeNode):
     @property
     def k_grid(self) -> Array:
         """
-        The frequency grid for each spatial dimension as an array of shape `(2 B... H W
-        C 1)`. The 2 entries along the first dimension represent the y and x
-        grids, respectively. This grid assumes that the center of the ``Field``
-        is the origin and that the elements are sampling from the center, not
-        the corner.
+        The frequency grid for each spatial dimension as an array of shape `(2
+        B... H W C 1)`. The 2 entries along the first dimension represent the
+        y and x grids, respectively. This grid assumes that the center of the
+        ``Field`` is the origin and that the elements are sampling from the
+        center, not the corner.
         """
         N_y, N_x = self.spatial_shape
         grid = jnp.meshgrid(
@@ -123,10 +123,10 @@ class Field(struct.PyTreeNode):
     def dx(self) -> Array:
         """
         The spacing of the samples in ``u`` discretizing a continuous field.
-        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the spacing
-        in the y and x directions respectively (can be the same for y and x for
-        the common case of square pixels). Spacing is the same per wavelength
-        for all entries in a batch.
+        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the
+        spacing in the y and x directions respectively (can be the same for y
+        and x for the common case of square pixels). Spacing is the same per
+        wavelength for all entries in a batch.
         """
         return _broadcast_2d_to_grid(self._dx, self.ndim)
 
