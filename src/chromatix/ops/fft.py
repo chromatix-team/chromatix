@@ -3,6 +3,7 @@ from typing import Tuple
 from chex import Array
 from functools import partial
 from ..field import Field
+from ..utils.shapes import _squeeze_grid_to_2d
 
 
 def optical_fft(field: Field, z: float, n: float) -> Field:
@@ -24,7 +25,7 @@ def optical_fft(field: Field, z: float, n: float) -> Field:
     norm = jnp.prod(field.dx, axis=0, keepdims=False) / jnp.abs(L) ** 2
     u = -1j * norm * fft(field.u, axes=field.spatial_dims, shift=True)
     du = field.dk * jnp.abs(L) ** 2  # New spacing
-    return field.replace(u=u, dx=du)
+    return field.replace(u=u, _dx=_squeeze_grid_to_2d(du, field.ndim))
 
 
 def fft(x: Array, axes: Tuple[int, int] = (1, 2), shift: bool = False) -> Array:

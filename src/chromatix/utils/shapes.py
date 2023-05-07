@@ -9,6 +9,7 @@ __all__ = [
     "_broadcast_1d_to_innermost_batch",
     "_broadcast_1d_to_grid",
     "_broadcast_2d_to_grid",
+    "_squeeze_grid_to_2d",
     "_broadcast_2d_to_spatial",
 ]
 
@@ -32,16 +33,29 @@ def _broadcast_1d_to_innermost_batch(x: Union[float, Array], ndim: int) -> Array
 
 
 def _broadcast_1d_to_grid(x: Union[float, Array], ndim: int) -> Array:
-    """Broadcast 1D array of size `2` to `(2 B... H W C 1).
-    Useful for vectorial ops on grids."""
+    """
+    Broadcast 1D array of size `2` to `(2 B... H W C 1)`.
+    Useful for vectorial ops on grids.
+    """
     shape_spec = "d ->" + "d" + " 1" * (ndim - 4) + " 1 1 1 1"
     return rearrange(jnp.atleast_1d(x), shape_spec, d=2)
 
 
 def _broadcast_2d_to_grid(x: Union[float, Array], ndim: int) -> Array:
-    """Broadcast 2D array of shape `2 C` to `(2 B... H W C [1 | 3]).
-    Useful for vectorial ops on grids."""
+    """
+    Broadcast 2D array of shape `2 C` to `(2 B... H W C [1 | 3])`.
+    Useful for vectorial ops on grids.
+    """
     shape_spec = "d c ->" + "d" + " 1" * (ndim - 4) + " 1 1 c 1"
+    return rearrange(x, shape_spec, d=2)
+
+
+def _squeeze_grid_to_2d(x: Union[float, Array], ndim: int) -> Array:
+    """
+    Squeeze array of shape `(2 B... H W C [1 | 3])` to 2D array of shape `2 C`.
+    Useful for vectorial ops on grids.
+    """
+    shape_spec = "d" + " 1" * (ndim - 4) + " 1 1 c 1 -> d c"
     return rearrange(x, shape_spec, d=2)
 
 
