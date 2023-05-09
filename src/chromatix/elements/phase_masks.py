@@ -51,27 +51,12 @@ class PhaseMask(nn.Module):
     """
 
     phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    pupil_radius: Optional[float] = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        if all(x is not None for x in [self.n, self.f, self.NA]):
-            pupil_args = (self.n, self.f, self.NA)
-        else:
-            pupil_args = ()
-
-        phase = register(
-            self,
-            "phase",
-            field.spatial_shape,
-            field.dx[..., 0, 0].squeeze(),
-            field.spectrum[..., 0, 0].squeeze(),
-            *pupil_args,
-        )
-
+        phase = register(self, "phase", field, self.pupil_radius)
         return phase_change(field, phase)
 
 
@@ -123,29 +108,13 @@ class SpatialLightModulator(nn.Module):
     spacing: float
     phase_range: Tuple[float, float]
     interpolation_order: int = 0
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    pupil_radius: Optional[float] = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies simulated SLM ``phase`` mask to incoming ``Field``."""
-        if all(x is not None for x in [self.n, self.f, self.NA]):
-            pupil_args = (self.n, self.f, self.NA)
-        else:
-            pupil_args = ()
-
-        phase = register(
-            self,
-            "phase",
-            self.shape,
-            self.spacing,
-            field.spectrum[..., 0, 0].squeeze(),
-            *pupil_args,
-        )
-        assert (
-            phase.shape == self.shape
-        ), "Provided phase shape should match provided SLM shape"
+        # TODO: not sure this here all makes sense...
+        phase = register(self, "phase", self.shape, self.spacing, self.pupil_radius)
         phase = wrap_phase(phase, self.phase_range)
         field_pixel_grid = jnp.meshgrid(
             jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
@@ -182,9 +151,7 @@ class SeidelAberrations(nn.Module):
     """
 
     coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
+    pupil_radius: float
     u: float
     v: float
 
@@ -193,15 +160,7 @@ class SeidelAberrations(nn.Module):
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
         phase = seidel_aberrations(
-            field.spatial_shape,
-            field.dx[..., 0, 0].squeeze(),
-            field.spectrum[..., 0, 0].squeeze(),
-            self.n,
-            self.f,
-            self.NA,
-            coefficients,
-            self.u,
-            self.v,
+            field, self.pupil_radius, coefficients, self.u, self.v
         )
 
         return phase_change(field, phase)
@@ -230,9 +189,7 @@ class ZernikeAberrations(nn.Module):
     """
 
     coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
+    pupil_radius: float
     ansi_indices: Array
 
     @nn.compact
@@ -241,14 +198,7 @@ class ZernikeAberrations(nn.Module):
         coefficients = register(self, "coefficients")
 
         phase = zernike_aberrations(
-            field.spatial_shape,
-            field.dx[..., 0, 0].squeeze(),
-            field.spectrum[..., 0, 0].squeeze(),
-            self.n,
-            self.f,
-            self.NA,
-            self.ansi_indices,
-            coefficients,
+            field, self.pupil_radius, self.ansi_indices, coefficients
         )
 
         return phase_change(field, phase)
