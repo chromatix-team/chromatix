@@ -17,5 +17,5 @@ def amplitude_change(field: Field, amplitude: Array) -> Field:
         amplitude: The amplitude to apply.
     """
     amplitude = _broadcast_2d_to_spatial(amplitude, field.ndim)
-    assert_equal_rank(amplitude, field.u)
+    assert_equal_rank((amplitude, field.u))
     return field * amplitude.astype(jnp.complex64)

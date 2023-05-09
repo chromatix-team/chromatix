@@ -161,7 +161,7 @@ class SeidelAberrations(nn.Module):
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
         phase = seidel_aberrations(
-            field.grid, self.pupil_radius, coefficients, self.u, self.v
+            field.grid, self.pupil_radius, field.spectrum, coefficients, self.u, self.v
         )
 
         return phase_change(field, phase)

@@ -72,6 +72,7 @@ def potato_chip(
 def seidel_aberrations(
     grid: Array,
     pupil_radius: float,
+    wavelength: Array,
     coefficients: Sequence[float],
     u: float = 0,
     v: float = 0,
@@ -112,7 +113,7 @@ def seidel_aberrations(
         + coefficients[3] * (obj_rad**2) * pupil_radii
         + coefficients[4] * (obj_rad**3) * X_rot
     )
-    # phase = phase * wavelength TODO: until we hear from amit
+    phase = phase * wavelength
     phase = phase * (l2_sq_norm(grid) <= 1)
     return phase
 
