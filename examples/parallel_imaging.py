@@ -21,15 +21,10 @@ NA = 0.8  # numerical aperture of objective
 
 microscope = Microscope(
     system_psf=Optical4FSystemPSF(
-        shape=shape,
-        spacing=spacing,
-        phase=trainable(flat_phase)
+        shape=shape, spacing=spacing, phase=trainable(flat_phase, rng=False)
     ),
     sensor=BasicShotNoiseSensor(
-        shape=shape,
-        spacing=spacing,
-        resampling_method=None,
-        reduce_axis=0
+        shape=shape, spacing=spacing, resampling_method=None, reduce_axis=0
     ),
     f=f,
     n=n,
@@ -67,16 +62,14 @@ print(f"single gpu: {np.mean(single_gpu_times)} +/- {np.std(single_gpu_times)} m
 
 microscope = Microscope(
     system_psf=Optical4FSystemPSF(
-        shape=shape,
-        spacing=spacing,
-        phase=trainable(flat_phase)
+        shape=shape, spacing=spacing, phase=trainable(flat_phase, rng=False)
     ),
     sensor=BasicShotNoiseSensor(
         shape=shape,
         spacing=spacing,
         resampling_method=None,
         reduce_axis=0,
-        reduce_parallel_axis_name="devices"
+        reduce_parallel_axis_name="devices",
     ),
     f=f,
     n=n,

@@ -27,7 +27,7 @@ def jones_vector(theta: float, beta: float) -> Array:
     """Generates a Jones vector given by [cos(theta), sin(theta)exp(1j*beta)].
 
     Args:
-        theta (float): Polarisation angle.
+        theta (float): Polarization angle.
         beta (float): Relative delay between components.
 
     Returns:
@@ -42,34 +42,34 @@ def jones_vector(theta: float, beta: float) -> Array:
 
 
 def linear(theta: float) -> Array:
-    """Generates a Jones vector for linearly polarised
+    """Generates a Jones vector for linearly polarized
     light with an angle $\theta$ w.r.t. to the horizontal.
 
     Args:
         theta (float): Angle w.r.t horizontal.
 
     Returns:
-        Array: Linearly polarised Jones vector.
+        Array: Linearly polarized Jones vector.
     """
     return jones_vector(theta, 0)
 
 
 def left_circular() -> Array:
-    """Generates a Jones vector for left circularly polarised
+    """Generates a Jones vector for left circularly polarized
     light.
 
     Returns:
-        Array: Left circularly polarised Jones vector.
+        Array: Left circularly polarized Jones vector.
     """
     return jones_vector(jnp.pi / 4, jnp.pi / 2)
 
 
 def right_circular() -> Array:
-    """Generates a Jones vector for right circularly polarised
+    """Generates a Jones vector for right circularly polarized
     light.
 
     Returns:
-        Array: Right circularly polarised Jones vector.
+        Array: Right circularly polarized Jones vector.
     """
     return jones_vector(jnp.pi / 4, -jnp.pi / 2)
 
@@ -86,14 +86,14 @@ def polarizer(
     system and are inverted by us - i.e. J00 refers to Jxx.
 
     Args:
-        field (VectorField): field to apply polarisation to.
+        field (VectorField): field to apply polarization to.
         J00 (Union[float, complex, Array]): _description_
         J01 (Union[float, complex, Array]): _description_
         J10 (Union[float, complex, Array]): _description_
         J11 (Union[float, complex, Array]): _description_
 
     Returns:
-        VectorField: Field after polariser.
+        VectorField: Field after polarizer.
     """
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
@@ -101,7 +101,7 @@ def polarizer(
 
 
 def linear_polarizer(field: VectorField, angle: float) -> VectorField:
-    """Applies a linear polariser with a given angle to the incoming field.
+    """Applies a linear polarizer with a given angle to the incoming field.
 
     Args:
         field (VectorField): incoming field.
@@ -120,7 +120,7 @@ def linear_polarizer(field: VectorField, angle: float) -> VectorField:
 
 
 def left_circular_polarizer(field: VectorField) -> VectorField:
-    """Applies a left circular polariser to the incoming field.
+    """Applies a left circular polarizer to the incoming field.
 
     Args:
         field (VectorField): incoming field.

@@ -7,7 +7,7 @@ from ..utils.grids import l2_sq_norm
 from ..utils.shapes import (
     _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_grid,
-    _broadcast_1d_to_polarisation,
+    _broadcast_1d_to_polarization,
 )
 
 __all__ = [
@@ -47,7 +47,7 @@ def point_source(
             defaults to 1.0.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
-            the polarisation.
+            the polarization.
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
@@ -55,7 +55,7 @@ def point_source(
     create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    amplitude = _broadcast_1d_to_polarisation(amplitude, field.ndim)
+    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
     L = jnp.sqrt(field.spectrum * z / n)
     phase = jnp.pi * l2_sq_norm(field.grid) / L**2
     u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
@@ -97,14 +97,14 @@ def objective_point_source(
             defaults to 1.0.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
-            the polarisation.
+            the polarization.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    amplitude = _broadcast_1d_to_polarisation(amplitude, field.ndim)
+    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
     L = jnp.sqrt(field.spectrum * f / n)
     phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid) / L**2
     u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
@@ -141,7 +141,7 @@ def plane_wave(
             defaults to 1.0
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
-            the polarisation.
+            the polarization.
         kykx: Defines the orientation of the plane wave. Should be an
             array of shape `[2,]` in the format [ky, kx].
         pupil: If provided, will be called on the field to apply a pupil.
@@ -151,7 +151,7 @@ def plane_wave(
     create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-    amplitude = _broadcast_1d_to_polarisation(amplitude, field.ndim)
+    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
     u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
     field = field.replace(u=u)
     if pupil is not None:

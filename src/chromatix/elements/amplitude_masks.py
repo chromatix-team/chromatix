@@ -31,7 +31,7 @@ class AmplitudeMask(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``amplitude`` mask to incoming ``Field``."""
-        amplitude = register(self, "amplitude", field)
+        amplitude = register(self, "amplitude", field.spatial_shape)
         if self.is_binary:
             amplitude = binarize(amplitude)
         return amplitude_change(field, amplitude)

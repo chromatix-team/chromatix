@@ -35,7 +35,7 @@ class PointSource(nn.Module):
             defaults to 1.0.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
-            the polarisation.
+            the polarization.
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
@@ -94,7 +94,7 @@ class ObjectivePointSource(nn.Module):
             defaults to 1.0.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
-            the polarisation.
+            the polarization.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
@@ -153,7 +153,7 @@ class PlaneWave(nn.Module):
             defaults to 1.0.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
-            the polarisation.
+            the polarization.
         kykx: Defines the orientation of the plane wave. Should be an
             array of shape `[2,]` in the format [ky, kx].
         pupil: If provided, will be called on the field to apply a pupil.

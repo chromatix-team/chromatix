@@ -4,4 +4,5 @@ from .amplitude_masks import *
 from .propagation import *
 from .sources import *
 from .sensors import *
+from .samples import *
 from .convenience import *

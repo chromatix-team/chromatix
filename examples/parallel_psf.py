@@ -15,6 +15,7 @@ spectral_density = 1.0
 f = 100.0  # focal length, microns
 n = 1.33  # refractive index of medium
 NA = 0.8  # numerical aperture of objective
+z = jnp.linspace(-4, 4, num=num_planes)  # planes to compute PSF at
 optical_model = OpticalSystem(
     [
         ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
@@ -22,14 +23,14 @@ optical_model = OpticalSystem(
         FFLens(f, n),
     ]
 )
+variables = optical_model.init(jax.random.PRNGKey(4), z)
 
 
 @jax.jit
 def compute_psf(z):
-    return optical_model.apply({}, z).intensity
+    return optical_model.apply(variables, z).intensity
 
 
-z = jnp.linspace(-4, 4, num=num_planes)
 widefield_psf = compute_psf(z)
 
 single_gpu_times = []
@@ -45,7 +46,7 @@ print(f"single gpu: {np.mean(single_gpu_times)} +/- {np.std(single_gpu_times)} m
 
 @jax.pmap
 def compute_psf(z):
-    return optical_model.apply({}, z).intensity
+    return optical_model.apply(variables, z).intensity
 
 
 z = jax.device_put_sharded(

@@ -8,20 +8,30 @@ from dataclasses import dataclass
 
 @dataclass
 class Trainable:
+    """
+    Wrapper class to signal to a Chromatix element that ``val`` should be the
+    initialization for a trainable parameter.
+    """
+
     val: Any
 
 
-def trainable(x: Any) -> Trainable:
+def trainable(x: Any, rng: bool = True) -> Trainable:
     """
-    Returns a function with a valid signature for a Flax parameter initializer
-    function (accepts a ``jax.random.PRNGKey`` as the first argument), which
-    simply returns ``x`` itself. If ``x`` is already a function, then the
-    returned function will call ``x`` internally, and accept the arguments for
-    ``x`` as the arguments after the ``jax.random.PRNGKey``.
+    Returns ``x`` wrapped in a ``Trainable`` object to signal to a
+    Chromatix element that ``x`` should be used to initialize a trainable
+    parameter. If ``x`` is already a function, then this function will be
+    used as the initializer. If ``x`` is a function that does not accept a
+    ``jax.random.PRNGKey``, then setting ``rng`` to ``False`` will wrap ``x``
+    so that the arguments for ``x`` are accepted after the ``PRNGKey`` argument.
+    This is useful since many Chromatix functions you might want to use as
+    initialization functions don't accept ``PRNGKey`` arguments. Note that this
+    argument does not matter if ``x`` is already an ``Array`` that can be used
+    as an initialization directly.
 
-    When a supported Chromatix element is constructed with such a function
-    as its attribute, it will automatically turn that into a parameter to be
-    optimized. Thus, this function is a convenient way to set the attribute
+    When a supported Chromatix element is constructed with this wrapper as its
+    attribute, it will automatically turn that attribute into a parameter to
+    be optimized. Thus, this function is a convenient way to set the attribute
     of an optical element in Chromatix as a trainable parameter initialized
     to the value defined by ``x``. Any element that has potentially trainable
     parameters will be documented as such.
@@ -68,14 +78,15 @@ def trainable(x: Any) -> Trainable:
         phase=trainable(
             partial(
                 potato_chip, spacing=0.3, wavelength=0.5, n=1.33, f=100, NA=0.8
-            )
+            ),
+            rng=False
         )
     )
     ```
 
     When ``PhaseMask`` initializes its parameters, it automatically passes
     a ``jax.random.PRNGKey`` and the spatial shape of the input ``Field``,
-    which were ignored in the previous example because the intial ``phase``
+    which were ignored in the previous example because the initial ``phase``
     was an ``Array`` constructed by ``potato_chip``. This example uses
     ``functools.partial`` to create a phase mask initialization function that
     only accepts a shape, which is wrapped by ``trainable`` to also accept
@@ -88,11 +99,24 @@ def trainable(x: Any) -> Trainable:
     Args:
         x: The value that will be used to initialize the trainable
             parameter.
+        rng: Whether the initializer function ``x`` needs a ``PRNGKey`` or not.
+            If ``True``, assumes that the function ``x`` has a ``PRNGKey`` as
+            its first argument, and does not modify ``x``. If ``False``, wraps
+            the initializer function ``x`` to ignore the ``PRNGKey`` argument
+            passed by Flax. If ``x`` is not callable, then this argument doesn't
+            matter and is ignored. Defaults to ``True``.
 
     Returns:
         A function that takes a ``jax.random.PRNGKey`` as its first parameter.
     """
-    return Trainable(x)
+    init = x
+    if callable(x) and not rng:
+
+        def no_rng_x(key: PRNGKey, *args, **kwargs) -> Array:
+            return x(*args, **kwargs)
+
+        init = no_rng_x
+    return Trainable(init)
 
 
 def next_order(val: int) -> int:
