@@ -121,19 +121,14 @@ def zernike_aberrations(
     grid: Array,
     pupil_radius: float,
     ansi_indices: Sequence[int],
-    coefficients: Sequence[float],
+    coefficients: Array,
 ) -> Array:
     """
     Computes Zernike aberrations
 
     Args:
-        shape: The shape of the phase mask, described as a tuple of
-            integers of the form (H W).
-        spacing: The spacing of each pixel in the phase mask.
-        wavelength: The wavelength to compute the phase mask for.
-        n: Refractive index.
-        f: The focal distance (should be in same units as ``wavelength``).
-        NA: The numerical aperture. Phase will be 0 outside of this NA.
+        grid: grid on which to calculate the phase.
+        pupil_radius: normalisation factor for grid.
         ansi_indices: linear Zernike indices according to ANSI numbering
         coefficients: weight coefficients for the Zernike polynomials
     """
@@ -189,11 +184,8 @@ def zernike_aberrations(
         Z = Z * mask
         zernike_polynomials.append(Z)
 
-    zernike_polynomials = jnp.asarray(zernike_polynomials)
-    zernike_polynomials = rearrange(zernike_polynomials, "b h w -> h w b")
-
-    phase = jnp.dot(zernike_polynomials, jnp.asarray(coefficients))
-
+    zernike_polynomials = jnp.stack(zernike_polynomials, axis=-1)
+    phase = jnp.dot(zernike_polynomials, coefficients)
     return phase
 
 

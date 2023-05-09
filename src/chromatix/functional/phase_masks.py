@@ -20,7 +20,7 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
         spectrally_modulate: sets spectral modulation of phase.
     """
     phase = _broadcast_2d_to_spatial(phase, field.ndim)
-    assert_equal_rank(phase, field.u)
+    assert_equal_rank((phase, field.u))
     if spectrally_modulate:
         phase = spectrally_modulate_phase(phase, field)
     return field * jnp.exp(1j * phase)

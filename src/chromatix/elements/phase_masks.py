@@ -4,12 +4,8 @@ from chex import Array, PRNGKey
 from jax.scipy.ndimage import map_coordinates
 from typing import Callable, Optional, Tuple, Union
 from ..field import Field
-from ..functional.phase_masks import (
-    wrap_phase,
-    phase_change,
-    seidel_aberrations,
-    zernike_aberrations,
-)
+from ..functional.phase_masks import wrap_phase, phase_change
+from chromatix.functional.initialisers import seidel_aberrations, zernike_aberrations
 from chromatix.elements.utils import register
 from chromatix.utils import create_grid
 

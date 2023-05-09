@@ -214,5 +214,5 @@ def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
     return grid / R
 
 
-def calculate_lens_pupil(f: float, NA: float, n: float) -> float:
+def lens_pupil_radius(f: float, NA: float, n: float) -> float:
     return f * NA / n  # pupil radius
