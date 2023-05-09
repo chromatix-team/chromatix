@@ -3,7 +3,7 @@ from typing import Tuple
 from chex import Array
 from functools import partial
 from ..field import Field
-from ..utils.shapes import _squeeze_grid_to_2d
+from .shapes import _squeeze_grid_to_2d
 
 
 def optical_fft(field: Field, z: float, n: float) -> Field:

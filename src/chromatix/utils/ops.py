@@ -1,7 +1,7 @@
 from einops import reduce
 from functools import partial
 from typing import Callable, Tuple, Union
-from ..utils import next_order
+from . import next_order
 from jax import lax
 from jax.image import scale_and_translate
 from chex import Array
