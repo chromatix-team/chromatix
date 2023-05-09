@@ -3,13 +3,11 @@ import jax.numpy as jnp
 from ..field import Field
 from einops import rearrange
 from chex import Array, assert_equal_rank
-from typing import Sequence, Tuple
-from ..utils import create_grid, grid_spatial_to_pupil
+from typing import Sequence, Tuple, Optional
 from scipy.special import comb
 import math
 from chromatix.utils.shapes import _broadcast_2d_to_spatial
 from chromatix.utils.grids import l2_sq_norm
-from chromatix.functional import circular_pupil
 
 __all__ = [
     "phase_change",
@@ -31,6 +29,7 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
     Args:
         field: The complex field to be perturbed.
         phase: The phase to apply.
+        spectrally_modulate: sets spectral modulation of phase.
     """
     phase = _broadcast_2d_to_spatial(phase, field.ndim)
     assert_equal_rank(phase, field.u)
@@ -39,7 +38,7 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
     return field * jnp.exp(1j * phase)
 
 
-def flat_phase(shape: Tuple[int, int], *args, value: float = 0.0) -> Array:
+def flat_phase(grid: Array, value: float = 0.0) -> Array:
     """
     Computes a flat phase mask (one with constant value).
 
@@ -48,16 +47,14 @@ def flat_phase(shape: Tuple[int, int], *args, value: float = 0.0) -> Array:
             integers of the form (H W).
         value: The constant value to use for the phase mask, defaults to 0.
     """
-    return jnp.full(shape, value)
+    return jnp.full(grid.shape[1:], value)
 
 
 def potato_chip(
-    shape: Tuple[int, ...],
-    spacing: float,
+    grid: Array,
+    pupil_radius: float,
     wavelength: float,
     n: float,
-    f: float,
-    NA: float,
     d: float = 50.0,
     C0: float = -146.7,
 ) -> Array:
@@ -85,23 +82,18 @@ def potato_chip(
         C0: Adjusts the focus of the PSF. Set to value described in [1]. See
             [1] for more details.
     """
-    # @copypaste(Field): We must use meshgrid instead of mgrid here
-    # in order to be jittable
-    grid = create_grid(shape, spacing)
-    # Normalize coordinates from -1 to 1 within radius R
-    grid = grid_spatial_to_pupil(grid, f, NA, n)
-    l2_sq_grid = jnp.sum(grid**2, axis=0)
+    grid = grid / pupil_radius
+    l2_sq_grid = l2_sq_norm(grid)
     theta = jnp.arctan2(*grid)
     k = n / wavelength
     phase = theta * (d * jnp.sqrt(k**2 - l2_sq_grid) + C0)
-    phase *= l2_sq_grid < 1
+    phase *= l2_sq_grid <= 1
     return phase
 
 
 def seidel_aberrations(
     grid: Array,
     pupil_radius: float,
-    wavelength: float,
     coefficients: Sequence[float],
     u: float = 0,
     v: float = 0,
@@ -143,18 +135,14 @@ def seidel_aberrations(
         + coefficients[3] * (obj_rad**2) * pupil_radii
         + coefficients[4] * (obj_rad**3) * X_rot
     )
-    phase = phase * wavelength
-    phase = phase * (l2_sq_norm(grid) < 1)
+    # phase = phase * wavelength TODO: until we hear from amit
+    phase = phase * (l2_sq_norm(grid) <= 1)
     return phase
 
 
 def zernike_aberrations(
-    shape: Tuple[int, int],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
+    grid: Array,
+    pupil_radius: float,
     ansi_indices: Sequence[int],
     coefficients: Sequence[float],
 ) -> Array:
@@ -201,11 +189,8 @@ def zernike_aberrations(
 
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
-    grid = create_grid(shape, spacing)
-    # Normalize coordinates from -1 to 1 within radius R
-    grid = grid_spatial_to_pupil(grid, f, NA, n)
-
-    rho = jnp.sum(grid**2, axis=0)  # radial coordinate
+    grid = grid / pupil_radius
+    rho = l2_sq_norm(grid)  # TODO: check this needs to be r^2.
 
     mask = rho <= 1
     rho = rho * mask
@@ -238,12 +223,8 @@ def zernike_aberrations(
 
 
 def defocused_ramps(
-    shape: Tuple[int, int],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
+    grid: Array,
+    pupil_radius: float,
     num_ramps: int = 6,
     delta: Sequence[float] = [2374.0] * 6,
     defocus: Sequence[float] = [-50.0, 150.0, -100.0, 50.0, -150.0, 100.0],
@@ -281,16 +262,14 @@ def defocused_ramps(
         defocus: Controls the defocus of each pencil axially (should be in
             same units as ``wavelength``).
     """
-    grid = create_grid(shape, spacing)
-    # Normalize coordinates from -1 to 1 within radius R
-    grid = grid_spatial_to_pupil(grid, f, NA, n)
-    l2_sq_grid = jnp.sum(grid**2, axis=0)
+    grid = grid / pupil_radius
+    l2_sq_grid = l2_sq_norm(grid)
     theta = jnp.arctan2(*grid)
     edges = jnp.linspace(-jnp.pi, jnp.pi, num_ramps + 1)
     centers = (edges[:-1] + edges[1:]) / 2
     flat_region_edge = (num_ramps + 1) ** -0.5
     defocus_center = (flat_region_edge + 1) / 2.0
-    phase = jnp.zeros(shape)
+    phase = jnp.zeros(grid.shape[1:])
 
     def ramp(center, theta_bounds, delta_ramp, ramp_defocus):
         # Calculate distances along and across current ramp

@@ -11,6 +11,7 @@ from ..functional.phase_masks import (
     zernike_aberrations,
 )
 from chromatix.elements.utils import register
+from chromatix.utils import create_grid
 
 __all__ = [
     "PhaseMask",
@@ -56,7 +57,11 @@ class PhaseMask(nn.Module):
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        phase = register(self, "phase", field, self.pupil_radius)
+        if self.pupil_radius is not None:
+            args = (field.grid, self.pupil_radius)
+        else:
+            args = (field.grid,)
+        phase = register(self, "phase", *args)
         return phase_change(field, phase)
 
 
@@ -98,9 +103,6 @@ class SpatialLightModulator(nn.Module):
             (min, max).
         interpolation_order: The order of interpolation for the SLM pixels to
             the shape of the incoming ``Field``. Can be 0 or 1. Defaults to 0.
-        f: Focal length of the system's objective. Defaults to None.
-        n: Refractive index of the system's objective. Defaults to None.
-        NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
     phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
@@ -110,12 +112,15 @@ class SpatialLightModulator(nn.Module):
     interpolation_order: int = 0
     pupil_radius: Optional[float] = None
 
+    def setup(self):
+        grid = create_grid(self.shape, self.spacing)
+        self.slm_phase = register(self, "phase", grid, self.pupil_radius)
+
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies simulated SLM ``phase`` mask to incoming ``Field``."""
-        # TODO: not sure this here all makes sense...
-        phase = register(self, "phase", self.shape, self.spacing, self.pupil_radius)
-        phase = wrap_phase(phase, self.phase_range)
+        # TODO: not sure this is correct?
+        phase = wrap_phase(self.slm_phase, self.phase_range)
         field_pixel_grid = jnp.meshgrid(
             jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
             jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,
@@ -160,7 +165,7 @@ class SeidelAberrations(nn.Module):
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
         phase = seidel_aberrations(
-            field, self.pupil_radius, coefficients, self.u, self.v
+            field.grid, self.pupil_radius, coefficients, self.u, self.v
         )
 
         return phase_change(field, phase)
@@ -198,7 +203,7 @@ class ZernikeAberrations(nn.Module):
         coefficients = register(self, "coefficients")
 
         phase = zernike_aberrations(
-            field, self.pupil_radius, self.ansi_indices, coefficients
+            field.grid, self.pupil_radius, self.ansi_indices, coefficients
         )
 
         return phase_change(field, phase)
