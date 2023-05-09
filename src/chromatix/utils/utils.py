@@ -212,3 +212,7 @@ def create_grid(shape: Tuple[int, int], spacing: Union[float, Array]) -> Array:
 def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
     R = f * NA / n  # pupil radius
     return grid / R
+
+
+def calculate_lens_pupil(f: float, NA: float, n: float) -> float:
+    return f * NA / n  # pupil radius
