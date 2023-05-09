@@ -1,4 +1,9 @@
-# Chromatix 🔬: Differentiable wave optics library using JAX!
+# Chromatix 🔬: Differentiable wave optics using JAX!
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_white.png?raw=true">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_black.png?raw=true">
+  <img alt="Chromatix logo" src="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_black.png?raw=true">
+</picture>
 
 ![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Black](https://github.com/chromatix-team/chromatix/actions/workflows/black.yaml/badge.svg)
 
