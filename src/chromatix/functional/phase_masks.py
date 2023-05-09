@@ -153,7 +153,7 @@ def seidel_aberrations(
     l2_sq_grid = X**2 + Y**2
 
     phase *= l2_sq_grid < 1
-    return phase[None, ..., None, None]
+    return phase
 
 
 def zernike_aberrations(
@@ -242,7 +242,7 @@ def zernike_aberrations(
 
     phase = jnp.dot(zernike_polynomials, jnp.asarray(coefficients))
 
-    return phase[None, ..., None, None]
+    return phase
 
 
 def defocused_ramps(
