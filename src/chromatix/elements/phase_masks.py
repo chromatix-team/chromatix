@@ -2,10 +2,14 @@ import jax.numpy as jnp
 from flax import linen as nn
 from chex import Array, PRNGKey
 from jax.scipy.ndimage import map_coordinates
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union, Sequence
 from ..field import Field
-from ..functional.phase_masks import wrap_phase, phase_change
-from chromatix.functional.initialisers import seidel_aberrations, zernike_aberrations
+from ..functional.phase_masks import (
+    wrap_phase,
+    phase_change,
+    seidel_aberrations,
+    zernike_aberrations,
+)
 from chromatix.elements.utils import register
 from chromatix.utils import create_grid
 
@@ -160,11 +164,9 @@ class SeidelAberrations(nn.Module):
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
-        phase = seidel_aberrations(
-            field.grid, self.pupil_radius, field.spectrum, coefficients, self.u, self.v
+        return seidel_aberrations(
+            field, self.pupil_radius, coefficients, self.u, self.v
         )
-
-        return phase_change(field, phase)
 
 
 class ZernikeAberrations(nn.Module):
@@ -191,15 +193,13 @@ class ZernikeAberrations(nn.Module):
 
     coefficients: Union[Array, Callable[[PRNGKey], Array]]
     pupil_radius: float
-    ansi_indices: Array
+    ansi_indices: Sequence[int]
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
 
-        phase = zernike_aberrations(
-            field.grid, self.pupil_radius, self.ansi_indices, coefficients
+        return zernike_aberrations(
+            field, self.pupil_radius, coefficients, self.ansi_indices
         )
-
-        return phase_change(field, phase)

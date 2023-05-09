@@ -216,3 +216,34 @@ def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
 
 def lens_pupil_radius(f: float, NA: float, n: float) -> float:
     return f * NA / n  # pupil radius
+
+
+def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
+    """
+    Wraps values of ``phase`` to the range given by ``limits``.
+
+    Args:
+        phase: The phase mask to wrap (in radians).
+        limits: A tuple defining the minimum and maximum value that ``phase``
+            will be wrapped to.
+    """
+    phase_min, phase_max = limits
+    assert phase_min < phase_max, "Lower limit needs to be smaller than upper limit."
+    min_indices = phase < phase_min
+    max_indices = phase > phase_max
+    phase = phase.at[min_indices].set(
+        phase[min_indices]
+        + 2 * jnp.pi * (1 + (phase_min - phase[min_indices]) // (2 * jnp.pi))
+    )
+    phase = phase.at[max_indices].set(
+        phase[max_indices]
+        - 2 * jnp.pi * (1 + (phase[max_indices] - phase_max) // (2 * jnp.pi))
+    )
+    return phase
+
+
+def spectrally_modulate_phase(phase: Array, wavelength: Array) -> Array:
+    """Spectrally modulates a given ``phase`` for multiple wavelengths."""
+    central_wavelength = wavelength[..., 0, 0].squeeze()
+    spectral_modulation = central_wavelength / wavelength
+    return phase * spectral_modulation

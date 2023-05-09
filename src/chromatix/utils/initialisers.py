@@ -1,6 +1,5 @@
 import jax.numpy as jnp
 
-from einops import rearrange
 from chex import Array
 from typing import Sequence
 from scipy.special import comb
@@ -8,15 +7,15 @@ import math
 from chromatix.utils.grids import l2_sq_norm
 
 __all__ = [
-    "flat_phase",
+    "flat",
     "potato_chip",
-    "seidel_aberrations",
-    "zernike_aberrations",
+    "seidel",
+    "zernike",
     "defocused_ramps",
 ]
 
 
-def flat_phase(grid: Array, value: float = 0.0) -> Array:
+def flat(grid: Array, value: float = 0.0) -> Array:
     """
     Computes a flat phase mask (one with constant value).
 
@@ -69,11 +68,11 @@ def potato_chip(
     return phase
 
 
-def seidel_aberrations(
+def seidel(
     grid: Array,
     pupil_radius: float,
     wavelength: Array,
-    coefficients: Sequence[float],
+    coefficients: Array,
     u: float = 0,
     v: float = 0,
 ) -> Array:
@@ -118,11 +117,11 @@ def seidel_aberrations(
     return phase
 
 
-def zernike_aberrations(
+def zernike(
     grid: Array,
     pupil_radius: float,
-    ansi_indices: Sequence[int],
     coefficients: Array,
+    ansi_indices: Sequence[int],
 ) -> Array:
     """
     Computes Zernike aberrations
