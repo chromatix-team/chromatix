@@ -17,9 +17,9 @@ Welcome to `chromatix`, a differentiable wave optics library built using `jax` w
 
 Here are some of the cool things we've already built with `chromatix`:
 
-- [**Holoscope**](docs/examples/holoscope.ipynb): optimizing a phase mask to optimally encode a 3D volume into a 2D image. 
-- [**Fourier Ptychograpy**](docs/examples/fourier_ptychography.md): differentiable simulation of Fourier ptychography.
-- [**Synchrotron X-ray Tomography**](docs/examples/tomography.md): large scale phase constrast imaging with learnable parameters.
+- [**Holoscope**](docs/examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
+- [**Computer Generated Holography**](docs/examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
+- [**Aberration Phase Retrieval**](docs/examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
 
 ## Installation
 
