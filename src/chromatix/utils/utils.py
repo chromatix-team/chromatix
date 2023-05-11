@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 from chex import Array, PRNGKey
 from einops import rearrange
-from typing import Any, Callable, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 from dataclasses import dataclass
 
 
@@ -212,3 +212,23 @@ def create_grid(shape: Tuple[int, int], spacing: Union[float, Array]) -> Array:
 def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
     R = f * NA / n  # pupil radius
     return grid / R
+
+
+def l2_sq_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+    """Sum of squares, i.e. `x**2 + y**2`."""
+    return jnp.sum(a**2, axis=axis)
+
+
+def l2_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+    """Square root of ``l2_sq_norm``, i.e. `sqrt(x**2 + y**2)`."""
+    return jnp.sqrt(jnp.sum(a**2, axis=axis))
+
+
+def l1_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+    """Sum absolute value, i.e. `|x| + |y|`."""
+    return jnp.sum(jnp.abs(a), axis=axis)
+
+
+def linf_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+    """Max absolute value, i.e. `max(|x|, |y|)`."""
+    return jnp.max(jnp.abs(a), axis=axis)

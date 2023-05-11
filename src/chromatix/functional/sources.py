@@ -3,7 +3,7 @@ from ..field import Field, ScalarField, VectorField
 from typing import Optional, Callable, Union, Tuple
 from chex import Array, assert_equal_shape, assert_axis_dimension
 from .pupils import circular_pupil
-from ..utils.grids import l2_sq_norm
+from ..utils import l2_sq_norm
 from ..utils.shapes import (
     _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_grid,
