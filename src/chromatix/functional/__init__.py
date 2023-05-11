@@ -1,4 +1,6 @@
 from .lenses import *
+from .phase_masks import *
+from .amplitude_masks import *
 from .pupils import *
 from .sources import *
 from .propagation import *

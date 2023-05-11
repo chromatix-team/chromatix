@@ -1,14 +1,14 @@
 import jax.numpy as jnp
 from chex import Array, assert_rank
 from ..field import Field
-from chromatix.utils.shapes import _broadcast_2d_to_spatial
+from ..utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["amplitude_change"]
 
 
 def amplitude_change(field: Field, amplitude: Array) -> Field:
     """
-    Perturbs ``field`` by ``amplitude`` (given in binary numbers).
+    Perturbs ``field`` by ``amplitude``.
 
     Returns a new ``Field`` with the result of the perturbation.
 
