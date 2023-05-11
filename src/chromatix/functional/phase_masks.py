@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 from ..field import Field
 from einops import rearrange
-from chex import Array, assert_equal_rank
+from chex import Array, assert_rank
 from typing import Sequence, Tuple
 from ..utils import create_grid, grid_spatial_to_pupil
 from scipy.special import comb
@@ -31,7 +31,11 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
         phase: The phase to apply.
     """
     phase = _broadcast_2d_to_spatial(phase, field.ndim)
-    assert_equal_rank(phase, field.u)
+    assert_rank(
+        phase,
+        field.ndim,
+        custom_message="Phase must have same ndim as incoming ``Field``.",
+    )
     if spectrally_modulate:
         phase = spectrally_modulate_phase(phase, field)
     return field * jnp.exp(1j * phase)
