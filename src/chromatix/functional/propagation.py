@@ -4,7 +4,8 @@ from chex import Array
 from typing import Literal, Tuple, Union
 from ..field import Field
 from ..utils import _broadcast_1d_to_innermost_batch, _broadcast_1d_to_grid, l2_sq_norm
-from chromatix.utils.fft import fft, ifft, optical_fft
+from chromatix.utils.fft import fft, ifft
+from chromatix.functional.convenience import optical_fft
 from chromatix.field import pad, crop
 
 __all__ = [
