@@ -14,7 +14,8 @@ def test_ff_lens():
 
     assert jnp.allclose(
         field_after_second_lens.intensity,
-        field_after_second_lens_back.intensity, atol=1e-5
+        field_after_second_lens_back.intensity,
+        atol=1e-5,
     )
 
     assert field_after_third_lens.u.squeeze()[256, 256] != 0.0
