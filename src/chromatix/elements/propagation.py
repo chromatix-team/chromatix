@@ -46,9 +46,14 @@ class Propagate(nn.Module):
 
     then this element has a trainable refractive index, initialized to 1.33.
 
-    This element can cache the propagation kernel using the option
-    ``cache_propagator``. If you would like to have a trainable propagation
-    kernel, see ``KernelPropagate`` which accepts a trainable ``propagator``.
+    !! By default this element caches the propagation kernel using the option
+    ``cache_propagator``. Please be aware that this kernel gets placed inside
+    the parameters dict when initialising the model, so you'll have to split the
+    dictionary into trainable and non-trainable parameters. See Training Chromatix
+    Models for more information how to do this.
+
+    If you would like to have a trainable propagation kernel with your own
+    initialisation, see ``KernelPropagate`` which accepts a trainable ``propagator``.
 
     Attributes:
         z: Distance(s) to propagate.

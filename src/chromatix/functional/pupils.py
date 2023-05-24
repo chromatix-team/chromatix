@@ -1,5 +1,5 @@
 from ..field import Field
-from ..utils.grids import linf_norm, l2_sq_norm
+from ..utils import linf_norm, l2_sq_norm
 
 __all__ = ["circular_pupil", "square_pupil"]
 

@@ -1,6 +1,11 @@
-# Chromatix 🔬: Differentiable wave optics library using JAX!
+# Chromatix 🔬: Differentiable wave optics using JAX!
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_white.png?raw=true">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_black.png?raw=true">
+  <img alt="Chromatix logo" src="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_black.png?raw=true">
+</picture>
 
-![CI](https://github.com/TuragaLab/chromatix/actions/workflows/test.yaml/badge.svg) ![Black](https://github.com/TuragaLab/chromatix/actions/workflows/black.yaml/badge.svg)
+![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Black](https://github.com/chromatix-team/chromatix/actions/workflows/black.yaml/badge.svg)
 
 [**Installation**](#installation)
 | [**Usage**](#usage)
@@ -12,9 +17,9 @@ Welcome to `chromatix`, a differentiable wave optics library built using `jax` w
 
 Here are some of the cool things we've already built with `chromatix`:
 
-- [**Holoscope**](docs/examples/holoscope.ipynb): optimizing a phase mask to optimally encode a 3D volume into a 2D image. 
-- [**Fourier Ptychograpy**](docs/examples/fourier_ptychography.md): differentiable simulation of Fourier ptychography.
-- [**Synchrotron X-ray Tomography**](docs/examples/tomography.md): large scale phase constrast imaging with learnable parameters.
+- [**Holoscope**](docs/examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
+- [**Computer Generated Holography**](docs/examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
+- [**Aberration Phase Retrieval**](docs/examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
 
 ## Installation
 
@@ -22,11 +27,11 @@ We recommend installing `jax` first as described in the [`jax` README](https://g
 
 Then, simply run
 ```bash
-$ pip install git+https://github.com/TuragaLab/chromatix.git@main
+$ pip install git+https://github.com/chromatix-team/chromatix.git@main
 ```
 or for an editable install for development, first clone the repository and then install as shown:
 ```bash
-$ git clone https://github.com/TuragaLab/chromatix
+$ git clone https://github.com/chromatix-team/chromatix
 $ cd chromatix
 $ pip install -e .
 ```
@@ -81,15 +86,15 @@ Check out our full documentation at [https://chromatix.readthedocs.io/en/latest]
 We're happy to take contributions of either examples, new optical elements, or expanded simulation capabilities (within reasonable scope)! Simply submit a pull request and we'll be happy to help you along. We're also grateful to people who find and report issues here, so we can fix or improve things as soon as possible.
 
 ### Contributor list
-Chromatix was started by Diptodip Deb, Gert-Jan Both, and Srinivas C. Turaga at HHMI Janelia Research Campus, along with contributions by:
+Chromatix was started by Diptodip Deb ([@diptodip](https://www.github.com/diptodip)), Gert-Jan Both ([@GJBoth](https://www.github.com/GJBoth)), and Srinivas C. Turaga ([@srinituraga](https://www.github.com/srinituraga)) at HHMI Janelia Research Campus, along with contributions by:
 
-* Amey Chaware
-* Amit Kholi
+* Amey Chaware ([@isildur7](https://www.github.com/isildur7))
+* Amit Kohli ([@apsk14](https://www.github.com/apsk14))
 * Cédric Allier
-* Changjia Cai
-* Geneva Schlafly
-* Guanghan Meng
-* Hoss Eybposh
-* Magdalena Schneider
-* Xi Yang
+* Changjia Cai ([@caichangjia](https://github.com/caichangjia))
+* Geneva Schlafly ([@gschlafly](https://github.com/gschlafly))
+* Guanghan Meng ([@guanghanmeng](https://github.com/guanghanmeng))
+* Hoss Eybposh ([@hosseybposh](https://github.com/hosseybposh))
+* Magdalena Schneider ([@schneidermc](https://github.com/schneidermc))
+* Xi Yang ([@nicolexi](https://github.com/nicolexi))
  

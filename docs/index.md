@@ -1,12 +1,12 @@
-# Chromatix 🔬: Differentiable wave optics library using JAX!
+# Chromatix 🔬: Differentiable wave optics using JAX!
 
 Welcome to `chromatix`, a differentiable wave optics library built using `jax` which combines JIT-compilation, (multi-)GPU support, and automatic differentiation with a convenient programming style inspired by deep learning libraries. This makes `chromatix` a great fit for inverse problems in optics. We intend `chromatix` to be used by researchers in computational optics, so `chromatix` provides a set of optical element "building blocks" that can be composed together in a style similar to neural network layers. This means we take care of the more tedious details of writing fast optical simulations, while still leaving a lot of control over what is simulated and/or optimized up to you! Chromatix is still in active development, so **expect sharp edges**.
 
 Here are some of the cool things we've already built with `chromatix`:
 
-- [**Holoscope**](examples/holoscope.ipynb): optimizing a phase mask to optimally encode a 3D volume into a 2D image. 
-- [**Fourier Ptychograpy**](examples/fourier_ptychography.md): differentiable simulation of Fourier ptychography.
-- [**Synchrotron X-ray Tomography**](examples/tomography.md): large scale phase constrast imaging with learnable parameters.
+- [**Holoscope**](docs/examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
+- [**Computer Generated Holography**](docs/examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
+- [**Aberration Phase Retrieval**](docs/examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
 
 Chromatix describes optical systems as sequences of sources and optical elements, composed in a similar style as neural network layers. These elements pass `Field` objects to each other, which contain both the tensor representation of the field at particular planes as well as information about the spatial sampling of the field and its spectrum. Typically, a user will not have to construct or deal with these `Field` objects unless they want to, but they are how `chromatix` can keep track of a lot of details of a simulation under the hood. Here's a very brief example of using `chromatix` to calculate the intensity of a widefield PSF (point spread function) at a single wavelength by describing a 4f system with a flat phase mask:
 

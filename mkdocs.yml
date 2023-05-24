@@ -1,5 +1,5 @@
 site_name: Chromatix
-repo_url: https://github.com/TuragaLab/chromatix/
+repo_url: https://github.com/chromatix-team/chromatix/
 
 nav:
   - Home: index.md
@@ -28,11 +28,13 @@ nav:
     - Utilities: api/utils.md
 
 theme:
+  logo: media/logo_symbol_white.png
+  favicon: media/favicon.png
   name: material
   palette: 
     # Palette toggle for light mode
     - scheme: default
-      primary: deep orange
+      primary: deep purple
       toggle:
         icon: material/toggle-switch-off-outline
         name: Switch to dark mode

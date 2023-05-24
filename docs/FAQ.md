@@ -10,22 +10,26 @@ Chromatix tries to respect composable `jax` transformations, so you can use all 
 We discuss these styles of parallelism in our documentation on [Parallelism](parallelism.md).
 
 ## How do I decide which parameters get optimized?
-We use a simple pattern (following `flax.linen.Module` conventions) to decide which parameters are optimizable: to make a parameter trainable, it should be a function taking a ``jax.random.PRNGKey`` as input and outputting whatever initial value is desired.
-We provide a utility function called `trainable()` in order to make specifying trainable parameters and their initial values convenient. At the same time, arbitrary functions can be passed as intiailizers as long as they have the appropriate function signature. This allows for a lot of flexibility in how parameters are intiailized.
+Any attribute of an element that is specified as a possibly trainable parameter can be initialized using `chromatix.utils.trainable` in order to make it trainable. Otherwise, the attribute will be initialized (using either an `Array`, `float`, or `Callable` that takes a shape argument as specified in the documentation for that function) as non-trainable state of that element. If you are initializing an attribute as trainable using an initialization function, then you can specify whether that function requires a `jax.random.PRNGKey` or not. For example, if you are initializing the pixels of a phase mask with the `flat_phase` function, then you can use `trainable(flat_phase, rng=False)` because `flat_phase` takes only a shape argument.
 
 For example:
 
 ```python
-from chromatix.elements import ThinLens
-from chromatix.utils import trainable
+import jax
+from chromatix.elements import ThinLens, PhaseMask
+from chromatix.utils import trainable, flat_phase
 
 # Refractive index is trainable and initialized to 1.33
-# Focal distance is not trainable
+# Focal distance and NA are not trainable
 model = ThinLens(10.0, trainable(1.33), 0.8)
 
 # Focal distance is trainable and randomly initialized
-# Refractive index is not trainable
-model = ThinLens(lambda key: 10 * random.uniform(key), 1.33, 0.8)
+# Refractive index and NA are not trainable
+model = ThinLens(trainable(lambda key: 10.0 * jax.random.uniform(key)), 1.33, 0.8)
+
+# Phase mask pixels are trainable and initialized with the right shape
+# automatically at initialization time, and the pupil f, n, NA are not trainable
+model = PhaseMask(trainable(flat_phase, rng=False), 1.33, 100.0, 0.8)
 ```
 
 We discuss `trainable()` further in the [API documentation](api/utils.md#chromatix.utils.utils.trainable).

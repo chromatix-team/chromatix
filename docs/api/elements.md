@@ -9,8 +9,14 @@
 ## Phase Masks
 :::chromatix.elements.phase_masks
 
+## Amplitude Masks
+:::chromatix.elements.amplitude_masks
+
 ## Sensors
 :::chromatix.elements.sensors
+
+## Propagation
+:::chromatix.elements.propagation
 
 ## Convenience
 :::chromatix.elements.convenience

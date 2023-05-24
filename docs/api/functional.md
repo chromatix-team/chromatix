@@ -9,6 +9,9 @@
 ## Phase Masks
 ::: chromatix.functional.phase_masks
 
+## Amplitude Masks
+::: chromatix.functional.amplitude_masks
+
 ## Samples
 ::: chromatix.functional.samples
 

@@ -22,11 +22,11 @@ CUDA support.
 
 Once you have installed `jax`, you can install `chromatix` using:
 ```bash
-$ pip install git+https://github.com/TuragaLab/chromatix.git
+$ pip install git+https://github.com/chromatix-team/chromatix.git
 ```
 or for an editable install for development, first clone the repository and then install:
 ```bash
-$ git clone https://github.com/TuragaLab/chromatix
+$ git clone https://github.com/chromatix-team/chromatix
 $ cd chromatix
 $ pip install -e .
 ```
@@ -45,7 +45,7 @@ $ conda install -c conda-forge cudatoolkit=11.X
 $ conda install -c conda-forge cudnn=A.B
 $ conda install -c nvidia cuda-nvcc
 $ pip install --upgrade "jax[cuda11_cudnnAB]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-$ pip install git+https://github.com/TuragaLab/chromatix.git
+$ pip install git+https://github.com/chromatix-team/chromatix.git
 ```
 You will have to replace `X` above with the appropriate version supported by your graphics driver (e.g. `11.4`), and you must ensure
 that `A` and `B` are the same for both the installation of `cudnn` and in the options when installing `jax` (e.g. `8.2` and `82`). You can see the versions of `cudnn`
