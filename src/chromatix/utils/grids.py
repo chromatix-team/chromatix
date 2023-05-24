@@ -1,7 +1,8 @@
 import jax.numpy as jnp
 from chex import Array
 from einops import rearrange
-from typing import  Tuple, Union
+from typing import Tuple, Union
+
 
 def create_grid(shape: Tuple[int, int], spacing: Union[float, Array]) -> Array:
     """

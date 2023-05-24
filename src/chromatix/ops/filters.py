@@ -64,5 +64,3 @@ def gaussian_filter(
     ), "Must specify same number of axes to convolve as elements in sigma"
     kernel = gaussian_kernel(sigma, shape=kernel_shape)
     return fourier_convolution(data, kernel, axes=axes)
-
-
