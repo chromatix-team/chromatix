@@ -6,3 +6,4 @@ from .sources import *
 from .sensors import *
 from .samples import *
 from .convenience import *
+from .utils import trainable
