@@ -6,7 +6,7 @@ from typing import Callable, Optional, Tuple, Union
 from ..field import Field
 from ..functional import wrap_phase, phase_change
 from ..utils import seidel_aberrations, zernike_aberrations
-from .utils import register
+from chromatix.elements.utils import register
 
 __all__ = [
     "PhaseMask",

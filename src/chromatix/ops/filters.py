@@ -1,7 +1,7 @@
 from typing import Optional, Sequence, Tuple
 from .ops import fourier_convolution
 from chex import Array
-import jax.numpy as jnp
+from chromatix.utils import gaussian_kernel
 
 __all__ = ["high_pass_filter", "gaussian_filter"]
 
@@ -66,42 +66,3 @@ def gaussian_filter(
     return fourier_convolution(data, kernel, axes=axes)
 
 
-def gaussian_kernel(
-    sigma: Sequence[float], truncate: float = 4.0, shape: Optional[Sequence[int]] = None
-) -> Array:
-    """
-    Creates ND Gaussian kernel of given ``sigma``.
-
-    If ``shape`` is not provided, then the shape of the kernel is automatically
-    calculated using the given truncation (the same truncation for each
-    dimension) and ``sigma``. The number of dimensions is determined by the
-    length of ``sigma``, which should be a 1D array.
-
-    If ``shape`` is provided, then ``truncate`` is ignored and the result will
-    have the provided ``shape``. The provided ``shape`` must be odd in all
-    dimensions to ensure that there is a center pixel.
-
-    Args:
-        sigma: A 1D array whose length is the number of dimensions specifying
-            the standard deviation of the Gaussian distribution in each
-            dimension.
-        truncate: If ``shape`` is not provided, then this float is the number
-            of standard deviations for which to calculate the Gaussian. This is
-            then used to determine the shape of the kernel in each dimension.
-        shape: If provided, determines the ``shape`` of the kernel. This will
-            cause ``truncate`` to be ignored.
-
-    Returns:
-        The ND Gaussian kernel.
-    """
-    _sigma = jnp.atleast_1d(jnp.array(sigma))
-    if shape is not None:
-        _shape = jnp.atleast_1d(jnp.array(shape))
-        assert jnp.all(_shape % 2 != 0), "Shape must be odd in all dimensions"
-        radius = ((_shape - 1) / 2).astype(jnp.int16)
-    else:
-        radius = (truncate * _sigma + 0.5).astype(jnp.int16)
-
-    x = jnp.mgrid[tuple(slice(-r, r + 1) for r in radius)]
-    phi = jnp.exp(-0.5 * jnp.sum((x.T / _sigma) ** 2, axis=-1))  # type: ignore
-    return phi / phi.sum()

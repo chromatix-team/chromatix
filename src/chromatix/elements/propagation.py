@@ -13,9 +13,8 @@ from ..functional import (
     compute_exact_propagator,
     compute_asm_propagator,
 )
-from ..ops.field import pad, crop
-from chromatix.elements.utils import register
-from chromatix.utils import Trainable
+from chromatix.field import pad, crop
+from chromatix.elements.utils import register, Trainable
 
 __all__ = ["Propagate"]
 
