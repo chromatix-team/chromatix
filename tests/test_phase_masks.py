@@ -3,12 +3,12 @@ from chromatix.functional import (
     phase_change,
 )
 from chromatix.utils import (
-    trainable,
     flat_phase,
     defocused_ramps,
     zernike_aberrations,
 )
-from chromatix.elements import PhaseMask
+
+from chromatix.elements import PhaseMask, trainable
 import jax
 import jax.numpy as jnp
 

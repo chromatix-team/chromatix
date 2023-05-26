@@ -1,7 +1,9 @@
 from typing import Optional, Sequence, Tuple
-from ..utils.utils import gaussian_kernel
 from .ops import fourier_convolution
 from chex import Array
+from chromatix.utils import gaussian_kernel
+
+__all__ = ["high_pass_filter", "gaussian_filter"]
 
 
 def high_pass_filter(

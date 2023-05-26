@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from typing import Optional
 from ..field import Field
 from .pupils import circular_pupil
-from ..ops.fft import optical_fft
+from chromatix.functional.convenience import optical_fft
 from ..utils import l2_sq_norm
 
 __all__ = ["thin_lens", "ff_lens", "df_lens"]

@@ -2,7 +2,7 @@ from typing import Optional, Union
 import jax.numpy as jnp
 from chex import Array, assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
-from ..ops.field import pad, crop
+from chromatix.field import pad, crop
 from ..utils import _broadcast_2d_to_spatial, center_pad
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 from .polarizers import polarizer

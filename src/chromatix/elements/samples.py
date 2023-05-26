@@ -3,7 +3,7 @@ from typing import Callable, Union
 from chex import PRNGKey, Array
 from ..field import Field, ScalarField
 from ..functional.samples import thin_sample
-from ..elements.utils import register
+from .utils import register
 
 __all__ = ["ThinSample"]
 

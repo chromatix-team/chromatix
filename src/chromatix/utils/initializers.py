@@ -3,7 +3,7 @@ from einops import rearrange
 from chex import Array
 from typing import Sequence, Tuple
 from .utils import create_grid, grid_spatial_to_pupil
-from scipy.special import comb
+from scipy.special import comb  # type: ignore
 import math
 
 __all__ = [
