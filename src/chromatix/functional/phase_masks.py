@@ -39,15 +39,15 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
     """
     phase_min, phase_max = limits
     assert phase_min < phase_max, "Lower limit needs to be smaller than upper limit."
-    min_indices = phase < phase_min
-    max_indices = phase > phase_max
-    phase = phase.at[min_indices].set(
-        phase[min_indices]
-        + 2 * jnp.pi * (1 + (phase_min - phase[min_indices]) // (2 * jnp.pi))
+    phase = jnp.where(
+        phase < phase_min,
+        phase + 2 * jnp.pi * (1 + (phase_min - phase) // (2 * jnp.pi)),
+        phase,
     )
-    phase = phase.at[max_indices].set(
-        phase[max_indices]
-        - 2 * jnp.pi * (1 + (phase[max_indices] - phase_max) // (2 * jnp.pi))
+    phase = jnp.where(
+        phase > phase_max,
+        phase - 2 * jnp.pi * (1 + (phase - phase_max) // (2 * jnp.pi)),
+        phase,
     )
     return phase
 
