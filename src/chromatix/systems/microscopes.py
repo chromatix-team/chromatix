@@ -211,6 +211,6 @@ class Optical4FSystemPSF(nn.Module):
 
     @staticmethod
     def compute_required_spacing(
-        height: int, output_spacing: float, f: float, n: float, wavelength: Array
+        height: int, output_spacing: float, f: float, n: float, spectrum: Array
     ) -> float:
-        return f * wavelength / (n * height * output_spacing)
+        return f * spectrum / (n * height * output_spacing)
