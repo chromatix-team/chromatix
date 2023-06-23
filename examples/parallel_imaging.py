@@ -1,6 +1,6 @@
 from chromatix.systems import Microscope, Optical4FSystemPSF
-from chromatix.elements import BasicShotNoiseSensor
-from chromatix.utils import trainable, flat_phase
+from chromatix.elements import BasicShotNoiseSensor, trainable
+from chromatix.utils import flat_phase
 import jax
 import jax.numpy as jnp
 import numpy as np
