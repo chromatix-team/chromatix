@@ -143,7 +143,6 @@ def register(
             "state",
             f"_{name}",
             parse_init(init),
-            None,
             *args,
         ).value
 
