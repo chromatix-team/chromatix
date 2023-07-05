@@ -1,6 +1,6 @@
 from flax import linen as nn
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 from chex import PRNGKey, Array
 
 
@@ -121,14 +121,15 @@ def register(
     module: nn.Module,
     name: str,
     *args,
-):
-    """Registers the parameter `self.{name}` as a Flax parameter or variable depending
-    on whether the parameter is of type `Trainable`. Only used for internal ease-of-use.
+) -> Any:
+    """
+    Registers the attribute `module.{name}` as a Flax parameter or variable
+    depending on whether the attribute is of type `Trainable`. Only for internal
+    use in Chromatix elements.
 
-    Name in Flax's parameterdict becomes `_{name}`, and if variable under collection
-    `state`. Supports initializing both with callables (*args are passed as
-    arguments) and fixed values.
-
+    The name of the parameter becomes `_{name}` in the Flax variable dictionary
+    (either under `"params"` or `"state"`). Supports initializing both with
+    callables (*args are passed as arguments) and fixed values.
     """
     try:
         init = getattr(module, name)
@@ -147,8 +148,18 @@ def register(
         ).value
 
 
-def parse_init(x):
-    def init(*args):
+def parse_init(x: Any) -> Callable:
+    """
+    Returns a function that returns ``x`` if ``x`` is not a function, otherwise
+    simply returns the function ``x``.
+
+    Args:
+        x: The value or function that initializes a variable.
+
+    Returns:
+        A function that will be used as an initializer to a variable.
+    """
+    def init(*args) -> Any:
         return x
 
     return x if callable(x) else init
