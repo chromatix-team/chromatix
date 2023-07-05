@@ -158,6 +158,7 @@ def parse_init(x: Any) -> Callable:
     Returns:
         A function that will be used as an initializer to a variable.
     """
+
     def init(*args) -> Any:
         return x
 
