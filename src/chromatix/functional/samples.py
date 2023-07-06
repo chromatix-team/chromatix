@@ -1,4 +1,5 @@
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
+import jax
 import jax.numpy as jnp
 from chex import Array, assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
@@ -95,7 +96,7 @@ def multislice_thick_sample(
     thickness_per_slice: float,
     N_pad: int,
     propagator: Optional[Array] = None,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Array = (0.0, 0.0),
     reverse_propagate_distance: Optional[float] = None,
 ) -> ScalarField:
     """

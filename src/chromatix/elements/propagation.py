@@ -82,7 +82,7 @@ class Propagate(nn.Module):
     n: Union[float, Callable[[PRNGKey], Array]]
     N_pad: int = 0
     cval: float = 0
-    kykx: Array = jnp.zeros((2,))
+    kykx: Array = (0.0, 0.0)
     method: Literal["transform", "transfer", "exact", "asm"] = "exact"
     mode: Literal["full", "same"] = "same"
     cache_propagator: bool = True
@@ -209,7 +209,7 @@ class KernelPropagate(nn.Module):
     n: Optional[float] = None
     N_pad: int = 0
     cval: float = 0
-    kykx: Array = jnp.zeros((2,))
+    kykx: Array = (0.0, 0.0)
     mode: Literal["full", "same"] = "same"
 
     @nn.compact
