@@ -64,7 +64,7 @@ def transfer_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -101,7 +101,7 @@ def exact_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -140,7 +140,7 @@ def asm_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -188,7 +188,7 @@ def compute_transfer_propagator(
     field: Field,
     z: Union[float, Array],
     n: float,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for Fresnel propagation.
@@ -213,7 +213,7 @@ def compute_exact_propagator(
     field: Field,
     z: Union[float, Array],
     n: float,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -242,7 +242,7 @@ def compute_asm_propagator(
     field: Field,
     z: Union[float, Array],
     n: float,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.

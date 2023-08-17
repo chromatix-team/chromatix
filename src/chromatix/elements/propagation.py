@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import flax.linen as nn
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Literal, Optional, Tuple, Union
 from ..field import Field
 from chex import PRNGKey, Array
 from ..functional import (
@@ -83,7 +83,7 @@ class Propagate(nn.Module):
     n: Union[float, Callable[[PRNGKey], Array]]
     N_pad: int = 0
     cval: float = 0
-    kykx: Array = (0.0, 0.0)
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     method: Literal["transform", "transfer", "exact", "asm"] = "exact"
     mode: Literal["full", "same"] = "same"
     cache_propagator: bool = True
@@ -210,7 +210,7 @@ class KernelPropagate(nn.Module):
     n: Optional[float] = None
     N_pad: int = 0
     cval: float = 0
-    kykx: Array = (0.0, 0.0)
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     mode: Literal["full", "same"] = "same"
 
     @nn.compact

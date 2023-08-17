@@ -96,7 +96,7 @@ def multislice_thick_sample(
     thickness_per_slice: float,
     N_pad: int,
     propagator: Optional[Array] = None,
-    kykx: Array = (0.0, 0.0),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     reverse_propagate_distance: Optional[float] = None,
 ) -> ScalarField:
     """
