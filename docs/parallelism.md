@@ -113,14 +113,14 @@ First, let's look at the single device version:
 
 ```python
 from chromatix.systems import Microscope, Optical4FSystemPSF
-from chromatix.elements import BasicShotNoiseSensor
-from chromatix.utils import trainable, flat_phase
+from chromatix.elements import BasicSensor, trainable
+from chromatix.utils import flat_phase
 
 microscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=shape, spacing=spacing, phase=trainable(flat_phase, rng=False)
     ),
-    sensor=BasicShotNoiseSensor(
+    sensor=BasicSensor(
         shape=shape, spacing=spacing, resampling_method=None, reduce_axis=0
     ),
     f=f,
@@ -150,7 +150,7 @@ Here, we constructed a ``Microscope`` with a 4f system PSF, but this time we
 specified that the phase is a trainable parameter. This means that we have to
 initialize the parameters for this ``flax.linen.Module`` and also pass these
 parameters when we want to call the ``Microscope``. This ``Microscope`` also
-accepted a ``BasicShotNoiseSensor`` with a ``reduce_axis`` argument, which we
+accepted a ``BasicSensor`` with a ``reduce_axis`` argument, which we
 have specified to sum across the batch dimension (axis 0) to simulate a camera
 collecting light from multiple planes. This computation ran in **172.86ms** on a
 single NVIDIA A100 GPU (average over 10 runs).
@@ -165,7 +165,7 @@ microscope = Microscope(
     system_psf=Optical4FSystemPSF(
         shape=shape, spacing=spacing, phase=trainable(flat_phase, rng=False)
     ),
-    sensor=BasicShotNoiseSensor(
+    sensor=BasicSensor(
         shape=shape,
         spacing=spacing,
         resampling_method=None,
@@ -201,7 +201,7 @@ is because each device first computes a partial image of just the chunk that it
 received, which are summed across the batch dimension on each device (because we
 specified ``reduce_axis``). So, we need to make sure that we are summing these
 partial images together across all the devices. We can tell `jax` to do that by
-using ``jax.lax.psum``, which happens internally in the ``BasicShotNoiseSensor``
+using ``jax.lax.psum``, which happens internally in the ``BasicSensor``
 because we specified ``reduce_parallel_axis_name`` in addition to
 ``reduce_axis``. Now, each device has a copy of the same final image.
 

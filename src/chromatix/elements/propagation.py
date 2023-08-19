@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import flax.linen as nn
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Literal, Optional, Tuple, Union
 from ..field import Field
 from chex import PRNGKey, Array
 from ..functional import (
@@ -13,9 +13,8 @@ from ..functional import (
     compute_exact_propagator,
     compute_asm_propagator,
 )
-from ..ops.field import pad, crop
-from chromatix.elements.utils import register
-from chromatix.utils import Trainable
+from chromatix.field import pad, crop
+from chromatix.elements.utils import register, Trainable
 
 __all__ = ["Propagate"]
 
@@ -46,9 +45,15 @@ class Propagate(nn.Module):
 
     then this element has a trainable refractive index, initialized to 1.33.
 
-    This element can cache the propagation kernel using the option
-    ``cache_propagator``. If you would like to have a trainable propagation
-    kernel, see ``KernelPropagate`` which accepts a trainable ``propagator``.
+    !!! warning
+        By default this element caches the propagation kernel using the option
+        ``cache_propagator``. Please be aware that this kernel gets placed
+        inside the variables dict when initialising the model, so you'll have to
+        split the dictionary into trainable parameters and non-trainable state.
+        See the documentation Training Chromatix Models for more information on
+        how to do this. If you would like to have a trainable propagation kernel
+        with your own initialisation, see ``KernelPropagate`` which accepts a
+        trainable ``propagator``.
 
     Attributes:
         z: Distance(s) to propagate.
@@ -78,7 +83,7 @@ class Propagate(nn.Module):
     n: Union[float, Callable[[PRNGKey], Array]]
     N_pad: int = 0
     cval: float = 0
-    kykx: Array = jnp.zeros((2,))
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     method: Literal["transform", "transfer", "exact", "asm"] = "exact"
     mode: Literal["full", "same"] = "same"
     cache_propagator: bool = True
@@ -205,7 +210,7 @@ class KernelPropagate(nn.Module):
     n: Optional[float] = None
     N_pad: int = 0
     cval: float = 0
-    kykx: Array = jnp.zeros((2,))
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     mode: Literal["full", "same"] = "same"
 
     @nn.compact

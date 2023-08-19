@@ -1,7 +1,10 @@
 from typing import Optional, Sequence, Tuple
-from ..utils.utils import gaussian_kernel
 from .ops import fourier_convolution
 from chex import Array
+from chromatix.utils import gaussian_kernel
+from chromatix.utils import _broadcast_2d_to_spatial
+
+__all__ = ["high_pass_filter", "gaussian_filter"]
 
 
 def high_pass_filter(
@@ -35,6 +38,7 @@ def high_pass_filter(
     # NOTE(gj): 1e-3 effectively gives delta kernel
     delta_kernel = gaussian_kernel((1e-3,) * len(sigma), shape=low_pass_kernel.shape)
     kernel = delta_kernel - low_pass_kernel
+    kernel = _broadcast_2d_to_spatial(kernel, data.ndim)
     return fourier_convolution(data, kernel, axes=axes)
 
 
@@ -61,4 +65,5 @@ def gaussian_filter(
         sigma
     ), "Must specify same number of axes to convolve as elements in sigma"
     kernel = gaussian_kernel(sigma, shape=kernel_shape)
+    kernel = _broadcast_2d_to_spatial(kernel, data.ndim)
     return fourier_convolution(data, kernel, axes=axes)

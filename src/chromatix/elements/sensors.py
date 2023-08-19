@@ -5,12 +5,12 @@ from typing import Optional, Literal, Tuple, Union
 from chex import Array
 from ..field import Field
 from ..ops import init_plane_resample
-from ..functional import basic_shot_noise_sensor
+from ..functional import basic_sensor
 
-__all__ = ["BasicShotNoiseSensor"]
+__all__ = ["BasicSensor"]
 
 
-class BasicShotNoiseSensor(nn.Module):
+class BasicSensor(nn.Module):
     """
     Produces an intensity image from an incoming ``Field`` with shot noise.
     Optionally, can also accept an intensity Array if ``input_spacing`` is
@@ -76,7 +76,7 @@ class BasicShotNoiseSensor(nn.Module):
             noise_key = self.make_rng("noise")
         else:
             noise_key = None
-        return basic_shot_noise_sensor(
+        return basic_sensor(
             sensor_input,
             self.shot_noise_mode,
             resample_fn,

@@ -1,122 +1,11 @@
 import jax.numpy as jnp
 import numpy as np
-from chex import Array, PRNGKey
+from chex import Array
+from typing import Optional, Sequence, Tuple, Union
+from scipy.ndimage import distance_transform_edt  # type: ignore
+import flax.linen as nn
+from .shapes import _broadcast_2d_to_spatial
 from einops import rearrange
-from typing import Any, Optional, Sequence, Tuple, Union
-from dataclasses import dataclass
-
-
-@dataclass
-class Trainable:
-    """
-    Wrapper class to signal to a Chromatix element that ``val`` should be the
-    initialization for a trainable parameter.
-    """
-
-    val: Any
-
-
-def trainable(x: Any, rng: bool = True) -> Trainable:
-    """
-    Returns ``x`` wrapped in a ``Trainable`` object to signal to a
-    Chromatix element that ``x`` should be used to initialize a trainable
-    parameter. If ``x`` is already a function, then this function will be
-    used as the initializer. If ``x`` is a function that does not accept a
-    ``jax.random.PRNGKey``, then setting ``rng`` to ``False`` will wrap ``x``
-    so that the arguments for ``x`` are accepted after the ``PRNGKey`` argument.
-    This is useful since many Chromatix functions you might want to use as
-    initialization functions don't accept ``PRNGKey`` arguments. Note that this
-    argument does not matter if ``x`` is already an ``Array`` that can be used
-    as an initialization directly.
-
-    When a supported Chromatix element is constructed with this wrapper as its
-    attribute, it will automatically turn that attribute into a parameter to
-    be optimized. Thus, this function is a convenient way to set the attribute
-    of an optical element in Chromatix as a trainable parameter initialized
-    to the value defined by ``x``. Any element that has potentially trainable
-    parameters will be documented as such.
-
-    For example, we can initialize a trainable phase mask (allowing for the
-    optimization of the pixels of the phase mask for arbitrary tasks) with this
-    function in two different ways:
-
-    ```python
-    from chromatix.utils import trainable
-    from chromatix.functional import potato_chip
-    from chromatix.elements import PhaseMask
-
-    phase_mask = PhaseMask(
-        phase=trainable(
-            potato_chip(
-                shape=(3840, 3840),
-                spacing=0.3,
-                wavelength=0.5,
-                n=1.33,
-                f=100,
-                NA=0.8
-            )
-        )
-    )
-    params = phase_mask.init()
-    ```
-
-    This example directly calls ``potato_chip`` to create a trainable phase
-    mask with the given shape. If there is a mismatch between the shape of an
-    incoming ``Field`` and the shape of the ``phase``, then an error will occur
-    at runtime. For many applications, the shape of the ``Field`` will be known
-    and fixed, so this style of initialization is convenient. The second way is
-    slightly more complex but also more robust to these shape issues, and does
-    not require declaring the shapes twice:
-
-    ```python
-    from chromatix.utils import trainable
-    from chromatix.functional import potato_chip
-    from chromatix.elements import PhaseMask
-    from functools import partial
-
-    phase_mask = PhaseMask(
-        phase=trainable(
-            partial(
-                potato_chip, spacing=0.3, wavelength=0.5, n=1.33, f=100, NA=0.8
-            ),
-            rng=False
-        )
-    )
-    ```
-
-    When ``PhaseMask`` initializes its parameters, it automatically passes
-    a ``jax.random.PRNGKey`` and the spatial shape of the input ``Field``,
-    which were ignored in the previous example because the initial ``phase``
-    was an ``Array`` constructed by ``potato_chip``. This example uses
-    ``functools.partial`` to create a phase mask initialization function that
-    only accepts a shape, which is wrapped by ``trainable`` to also accept
-    a ``jax.random.PRNGKey`` as its first argument. Now, when ``PhaseMask``
-    initializes its parameters, it will call this initialization function,
-    which uses the shape of the input ``Field`` to calculate the initial phase.
-    This matches the signature of the common ``jax.nn.initializers``, which
-    also accept a ``jax.random.PRNGKey`` and a shape.
-
-    Args:
-        x: The value that will be used to initialize the trainable
-            parameter.
-        rng: Whether the initializer function ``x`` needs a ``PRNGKey`` or not.
-            If ``True``, assumes that the function ``x`` has a ``PRNGKey`` as
-            its first argument, and does not modify ``x``. If ``False``, wraps
-            the initializer function ``x`` to ignore the ``PRNGKey`` argument
-            passed by Flax. If ``x`` is not callable, then this argument doesn't
-            matter and is ignored. Defaults to ``True``.
-
-    Returns:
-        A function that takes a ``jax.random.PRNGKey`` as its first parameter.
-    """
-    init = x
-    if callable(x) and not rng:
-
-        def no_rng_x(key: PRNGKey, *args, **kwargs) -> Array:
-            return x(*args, **kwargs)
-
-        init = no_rng_x
-    return Trainable(init)
 
 
 def next_order(val: int) -> int:
@@ -181,6 +70,12 @@ def gaussian_kernel(
     x = jnp.mgrid[tuple(slice(-r, r + 1) for r in radius)]
     phi = jnp.exp(-0.5 * jnp.sum((x.T / _sigma) ** 2, axis=-1))  # type: ignore
     return phi / phi.sum()
+
+
+def sigmoid_taper(shape: Tuple[int, int], width: float, ndim: int = 5) -> Array:
+    dist = distance_transform_edt(np.pad(np.ones((shape[0] - 2, shape[1] - 2)), 1))
+    taper = 2 * (nn.sigmoid(dist / width) - 0.5)
+    return _broadcast_2d_to_spatial(taper, ndim)
 
 
 def create_grid(shape: Tuple[int, int], spacing: Union[float, Array]) -> Array:

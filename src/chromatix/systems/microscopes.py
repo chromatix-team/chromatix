@@ -5,10 +5,8 @@ from chex import Array, PRNGKey
 from typing import Any, Callable, Tuple, Union
 from ..field import Field
 from ..elements import FFLens, ObjectivePointSource, PhaseMask
-from ..ops import (
-    fourier_convolution,
-    sigmoid_taper,
-)
+from ..ops import fourier_convolution
+from chromatix.utils import sigmoid_taper
 from ..utils import center_crop
 from .optical_system import OpticalSystem
 
@@ -213,6 +211,6 @@ class Optical4FSystemPSF(nn.Module):
 
     @staticmethod
     def compute_required_spacing(
-        height: int, output_spacing: float, f: float, n: float, wavelength: Array
+        height: int, output_spacing: float, f: float, n: float, spectrum: Array
     ) -> float:
-        return f * wavelength / (n * height * output_spacing)
+        return f * spectrum / (n * height * output_spacing)

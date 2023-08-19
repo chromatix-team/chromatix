@@ -121,7 +121,7 @@ def plane_wave(
     spectral_density: Union[float, Array],
     power: float = 1.0,
     amplitude: Union[float, Array] = 1.0,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     pupil: Optional[Callable[[Field], Field]] = None,
     scalar: bool = True,
 ) -> Field:

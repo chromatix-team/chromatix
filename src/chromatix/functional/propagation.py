@@ -4,8 +4,9 @@ from chex import Array
 from typing import Literal, Tuple, Union
 from ..field import Field
 from ..utils import _broadcast_1d_to_innermost_batch, _broadcast_1d_to_grid, l2_sq_norm
-from ..ops.fft import fft, ifft, optical_fft
-from ..ops.field import pad, crop
+from chromatix.utils.fft import fft, ifft
+from chromatix.functional.convenience import optical_fft
+from chromatix.field import pad, crop
 
 __all__ = [
     "transform_propagate",
@@ -63,7 +64,7 @@ def transfer_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -100,7 +101,7 @@ def exact_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -139,7 +140,7 @@ def asm_propagate(
     n: float,
     N_pad: int,
     cval: float = 0,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -187,7 +188,7 @@ def compute_transfer_propagator(
     field: Field,
     z: Union[float, Array],
     n: float,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for Fresnel propagation.
@@ -212,7 +213,7 @@ def compute_exact_propagator(
     field: Field,
     z: Union[float, Array],
     n: float,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -241,7 +242,7 @@ def compute_asm_propagator(
     field: Field,
     z: Union[float, Array],
     n: float,
-    kykx: Array = jnp.zeros((2,)),
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.

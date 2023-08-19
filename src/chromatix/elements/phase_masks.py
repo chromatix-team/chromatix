@@ -6,7 +6,7 @@ from typing import Callable, Optional, Tuple, Union
 from ..field import Field
 from ..functional import wrap_phase, phase_change
 from ..utils import seidel_aberrations, zernike_aberrations
-from .utils import register
+from chromatix.elements.utils import register
 
 __all__ = [
     "PhaseMask",
@@ -39,7 +39,7 @@ class PhaseMask(nn.Module):
     these is None, none of them will be passed to the initialization function
     and you will get an error.
 
-        Attributes:
+    Attributes:
         phase: The phase to be applied. Should have shape `(H W)`.
         f: Focal length of the system's objective. Defaults to None.
         n: Refractive index of the system's objective. Defaults to None.

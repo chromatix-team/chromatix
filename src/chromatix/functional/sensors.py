@@ -6,10 +6,10 @@ from typing import Callable, Optional, Literal, Union
 from ..field import Field
 from ..ops import approximate_shot_noise, shot_noise
 
-__all__ = ["basic_shot_noise_sensor"]
+__all__ = ["basic_sensor"]
 
 
-def basic_shot_noise_sensor(
+def basic_sensor(
     sensor_input: Union[Field, Array],
     shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None,
     resample_fn: Optional[Callable[[Array, float], Array]] = None,

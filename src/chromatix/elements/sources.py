@@ -167,7 +167,7 @@ class PlaneWave(nn.Module):
     spectral_density: Union[float, Array]
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
-    kykx: Array = jnp.zeros((2,))
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
 
