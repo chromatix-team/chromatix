@@ -1,14 +1,17 @@
 # Operations
 
-:::chromatix.ops.fft
+## General
+:::chromatix.ops.ops
 
-:::chromatix.ops.noise
-
+## Filters
 :::chromatix.ops.filters
 
+## Noise
+:::chromatix.ops.noise
+
+## Quantization
 :::chromatix.ops.quantization
 
-:::chromatix.ops.windows
-
-:::chromatix.ops.ops
+## Resample
+:::chromatix.ops.resample
 

@@ -1,5 +1,8 @@
 # Elements
 
+## Utilities
+:::chromatix.elements.utils
+
 ## Sources
 :::chromatix.elements.sources
 
