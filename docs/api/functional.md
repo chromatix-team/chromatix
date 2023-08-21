@@ -25,4 +25,4 @@
 ::: chromatix.functional.polarizers
 
 ## Convenience
-:::chromatix.elements.convenience
+:::chromatix.functional.convenience
