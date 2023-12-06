@@ -97,4 +97,36 @@ Chromatix was started by Diptodip Deb ([@diptodip](https://www.github.com/diptod
 * Hoss Eybposh ([@hosseybposh](https://github.com/hosseybposh))
 * Magdalena Schneider ([@schneidermc](https://github.com/schneidermc))
 * Xi Yang ([@nicolexi](https://github.com/nicolexi))
- 
+
+## Citation
+To cite this repository:
+
+Deb, D.\*, Both, G.\*, Chaware, A., Kohli, A., Allier, C., Cai, C., Schlafly, G., Meng, G., Eybposh, M. H., Schneider, M., Yang, X., & Turaga, S. C. (2023). Chromatix. Zenodo. [https://doi.org/10.5281/zenodo.7803771](https://doi.org/10.5281/zenodo.7803771)
+
+\* equal contribution
+
+BibTex:
+```bibtex
+@software{chromatix_2023,
+  author       = {Deb, Diptodip and
+                  Both, Gert-Jan and
+                  Chaware, Amey and
+                  Kohli, Amit and
+                  Allier, Cédric and
+                  Cai, Changjia and
+                  Schlafly, Geneva and
+                  Meng, Guanghan and
+                  Eybposh, M. Hossein and
+                  Schneider, Magdalena and
+                  Yang, Xi and
+                  Turaga, Srinivas C.},
+  title        = {Chromatix},
+  month        = aug,
+  year         = 2023,
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.7803771},
+  url          = {https://doi.org/10.5281/zenodo.7803771}
+}
+```
+
+This citation entry represents the latest release of Chromatix. If you would like to cite a specific version, you can follow the DOI to Zenodo and choose a specific version there.
