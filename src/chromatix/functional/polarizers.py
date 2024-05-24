@@ -229,6 +229,6 @@ def universal_compensator(field: VectorField, retA: float, retB: float) -> Vecto
         VectorField: outgoing field.
     """
     field_LP = linear_polarizer(field, 0)
-    field_retA = phase_retarder(field_LP, -jnp.pi / 4, retA, 0)
-    field_retB = phase_retarder(field_retA, 0, retB, 0)
+    field_retA = wave_plate(field_LP, -jnp.pi / 4, retA)
+    field_retB = wave_plate(field_retA, 0, retB)
     return field_retB
