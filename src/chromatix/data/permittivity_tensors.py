@@ -1,7 +1,10 @@
 import jax.numpy as jnp
+from typing import Optional, Tuple
 
 
-def generate_permittivity_tensor(n_o, n_e, extraordinary_axis="z"):
+def generate_permittivity_tensor(
+    n_o: float, n_e: float, extraordinary_axis: Optional[str] = "x"
+):
     """
     Generate the permittivity tensor for a uniaxial anisotropic material.
 
@@ -15,8 +18,7 @@ def generate_permittivity_tensor(n_o, n_e, extraordinary_axis="z"):
     """
     epsilon_o = n_o**2
     epsilon_e = n_e**2
-
-    if extraordinary_axis == "x":
+    if extraordinary_axis == "z":
         epsilon_tensor = jnp.array(
             [[epsilon_e, 0, 0], [0, epsilon_o, 0], [0, 0, epsilon_o]]
         )
@@ -24,17 +26,21 @@ def generate_permittivity_tensor(n_o, n_e, extraordinary_axis="z"):
         epsilon_tensor = jnp.array(
             [[epsilon_o, 0, 0], [0, epsilon_e, 0], [0, 0, epsilon_o]]
         )
-    elif extraordinary_axis == "z":
+    elif extraordinary_axis == "x":
         epsilon_tensor = jnp.array(
             [[epsilon_o, 0, 0], [0, epsilon_o, 0], [0, 0, epsilon_e]]
         )
     else:
         raise ValueError("extraordinary_axis must be one of 'x', 'y', or 'z'")
-
     return epsilon_tensor
 
 
-def create_homogeneous_phantom(shape, n_o, n_e, extraordinary_axis="z"):
+def create_homogeneous_phantom(
+    shape: Tuple[int, int, int],
+    n_o: float,
+    n_e: float,
+    extraordinary_axis: Optional[str] = "x",
+):
     """
     Create a homogeneous uniaxial anisotropic phantom.
 
@@ -53,7 +59,9 @@ def create_homogeneous_phantom(shape, n_o, n_e, extraordinary_axis="z"):
     return phantom
 
 
-def create_calcite_crystal(shape, extraordinary_axis="z"):
+def create_calcite_crystal(
+    shape: Tuple[int, int, int], extraordinary_axis: Optional[str] = "z"
+):
     """
     Create a calcite crystal phantom.
 
