@@ -113,8 +113,8 @@ def linear_polarizer(field: VectorField, angle: float) -> VectorField:
     """
 
     c, s = jnp.cos(angle), jnp.sin(angle)
-    J00 = c ** 2
-    J11 = s ** 2
+    J00 = c**2
+    J11 = s**2
     J01 = s * c
     J10 = J01
     return polarizer(field, J00, J01, J10, J11)
@@ -170,8 +170,8 @@ def phase_retarder(
     """
     s, c = jnp.sin(theta), jnp.cos(theta)
     scale = jnp.exp(-1j * eta / 2)
-    J00 = scale * (c ** 2 + jnp.exp(1j * eta) * s ** 2)
-    J11 = scale * (s ** 2 + jnp.exp(1j * eta) * c ** 2)
+    J00 = scale * (c**2 + jnp.exp(1j * eta) * s**2)
+    J11 = scale * (s**2 + jnp.exp(1j * eta) * c**2)
     J01 = scale * (1 - jnp.exp(1j * eta)) * jnp.exp(-1j * phi) * s * c
     J10 = scale * (1 - jnp.exp(1j * eta)) * jnp.exp(1j * phi) * s * c
     return polarizer(field, J00, J01, J10, J11)
