@@ -230,6 +230,9 @@ class Field(struct.PyTreeNode):
         else:
             return NotImplemented
 
+    def __matmul__(self, other: jnp.array) -> Field:
+        return self.replace(u=jnp.matmul(self.u, other))
+
     def __rmul__(self, other: Any) -> Field:
         return self * other
 
