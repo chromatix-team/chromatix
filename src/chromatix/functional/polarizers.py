@@ -16,6 +16,7 @@ __all__ = [
     "linear_polarizer",
     "left_circular_polarizer",
     "right_circular_polarizer",
+    "universal_compensator",
     # Waveplates
     "wave_plate",
     "halfwave_plate",
@@ -112,8 +113,8 @@ def linear_polarizer(field: VectorField, angle: float) -> VectorField:
     """
 
     c, s = jnp.cos(angle), jnp.sin(angle)
-    J00 = c**2
-    J11 = s**2
+    J00 = c ** 2
+    J11 = s ** 2
     J01 = s * c
     J10 = J01
     return polarizer(field, J00, J01, J10, J11)
@@ -169,8 +170,8 @@ def phase_retarder(
     """
     s, c = jnp.sin(theta), jnp.cos(theta)
     scale = jnp.exp(-1j * eta / 2)
-    J00 = scale * (c**2 + jnp.exp(1j * eta) * s**2)
-    J11 = scale * (s**2 + jnp.exp(1j * eta) * c**2)
+    J00 = scale * (c ** 2 + jnp.exp(1j * eta) * s ** 2)
+    J11 = scale * (s ** 2 + jnp.exp(1j * eta) * c ** 2)
     J01 = scale * (1 - jnp.exp(1j * eta)) * jnp.exp(-1j * phi) * s * c
     J10 = scale * (1 - jnp.exp(1j * eta)) * jnp.exp(1j * phi) * s * c
     return polarizer(field, J00, J01, J10, J11)
@@ -214,3 +215,12 @@ def quarterwave_plate(field: VectorField, theta: float) -> VectorField:
         VectorField: outgoing field.
     """
     return phase_retarder(field, theta, eta=jnp.pi / 2, phi=0)
+
+
+def universal_compensator(field, retA, retB):
+    """Universal Polarizer for the LC-PolScope"""
+    field_LP = linear_polarizer(field, 0)
+    field_retA = phase_retarder(field_LP, -jnp.pi / 4, retA, 0)
+    field_retB = phase_retarder(field_retA, 0, retB, 0)
+    x = 5
+    return field_retB
