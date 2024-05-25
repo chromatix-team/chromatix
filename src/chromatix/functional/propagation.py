@@ -274,19 +274,15 @@ def compute_asm_propagator(
     kernel_field = jnp.exp(1j * phase)
 
     if bandlimit:
-        Sy, Sx = (1 / field.dk).squeeze()   # spatial dimension in microns
+        Sy, Sx = field.surface_area.squeeze()
+
         y0, x0 = (kykx / field.dk).squeeze()  # spatial shift in microns, TODO check
         z0 = z.squeeze()  # propagation distance in microns
         wv = field.spectrum.squeeze()  # wavelength in microns
 
-        dfX = 1.0 / Sx
-        dfY = 1.0 / Sy
-        N_y, N_x = field.spatial_shape
-        fX = np.linspace(-N_x // 2, N_x // 2 - 1, num=N_x)[np.newaxis, :] * dfX
-        fY = np.linspace(-N_y // 2, N_y // 2 - 1, num=N_y)[:, np.newaxis] * dfY
-
         # Table 1 of "Shifted angular spectrum method for off-axis numerical 
         # propagation" (2010) by Matsushima
+        # -- spatial frequency of x
         du = 1 / (2 * Sx)
         u_limit_p = ((x0 + 1 / (2 * du)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
         u_limit_n = ((x0 - 1 / (2 * du)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
@@ -299,7 +295,8 @@ def compute_asm_propagator(
         else:
             u0 = (u_limit_p - u_limit_n) / 2
             u_width = u_limit_p + u_limit_n
-
+        fx_max = u_width / 2
+        # -- spatial frequency of y
         dv = 1 / (2 * Sy)
         v_limit_p = ((y0 + 1 / (2 * dv)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
         v_limit_n = ((y0 - 1 / (2 * dv)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
@@ -312,16 +309,10 @@ def compute_asm_propagator(
         else:
             v0 = (v_limit_p - v_limit_n) / 2
             v_width = v_limit_p + v_limit_n
-
-        fx_max = u_width / 2
         fy_max = v_width / 2
 
-        # bandlimit
-        H_filter = (np.abs(fX - u0) <= fx_max) * (np.abs(fY - v0) < fy_max)
-
-        # to jax
-        H_filter = jnp.array(H_filter)
-        H_filter = jnp.expand_dims(H_filter, (0, 3, 4))
+        # bandlimit (Eq. 23)
+        H_filter = (jnp.abs(field.k_grid[0] - v0) <= fy_max) & (jnp.abs(field.k_grid[1] - u0) <= fx_max)
 
         # apply filter
         kernel_field = kernel_field * H_filter
