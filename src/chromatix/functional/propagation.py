@@ -82,47 +82,53 @@ def transform_propagate_sas(
 
     # don't change this pad_factor, only 2 is supported
     pad_factor = 2
-    sz = jnp.array(field.spatial_shape)
+    sz = np.array(field.spatial_shape)
     N = sz[:, None, None, None, None, None]
     L = N * field.dx
     L_new = pad_factor * L
     N_new = pad_factor * N
-    N_new_flat = N_new[:,0,0,0,0,0]
-    pad_pix = (N_new_flat - sz)//2 # pixels to pad on each side
+    # N_new_flat = N_new[:,0,0,0,0,0]
+    # pad_pix = (N_new_flat - sz)//2 # pixels to pad on each side
+    pad_pix = sz // 2
     # pad array
     M = field.spectrum * z * N / L**2 / 2
-    field_p = pad(field, pad_pix, cval=cval)
+    field = pad(field, pad_pix, cval=cval)
     
     # helper varaibles
-    k = 2 * jnp.pi / field_p.spectrum
+    k = 2 * jnp.pi / field.spectrum
     df = 1 / L_new 
     Lf = N_new * df
     
     # freq space coordinates for padded array
-    f_k = field_p.k_grid
-    f_x = f_k[1]
-    f_y = f_k[0]
+    # f_k = field.k_grid
+    # f_x = f_k[1]
+    # f_y = f_k[0]
     
     # real space coordinates for padded array
     
     # bandlimit helper
-    sx = field_p.spectrum * f_x
-    sy = field_p.spectrum * f_y 
-    tx = L_new[1] / 2 / z + jnp.abs(field_p.spectrum * f_x)
-    ty = L_new[0] / 2 / z + jnp.abs(field_p.spectrum * f_y)
+    s = field.spectrum * field.k_grid
+    t = L_new / 2 / z + jnp.abs(s)
+    
+    # sx = field.spectrum * f_x
+    # sy = field.spectrum * f_y 
+    # tx = L_new[1] / 2 / z + jnp.abs(field.spectrum * f_x)
+    # ty = L_new[0] / 2 / z + jnp.abs(field.spectrum * f_y)
    
     # bandlimit filter for precompensation, not smoothened!
-    W = (sx**2 * (1 + tx**2) / tx**2 + sy**2 <= 1) * (sy**2 * (1 + ty**2) / ty**2 + sx**2 <= 1)
+    # W = (sx**2 * (1 + tx**2) / tx**2 + sy**2 <= 1) * (sy**2 * (1 + ty**2) / ty**2 + sx**2 <= 1)
+    W = jnp.prod((s**2 * (1 + t**2) / t**2 + s**2 <= 1), axis=0)
     
     # calculate kernels
-    H_AS = jnp.sqrt(0j + 1 - jnp.abs(f_x * field_p.spectrum)**2 - jnp.abs(f_y * field_p.spectrum)**2)
-    H_Fr = 1 - jnp.abs(f_x * field_p.spectrum)**2 / 2 - jnp.abs(f_y * field_p.spectrum)**2 / 2
+    H_AS = jnp.sqrt(0j + 1 - jnp.sum(s**2, axis=0))
+    H_Fr = 1 - jnp.sum(s**2 / 2, axis=0)
     delta_H = W * jnp.exp(1j * k * z * (H_AS - H_Fr))
 
     # apply precompensation
-    u = jnp.fft.fftshift(jnp.fft.ifft2(jnp.fft.fft2(jnp.fft.ifftshift(field_p.u, axes=(-3, -4)), axes=(-3, -4)) * jnp.fft.ifftshift(delta_H, axes=(-3, -4)), axes=(-3, -4)), axes=(-3, -4))
-    field_p = field_p.replace(u=u)
-    return crop(transform_propagate(field_p, z, n, 0, 0), pad_pix) # cval is replaced by zero to help the compiler, since there is anyway no padding
+    field = kernel_propagate(field, jnp.fft.ifftshift(delta_H, axes=field.spatial_dims))
+    # u = jnp.fft.fftshift(jnp.fft.ifft2(jnp.fft.fft2(jnp.fft.ifftshift(field_p.u, axes=(-3, -4)), axes=(-3, -4)) * jnp.fft.ifftshift(delta_H, axes=(-3, -4)), axes=(-3, -4)), axes=(-3, -4))
+    # field_p = field_p.replace(u=u)
+    return crop(transform_propagate(field, z, n, 0, 0), pad_pix) # cval is replaced by zero to help the compiler, since there is anyway no padding
 
 
 def transfer_propagate(
