@@ -91,12 +91,12 @@ def transform_propagate_sas(
     field = pad(field, pad_pix, cval=cval)
     
     # helper varaibles
-    kz = 2 * z * jnp.pi / field.spectrum
+    kz = 2 * z * jnp.pi * n / field.spectrum
     
     # real space coordinates for padded array
     
     # bandlimit helper
-    s = field.spectrum * field.k_grid
+    s = field.spectrum * field.k_grid / n
     s_sq = s**2
        
     # bandlimit filter for precompensation, not smoothened!
