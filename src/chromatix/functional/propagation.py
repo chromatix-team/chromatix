@@ -32,6 +32,8 @@ def transform_propagate(
 ) -> Field:
     """
     Fresnel propagate ``field`` for a distance ``z`` using transform method.
+    This method is also called the single-FFT (SFT-FR) Fresnel propagation method.
+    Note that this method changes the sampling of the resulting field.
 
     Args:
         field: ``Field`` to be propagated.
@@ -49,13 +51,85 @@ def transform_propagate(
     field = pad(field, N_pad, cval=cval)
     # Fourier normalization factor
     L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
-    # Calculating input phase change
+    # Calculating input phase change (defining Q1)
     input_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
     # New field is optical_fft minus -1j factor
     field = 1j * optical_fft(field * jnp.exp(1j * input_phase), z, n)
+    # Calculating output phase change (defining Q2)
     output_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
     field = field * jnp.exp(1j * output_phase)
     return crop(field, N_pad)
+
+def transform_propagate_sas(
+    field: Field,
+    z: Union[float, Array],
+    n: float,
+    cval: float = 0,
+) -> Field:
+    """
+    Propagate ``field`` for a distance ``z`` using the scalable angular spectrum (SAS) method.
+    See https://doi.org/10.1364/OPTICA.497809
+    It changes the pixelsize like the transform method, but it is more accurate because it precompensates
+    the phase error. Since it uses three FFTS, it is slower than the transform method.
+
+    Args:
+        field: ``Field`` to be propagated.
+        z: Distance(s) to propagate, either a float or a 1D array.
+        n: A float that defines the refractive index of the medium.
+        cval: The background value to use when padding the Field. Defaults to 0
+            for zero padding.
+    """
+
+    # don't change this pad_factor, only 2 is supported
+    pad_factor = 2
+    sz = jnp.array(field.spatial_shape)
+    N = sz[:, None, None, None, None, None]
+    L = N * field.dx
+    L_new = pad_factor * L
+    N_new = pad_factor * N
+    N_new_flat = N_new[:,0,0,0,0,0]
+    pad_pix = (N_new_flat - sz)//2 # pixels to pad on each side
+    # pad array
+    M = field.spectrum * z * N / L**2 / 2
+    field_p = pad(field, pad_pix, cval=cval)
+    
+    # helper varaibles
+    k = 2 * jnp.pi / field_p.spectrum
+    df = 1 / L_new 
+    Lf = N_new * df
+    
+    # freq space coordinates for padded array
+    # f_y = jnp.fft.fftfreq(N_new, 1 / Lf, dtype=jnp.float32).reshape(1,1, N_new)
+    # f_x = f_y.reshape(1, N_new, 1)
+    f_k = field_p.k_grid
+    f_x = f_k[1]
+    f_y = f_k[0]
+    
+    # real space coordinates for padded array
+    # f_xy = field_p.grid
+    # y = jnp.fft.ifftshift(jnp.linspace(-L_new/2, L_new/2, N_new, endpoint=False).reshape(1, 1, N_new), axes=(-1))
+    # x = y.reshape(1, N_new, 1)
+    
+    # bandlimit helper
+    sx = field_p.spectrum * f_x
+    sy = field_p.spectrum * f_y 
+    tx = L_new[1] / 2 / z + jnp.abs(field_p.spectrum * f_x)
+    ty = L_new[0] / 2 / z + jnp.abs(field_p.spectrum * f_y)
+   
+    # bandlimit filter for precompensation, not smoothened!
+    W = (sx**2 * (1 + tx**2) / tx**2 + sy**2 <= 1) * (sy**2 * (1 + ty**2) / ty**2 + sx**2 <= 1)
+    
+    # calculate kernels
+    H_AS = jnp.sqrt(0j + 1 - jnp.abs(f_x * field_p.spectrum)**2 - jnp.abs(f_y * field_p.spectrum)**2)
+    H_Fr = 1 - jnp.abs(f_x * field_p.spectrum)**2 / 2 - jnp.abs(f_y * field_p.spectrum)**2 / 2
+    delta_H = W * jnp.exp(1j * k * z * (H_AS - H_Fr))
+    delta_H =jnp.fft.ifftshift(delta_H, axes=(-3, -4))
+    # apply precompensation
+    # u = jnp.fft.ifft2(jnp.fft.fft2(jnp.fft.ifftshift(field_p.u, axes=(-3, -4)), axes=(-3, -4)) * delta_H, axes=(-3, -4))
+    u = jnp.fft.fftshift(jnp.fft.ifft2(jnp.fft.fft2(jnp.fft.ifftshift(field_p.u, axes=(-3, -4)), axes=(-3, -4)) * delta_H, axes=(-3, -4)), axes=(-3, -4))
+    field_p = field_p.replace(u=u)
+    # return field_p
+    return crop(transform_propagate(field_p, z, n, 0, 0), pad_pix) # cval is replaced by zero to help the compiler, since there is anyway no padding
 
 
 def transfer_propagate(
@@ -69,6 +143,7 @@ def transfer_propagate(
 ) -> Field:
     """
     Fresnel propagate ``field`` for a distance ``z`` using transfer method.
+    This method is also called the convolutional Fresnel propagation (CV-FR) method.
 
     Args:
         field: ``Field`` to be propagated.
