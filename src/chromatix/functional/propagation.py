@@ -274,45 +274,68 @@ def compute_asm_propagator(
     kernel_field = jnp.exp(1j * phase)
 
     if bandlimit:
-        Sy, Sx = field.surface_area.squeeze()
-
-        y0, x0 = (kykx / field.dk).squeeze()  # spatial shift in microns, TODO check
-        z0 = z.squeeze()  # propagation distance in microns
-        wv = field.spectrum.squeeze()  # wavelength in microns
 
         # Table 1 of "Shifted angular spectrum method for off-axis numerical 
-        # propagation" (2010) by Matsushima
-        # -- spatial frequency of x
-        du = 1 / (2 * Sx)
-        u_limit_p = ((x0 + 1 / (2 * du)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
-        u_limit_n = ((x0 - 1 / (2 * du)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
-        if Sx < x0:
-            u0 = (u_limit_p + u_limit_n) / 2
-            u_width = u_limit_p - u_limit_n
-        elif x0 <= -Sx:
-            u0 = -(u_limit_p + u_limit_n) / 2
-            u_width = u_limit_n - u_limit_p
-        else:
-            u0 = (u_limit_p - u_limit_n) / 2
-            u_width = u_limit_p + u_limit_n
-        fx_max = u_width / 2
-        # -- spatial frequency of y
-        dv = 1 / (2 * Sy)
-        v_limit_p = ((y0 + 1 / (2 * dv)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
-        v_limit_n = ((y0 - 1 / (2 * dv)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
-        if Sy < y0:
-            v0 = (v_limit_p + v_limit_n) / 2
-            v_width = v_limit_p - v_limit_n
-        elif y0 <= -Sy:
-            v0 = -(v_limit_p + v_limit_n) / 2
-            v_width = v_limit_n - v_limit_p
-        else:
-            v0 = (v_limit_p - v_limit_n) / 2
-            v_width = v_limit_p + v_limit_n
-        fy_max = v_width / 2
+        # propagation" (2010) by Matsushima in vectorized form
+        shift_yx = (kykx / field.dk)    # shift in microns, TODO check if this is the shift or should be input arg
+        k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
+        k_limit_n = ((shift_yx - 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
+        k0 = (1 / 2) * (
+            jnp.sign(shift_yx + field.surface_area) * k_limit_p + \
+            jnp.sign(shift_yx - field.surface_area) * k_limit_n
+        )
+        k_width = jnp.sign(shift_yx + field.surface_area) * k_limit_p - \
+            jnp.sign(shift_yx - field.surface_area) * k_limit_n
+        k_max = k_width / 2
 
-        # bandlimit (Eq. 23)
-        H_filter = (jnp.abs(field.k_grid[0] - v0) <= fy_max) & (jnp.abs(field.k_grid[1] - u0) <= fx_max)
+        # obtain rect filter to bandlimit (Eq. 23)
+        H_filter_yx = (jnp.abs(field.k_grid - k0) <= k_max)
+        H_filter = H_filter_yx[0] * H_filter_yx[1]
+
+        # ## non-vectorized version
+        # Sy, Sx = field.surface_area.squeeze()
+        # y0, x0 = (kykx / field.dk).squeeze()  # spatial shift in microns, TODO check
+        # z0 = z.squeeze()  # propagation distance in microns
+        # wv = field.spectrum.squeeze()  # wavelength in microns
+
+        # # -- spatial frequency of x
+        # du = 1 / Sx   # not divided by 2 like in 17 since field already padded
+        # u_limit_p = ((x0 + 1 / (2 * du)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
+        # u_limit_n = ((x0 - 1 / (2 * du)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
+        # # if Sx < x0:
+        # #     u0 = (u_limit_p + u_limit_n) / 2
+        # #     u_width = u_limit_p - u_limit_n
+        # # elif x0 <= -Sx:
+        # #     u0 = -(u_limit_p + u_limit_n) / 2
+        # #     u_width = u_limit_n - u_limit_p
+        # # else:
+        # #     u0 = (u_limit_p - u_limit_n) / 2
+        # #     u_width = u_limit_p + u_limit_n
+        # # -- non-condition version of above
+        # u0 = (1 / 2) * (np.sign(x0 + Sx) * u_limit_p + np.sign(x0 - Sx) * u_limit_n)
+        # u_width = np.sign(x0 + Sx) * u_limit_p - np.sign(x0 - Sx) * u_limit_n
+        # fx_max = u_width / 2
+
+        # # -- spatial frequency of y
+        # dv = 1 / Sy   # not divided by 2 like in 18 since field already padded
+        # v_limit_p = ((y0 + 1 / (2 * dv)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
+        # v_limit_n = ((y0 - 1 / (2 * dv)) ** (-2) * z0**2 + 1) ** (-1 / 2) / wv
+        # # if Sy < y0:
+        # #     v0 = (v_limit_p + v_limit_n) / 2
+        # #     v_width = v_limit_p - v_limit_n
+        # # elif y0 <= -Sy:
+        # #     v0 = -(v_limit_p + v_limit_n) / 2
+        # #     v_width = v_limit_n - v_limit_p
+        # # else:
+        # #     v0 = (v_limit_p - v_limit_n) / 2
+        # #     v_width = v_limit_p + v_limit_n
+        # # -- non-condition version of above
+        # v0 = (1 / 2) * (np.sign(y0 + Sy) * v_limit_p + np.sign(y0 - Sy) * v_limit_n)
+        # v_width = np.sign(y0 + Sy) * v_limit_p - np.sign(y0 - Sy) * v_limit_n
+        # fy_max = v_width / 2
+
+        # # bandlimit (Eq. 23)
+        # H_filter = (jnp.abs(field.k_grid[0] - v0) <= fy_max) * (jnp.abs(field.k_grid[1] - u0) <= fx_max)
 
         # apply filter
         kernel_field = kernel_field * H_filter
