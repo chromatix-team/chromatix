@@ -55,17 +55,18 @@ def transform_propagate(
     # L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L # this should not be used, since it does not do the right thing for negative z
     lambda_z = field.spectrum * z / n
     # New field is optical_fft minus -1j factor
-    if (not skip_initial_phase):
+    if not skip_initial_phase:
         # Calculating input phase change (defining Q1)
-        input_phase = (jnp.pi/ lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
+        input_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
         field = field * jnp.exp(1j * input_phase)
     field = 1j * optical_fft(field, z, n)
     # Calculating output phase change (defining Q2)
-    if (not skip_final_phase):
-        output_phase = (jnp.pi/ lambda_z) * l2_sq_norm(field.grid) # / jnp.abs(L) ** 2
+    if not skip_final_phase:
+        output_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
         field = field * jnp.exp(1j * output_phase)
     return crop(field, N_pad)
-    
+
+
 def get_precompensation_kernel(
     field: Field,
     z: Union[float, Array],
@@ -74,29 +75,34 @@ def get_precompensation_kernel(
     sz = np.array(field.spatial_shape)
     # helper varaibles
     kz = 2 * z * jnp.pi * n / field.spectrum
-    
+
     # real space coordinates for padded array
-    
+
     # bandlimit helper
     s = field.spectrum * field.k_grid / n
     s_sq = s**2
-       
+
     # bandlimit filter for precompensation, not smoothened!
-    N = _broadcast_1d_to_grid(sz, field.ndim)  # make sure that the size is the outermost dimension
+    N = _broadcast_1d_to_grid(
+        sz, field.ndim
+    )  # make sure that the size is the outermost dimension
     # N = np.reshape(sz, (2,*[1]*len(field.shape))) # alternative version
 
     L = N * field.dx
     pad_factor = 2
     L_new = pad_factor * L
     t = L_new / 2 / jnp.abs(z) + jnp.abs(s)
-    W = jnp.prod((s_sq * (2 + 1/ t**2) <= 1), axis=0)
-    
+    W = jnp.prod((s_sq * (2 + 1 / t**2) <= 1), axis=0)
+
     # calculate kernels
-    H_AS = jnp.sqrt(jnp.maximum(0, 1 - jnp.sum(s_sq, axis=0)))  # or cast to complex? Can W be larger than the free-space limit?
+    H_AS = jnp.sqrt(
+        jnp.maximum(0, 1 - jnp.sum(s_sq, axis=0))
+    )  # or cast to complex? Can W be larger than the free-space limit?
     H_Fr = 1 - jnp.sum(s_sq, axis=0) / 2
     delta_H = W * jnp.exp(1j * kz * (H_AS - H_Fr))
     delta_H = jnp.fft.ifftshift(delta_H, axes=field.spatial_dims)
     return delta_H
+
 
 def transform_propagate_sas(
     field: Field,
@@ -105,13 +111,16 @@ def transform_propagate_sas(
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
-    inverse: bool = False,
 ) -> Field:
     """
     Propagate ``field`` for a distance ``z`` using the scalable angular spectrum (SAS) method.
     See https://doi.org/10.1364/OPTICA.497809
     It changes the pixelsize like the transform method, but it is more accurate because it precompensates
     the phase error. Since it uses three FFTS, it is slower than the transform method.
+    Note that the field is automatically padded by a factor of 2, so the pixelsize is halved.
+
+    Note also that a negative propagation distance causes the code to apply the inverse propagation, i.e. the field is propagated back to the source.
+    In this case the order of single step Fresnel propagation and precompensation is reversed.
 
     Args:
         field: ``Field`` to be propagated.
@@ -119,26 +128,33 @@ def transform_propagate_sas(
         n: A float that defines the refractive index of the medium.
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+
     """
 
     # don't change this pad_factor, only 2 is supported
     sz = np.array(field.spatial_shape)
-   
+
     pad_pix = sz // 2
     # pad array
     field = pad(field, pad_pix, cval=cval)
-    
+
     # apply precompensation
- 
-    if (inverse):
-        field = transform_propagate(field, z, n, 0, 0, skip_initial_phase, skip_final_phase) # z should be negative
+
+    if z < 0:
+        field = transform_propagate(
+            field, z, n, 0, 0, skip_initial_phase, skip_final_phase
+        )  # z should be negative
         delta_H = get_precompensation_kernel(field, z, n)
-        field = kernel_propagate(field, delta_H) # jnp.conj(delta_H)
+        field = kernel_propagate(field, delta_H)  # jnp.conj(delta_H)
     else:
         delta_H = get_precompensation_kernel(field, z, n)
         field = kernel_propagate(field, delta_H)
-        field = transform_propagate(field, z, n, 0, 0, skip_initial_phase, skip_final_phase)
-    return crop(field, pad_pix) # cval is replaced by zero to help the compiler, since there is anyway no padding
+        field = transform_propagate(
+            field, z, n, 0, 0, skip_initial_phase, skip_final_phase
+        )
+    return crop(
+        field, pad_pix
+    )  # cval is replaced by zero to help the compiler, since there is anyway no padding
 
 
 def transfer_propagate(
