@@ -90,8 +90,7 @@ else:
         image = np.zeros([s + radius * 2 for s in shape], dtype=np.uint8)
         _samples = np.linspace(-radius, radius, num=radius * 2, dtype=np.float32)
         circle = color * np.uint8(
-            np.sum(np.array(np.meshgrid(_samples, _samples)) ** 2, axis=0)
-            <= radius**2
+            np.sum(np.array(np.meshgrid(_samples, _samples)) ** 2, axis=0) <= radius**2
         )
         for c in coordinates:
             slices = (slice(c[0], c[0] + radius * 2), slice(c[1], c[1] + radius * 2))
