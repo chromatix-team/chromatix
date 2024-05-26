@@ -1,6 +1,8 @@
 from typing import Optional, Union, Tuple
 import jax
 import jax.numpy as jnp
+import numpy as np # for random
+
 from chex import Array, assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
 from chromatix.field import pad, crop
@@ -8,6 +10,87 @@ from ..utils import _broadcast_2d_to_spatial, center_pad
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 from .polarizers import polarizer
 
+
+# d = Tuple(p) .- start
+# return sum(abs2.(d .- sum(d.*n).*n)), sum(d.*n), sqrt(sum(abs2.(sum(d.*n).*n)));
+
+def sqr_dist_to_line(z, y, x, start, n):
+    """
+    returns an array with each pixel being assigned to the square distance to that line and an array with the distance along the line
+    """
+    dx = x - start[2]
+    dy = y - start[1]
+    dz = z - start[0]
+    dot_dn = dx * n[2] + dy * n[1] + dz * n[0]
+    return (dx - dot_dn * n[2])**2 + (dy - dot_dn * n[1])**2 + (dz - dot_dn * n[0])**2, dot_dn
+
+def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
+    """
+    Draw a line in a 3D object with a given thickness and intensity.
+
+    Args:
+        obj: The object to draw the line in.
+        start: The start of the line.
+        end: The end of the line.
+        thickness: The thickness of the line.
+        intensity: The intensity of the line.
+    """
+    direction = jnp.subtract(stop, start)
+    line_length = jnp.sqrt(jnp.sum(jnp.square(direction)))
+    n = direction / line_length
+
+    sigma2 = 2 * thickness ** 2
+
+    z, y, x = jnp.meshgrid(jnp.arange(arr.shape[0]), jnp.arange(arr.shape[1]), jnp.arange(arr.shape[2]), indexing='ij') 
+    d2, t = sqr_dist_to_line(z, y, x, start, n)
+
+    line_weight = (t>0) * (t<line_length) + (t<=0) *  jnp.exp(-(t ** 2) / sigma2) + (t>=line_length)  *  jnp.exp(-((t-line_length) ** 2) / sigma2)
+    return arr + intensity * jnp.exp(-d2 / sigma2) * line_weight
+    
+def filaments3D(sz, intensity=1.0, radius=0.8, rand_offset=0.05, rel_theta=1.0, num_filaments=50, apply_seed=True, thickness=0.3):
+    """
+    filaments3D(sz; radius = 0.8, rand_offset=0.05, rel_theta=1.0, num_filaments=50, apply_seed=true, thickness=0.8)
+    Create a 3D representation of filaments.
+
+    # Arguments
+    - sz: A 3D shape tuple representing the size of the object.
+    - `radius`: A tuple of real numbers (or a single real number) representing the relative radius of the volume in which the filaments will be created. 
+        Default is 0.8. If a tuple is used, the filamets will be created in a corresponding elliptical volume.
+        Note that the radius is only enforced in the version `filaments3D` which creates the array rather than adding.
+    - `rand_offset`: A tuple of real numbers representing the random offsets of the filaments in relation to the size. Default is 0.05.
+    - `rel_theta`: A real number representing the relative theta range of the filaments. Default is 1.0.
+    - `num_filaments`: An integer representing the number of filaments to be created. Default is 50.
+    - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
+    - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
+
+    The result is added to the obj input array
+    """
+
+    sz = jnp.array(sz)
+
+    # Save the state of the rng to reset it after the function is done
+    rng_state = np.random.get_state()
+    if apply_seed:
+        np.random.seed(42)
+
+    # Create the object
+    obj = jnp.zeros(sz, dtype=np.float32)
+
+    mid = sz // 2
+
+    # Draw random lines equally distributed over the 3D sphere
+    for n in range(num_filaments):
+        phi = 2 * jnp.pi * np.random.rand()
+        # Theta should be scaled such that the distribution over the unit sphere is uniform
+        theta = jnp.arccos(rel_theta * (1 - 2 * np.random.rand()))
+        pos = (sz * radius / 2) * jnp.array([jnp.sin(theta) * jnp.cos(phi), jnp.sin(theta) * jnp.sin(phi), jnp.cos(theta)])
+        pos_offset = jnp.array(rand_offset * sz * (np.random.rand(3) - 0.5))
+        # Draw line
+        obj = draw_line(obj, pos + pos_offset + mid, mid + pos_offset - pos, thickness=thickness, intensity=intensity)
+
+    # Reset the rng to the state before this function was called
+    np.random.set_state(rng_state)
+    return obj
 
 def jones_sample(
     field: VectorField, absorption: Array, dn: Array, thickness: Union[float, Array]

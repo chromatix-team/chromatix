@@ -56,7 +56,7 @@ def point_source(
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    L = jnp.sqrt(field.spectrum * z / n)
+    L = jnp.sqrt(field.spectrum * jnp.abs(z) / n) # the abs are to allow for negative z. Note that this does not lead to a conjugation for a point source
     phase = jnp.pi * l2_sq_norm(field.grid) / L**2
     u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
