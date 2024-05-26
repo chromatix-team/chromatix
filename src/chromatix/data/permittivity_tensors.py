@@ -156,7 +156,7 @@ def calc_scattering_potential(epsilon_r, refractive_index, wavelength):
     """
     k_0 = 2 * jnp.pi / wavelength
     vol_shape = epsilon_r.shape[:3]
-    epsilon_m = jnp.tile(jnp.eye(3) * refractive_index, (*vol_shape, 1, 1))
+    epsilon_m = jnp.tile(jnp.eye(3) * refractive_index**2, (*vol_shape, 1, 1))
     scattering_potential = k_0**2 * (epsilon_m - epsilon_r)
     return scattering_potential
 
