@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 from typing import Optional, Tuple
 import imageio
+import numpy as np
 
 
 def generate_permittivity_tensor(
@@ -161,6 +162,24 @@ def calc_scattering_potential(epsilon_r, refractive_index, wavelength):
     return scattering_potential
 
 
+def calc_scattering_potential_unscaled(epsilon_r, refractive_index):
+    """
+    Create the scattering potential from the permittivity tensor without
+    scaling by k_0^2 which depends on the wavelength.
+
+    Args:
+        epsilon_r (jnp.ndarray): The permittivity tensor of the material.
+        refractive_index (float): The refractive index of the background medium.
+
+    Returns:
+        jnp.ndarray: The scattering potential without scaling factor.
+    """
+    vol_shape = epsilon_r.shape[:-2]
+    epsilon_m = jnp.tile(jnp.eye(3) * refractive_index**2, (*vol_shape, 1, 1))
+    scattering_potential_unscaled = epsilon_m - epsilon_r
+    return scattering_potential_unscaled
+
+
 def process_image_to_epsilon_r(input_path, n_o=1.658, n_e=1.486):
     img = imageio.imread(input_path)
     img = img / img.max()
@@ -186,3 +205,78 @@ def expand_potential_dims(tensor):
 def generate_dummy_potential(vol_shape):
     potential = expand_potential_dims(jnp.ones((*vol_shape, 3, 3)))
     return potential
+
+
+def form_diag_permittivity(n_o, n_e):
+    """
+    Create a diagonal permittivity tensor for a uniaxial crystal.
+
+    Args:
+        n_o (float): The ordinary refractive index.
+        n_e (float): The extraordinary refractive index.
+
+    Returns:
+        np.ndarray: A 3x3 diagonal permittivity tensor.
+    """
+    return np.diag([n_o**2, n_o**2, n_e**2])
+
+
+def create_rotation_matrix(v):
+    """
+    Generates a rotation matrix that aligns the z-axis with the given unit vector v.
+
+    Args:
+        v (array-like): A 3D unit vector [v_x, v_y, v_z].
+
+    Returns:
+        jnp.ndarray: A 3x3 rotation matrix.
+    """
+    v = jnp.asarray(v)
+
+    if not jnp.isclose(jnp.linalg.norm(v), 1.0):
+        raise ValueError("The input vector is not a unit vector.")
+
+    # Ensure the vector is a unit vector
+    v = v / jnp.linalg.norm(v)
+
+    # If the vector is already aligned with the z-axis
+    if jnp.allclose(v, jnp.array([0, 0, 1])):
+        return jnp.eye(3)
+    elif jnp.allclose(v, jnp.array([0, 0, -1])):
+        return jnp.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+
+    # Compute the cross product and angle
+    z_axis = jnp.array([0, 0, 1])
+    v_cross_z = jnp.cross(z_axis, v)
+    sin_theta = jnp.linalg.norm(v_cross_z)
+    cos_theta = jnp.dot(z_axis, v)
+
+    # Normalize the rotation axis
+    k = v_cross_z / sin_theta
+
+    # Construct the skew-symmetric matrix for the rotation axis
+    K = jnp.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
+
+    # Construct the rotation matrix using Rodrigues' rotation formula
+    I = jnp.eye(3)
+    rotation_matrix = I + sin_theta * K + (1 - cos_theta) * jnp.dot(K, K)
+
+    return rotation_matrix
+
+
+def permittivity_from_vector(n_o, n_e, v):
+    """
+    Create a permittivity tensor for a uniaxial crystal with the extraordinary axis aligned with the given vector.
+
+    Args:
+        n_o (float): The ordinary refractive index.
+        n_e (float): The extraordinary refractive index.
+        v (array-like): A 3D unit vector [v_x, v_y, v_z].
+
+    Returns:
+        jnp.array: A 3x3 permittivity tensor.
+    """
+    rot_matrix = create_rotation_matrix(v)
+    diagonal_tensor = form_diag_permittivity(n_o, n_e)
+    permittivity_tensor = rot_matrix @ diagonal_tensor @ rot_matrix.T
+    return permittivity_tensor
