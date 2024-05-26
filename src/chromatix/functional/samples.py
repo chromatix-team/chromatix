@@ -58,7 +58,7 @@ def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
     return arr + intensity * jnp.exp(-d2 / sigma2) * line_weight
 
 
-def filaments3D(
+def filaments_3d(
     sz,
     intensity=1.0,
     radius=0.8,
@@ -69,7 +69,6 @@ def filaments3D(
     thickness=0.3,
 ):
     """
-    filaments3D(sz; radius = 0.8, rand_offset=0.05, rel_theta=1.0, num_filaments=50, apply_seed=true, thickness=0.8)
     Create a 3D representation of filaments.
 
     # Arguments
@@ -83,7 +82,9 @@ def filaments3D(
     - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
     - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
 
-    The result is added to the obj input array
+    The result is added to the obj input array.
+
+    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann.
     """
 
     sz = jnp.array(sz)
@@ -123,6 +124,69 @@ def filaments3D(
     # Reset the rng to the state before this function was called
     np.random.set_state(rng_state)
     return obj
+
+
+def pollen_3d(
+    sz,
+    intensity=1.0,
+    radius=0.8,
+    dphi=0.0,
+    dtheta=0.0,
+    thickness=0.8,
+    filled=False,
+    filled_rel_intensity=0.1,
+):
+    """
+    Create a 3D representation of a pollen grain.
+
+    # Arguments
+    - `sz`: A tuple of three integers representing the size of the volume in which the pollen grain will be created. Default is (128, 128, 128).
+    - `radius`: roughly the relative radius of the pollen grain.
+    - `dphi`: A float representing the phi angle offset in radians. Default is 0.0.
+    - `dtheta`: A float representing the theta angle offset in radians. Default is 0.0.
+    - `thickness`: A float representing the thickness of the pollen grain. Default is 0.8.
+    - `filled`: A boolean representing whether the pollen grain should be filled. Default is false.
+    - `filled_rel_intensity`: A float representing the relative intensity of the filled part of the pollen grain. Default is 0.1.
+
+    # Returns
+    - `ret`: A 3D array representing the pollen grain.
+    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann and the original code by Kai Wicker.
+    """
+
+    sz = jnp.array(sz)
+    z, y, x = jnp.meshgrid(
+        jnp.linspace(-radius, radius, sz[0]),
+        jnp.linspace(-radius, radius, sz[1]),
+        jnp.linspace(-radius, radius, sz[2]),
+        indexing="ij",
+    )
+    thickness = thickness / sz[0]
+
+    r = x**2 + y**2 + z**2
+
+    phi = jnp.atan2(y, x)
+    theta = jnp.asin(z / (jnp.sqrt(x**2 + y**2 + z**2) + 1e-2)) + dtheta
+
+    a = jnp.abs(jnp.cos(theta * 20))
+    b = jnp.abs(
+        jnp.sin(
+            (phi + dphi) * jnp.sqrt(jnp.maximum(0, jnp.cos(theta) * (20.0**2)))
+            - theta
+            + jnp.pi / 2
+        )
+    )
+
+    # calculate the relative distance to the surface of the pollen grain
+    dc = ((0.4 + 1 / 20.0 * (a * b) ** 5) + jnp.cos(phi + dphi) * 1 / 20) - r
+    # return dc
+
+    sigma2 = 2 * (thickness**2)
+    res = (
+        intensity * jnp.exp(-(dc**2) / sigma2)
+        + filled * (dc > 0) * intensity * filled_rel_intensity
+    )
+
+    return res
 
 
 def jones_sample(
