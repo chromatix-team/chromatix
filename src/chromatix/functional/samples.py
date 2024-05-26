@@ -2,6 +2,8 @@ from typing import Optional, Union, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import Array
+from chromatix.utils.fft import fft, ifft
 from chex import Array, assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
 from chromatix.field import pad, crop
@@ -265,3 +267,66 @@ def multislice_thick_sample(
         field, z=-reverse_propagate_distance, n=n, kykx=kykx, N_pad=0
     )
     return crop(field, N_pad)
+
+
+# Propagation of a vector field through a thick sample
+# ----------------------------------------------------
+
+
+# depolarised wave
+def PTFT(k, km: Array) -> Array:
+    Q = jnp.zeros((3, 3, *k.shape[1:]))
+
+    # Setting diagonal
+    Q_diag = 1 - k**2 / km**2
+    Q = Q.at[jnp.diag_indices(3)].set(Q_diag)
+
+    # Calculating off-diagonal elements
+    q_ij = lambda i, j: -k[i] * k[j] / km**2
+    # Setting upper diagonal
+    Q = Q.at[0, 1].set(q_ij(0, 1))
+    Q = Q.at[0, 2].set(q_ij(0, 2))
+    Q = Q.at[1, 2].set(q_ij(1, 2))
+
+    # Setting lower diagonal, mirror symmetry
+    Q = Q.at[1, 0].set(q_ij(0, 1))
+    Q = Q.at[2, 0].set(q_ij(0, 2))
+    Q = Q.at[2, 1].set(q_ij(1, 2))
+
+    # We move the axes to the back, easier matmul
+    return jnp.moveaxis(Q.squeeze(-1), (0, 1), (-2, -1))
+
+
+def bmatvec(a, b):
+    return jnp.matmul(a, b[..., None]).squeeze(-1)
+
+
+def thick_sample_vector(
+    field: VectorField, scatter_potential: Array, dz: float, n: float
+) -> VectorField:
+    def P_op(u: Array) -> Array:
+        phase_factor = jnp.exp(1j * kz * dz)
+        return ifft(bmatvec(Q, phase_factor * fft(u)))
+
+    def Q_op(u: Array) -> Array:
+        return ifft(bmatvec(Q, fft(u)))
+
+    def H_op(u: Array) -> Array:
+        phase_factor = -1j * dz / 2 * jnp.exp(1j * kz * dz) / kz
+        return ifft(bmatvec(Q, phase_factor * fft(u)))
+
+    # Calculating k vector and PTFT
+    # We shift k to align in k-space so we dont need shift just like Q
+    km = 2 * jnp.pi * n / field.spectrum
+    k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
+    breakpoint()
+    kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
+    k = jnp.concatenate([k, kz[None, ...]], axis=0)
+    Q = PTFT(k, km)
+
+    def propagate_slice(u, potential_slice):
+        scatter_field = bmatvec(potential_slice, Q_op(u))
+        return P_op(u) + H_op(scatter_field), None
+
+    u, _ = jax.lax.scan(propagate_slice, field.u, scatter_potential)
+    return field.replace(u=u)
