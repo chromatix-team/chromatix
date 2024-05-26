@@ -222,8 +222,8 @@ def universal_compensator(field: VectorField, retA: float, retB: float) -> Vecto
 
     Args:
         field (VectorField): incoming field.
-        retA (float): retardance induces at a 45 deg angle.
-        retB (float): retardance induces at a 0 deg angle.
+        retA (float): retardance induced at a 45 deg angle.
+        retB (float): retardance induced at a 0 deg angle.
 
     Returns:
         VectorField: outgoing field.

@@ -230,11 +230,14 @@ class Field(struct.PyTreeNode):
         else:
             return NotImplemented
 
+    def __rmul__(self, other: Any) -> Field:
+        return self * other
+
     def __matmul__(self, other: jnp.array) -> Field:
         return self.replace(u=jnp.matmul(self.u, other))
 
-    def __rmul__(self, other: Any) -> Field:
-        return self * other
+    def __rmatmul__(self, other: jnp.array) -> Field:
+        return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
     def __truediv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
