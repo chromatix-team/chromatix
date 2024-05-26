@@ -10,11 +10,16 @@ from chromatix.field import pad, crop
 from ..utils import _broadcast_2d_to_spatial, center_pad
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 from .polarizers import polarizer
+from chromatix.data.permittivity_tensors import (
+    permittivity_from_vector,
+    calc_scattering_potential_unscaled,
+)
 
 
 def sqr_dist_to_line(z, y, x, start, n):
     """
-    returns an array with each pixel being assigned to the square distance to that line and an array with the distance along the line
+    Returns: array with each pixel being assigned to the square distance
+        to that line and an array with the distance along the line
     """
     dx = x - start[2]
     dy = y - start[1]
@@ -25,12 +30,12 @@ def sqr_dist_to_line(z, y, x, start, n):
     ) ** 2, dot_dn
 
 
-def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
+def draw_line(obj_shape, start, stop, thickness=0.3, intensity=1.0):
     """
     Draw a line in a 3D object with a given thickness and intensity.
 
     Args:
-        obj: The object to draw the line in.
+        obj_shape: The shape of the object to draw the line in.
         start: The start of the line.
         end: The end of the line.
         thickness: The thickness of the line.
@@ -43,9 +48,9 @@ def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
     sigma2 = 2 * thickness**2
 
     z, y, x = jnp.meshgrid(
-        jnp.arange(arr.shape[0]),
-        jnp.arange(arr.shape[1]),
-        jnp.arange(arr.shape[2]),
+        jnp.arange(obj_shape[0]),
+        jnp.arange(obj_shape[1]),
+        jnp.arange(obj_shape[2]),
         indexing="ij",
     )
     d2, t = sqr_dist_to_line(z, y, x, start, n)
@@ -55,11 +60,22 @@ def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
         + (t <= 0) * jnp.exp(-(t**2) / sigma2)
         + (t >= line_length) * jnp.exp(-((t - line_length) ** 2) / sigma2)
     )
-    return arr + intensity * jnp.exp(-d2 / sigma2) * line_weight
+    return intensity * jnp.exp(-d2 / sigma2) * line_weight
+
+
+def update_object(arr, intensity_arr, chi=None):
+    """
+    Update the array with the intensity array and the scattering potential.
+    """
+    if chi is None:
+        updated_arr = arr + intensity_arr
+    else:
+        updated_arr = arr + intensity_arr[:, :, :, None, None] * chi
+    return updated_arr
 
 
 def filaments_3d(
-    sz,
+    sz: Tuple[int, int, int],
     intensity=1.0,
     radius=0.8,
     rand_offset=0.05,
@@ -67,6 +83,9 @@ def filaments_3d(
     num_filaments=50,
     apply_seed=True,
     thickness=0.3,
+    ri_anisotropic=(1.0, 1.0),
+    ri_medium=1.0,
+    calc_chi=False,
 ):
     """
     Create a 3D representation of filaments.
@@ -81,6 +100,9 @@ def filaments_3d(
     - `num_filaments`: An integer representing the number of filaments to be created. Default is 50.
     - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
     - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
+    - `ri_anisotropic`: A tuple of real numbers representing the refractive indices of the filaments. Default is (1.0, 1.0).
+    - `ri_medium`: A real number representing the refractive index of the surrounding medium. Default is 1.0.
+    - `calc_chi`: A boolean representing whether to calculate the scattering potential. Default is false.
 
     The result is added to the obj input array.
 
@@ -96,31 +118,42 @@ def filaments_3d(
 
     # Create the object
     obj = jnp.zeros(sz, dtype=np.float32)
+    if calc_chi:
+        obj = jnp.zeros((*sz, 3, 3), dtype=np.float32)
 
     mid = sz // 2
+
+    n_o, n_e = ri_anisotropic
 
     # Draw random lines equally distributed over the 3D sphere
     for n in range(num_filaments):
         phi = 2 * jnp.pi * np.random.rand()
         # Theta should be scaled such that the distribution over the unit sphere is uniform
         theta = jnp.arccos(rel_theta * (1 - 2 * np.random.rand()))
-        pos = (sz * radius / 2) * jnp.array(
+        orientation = jnp.array(
             [
                 jnp.sin(theta) * jnp.cos(phi),
                 jnp.sin(theta) * jnp.sin(phi),
                 jnp.cos(theta),
             ]
         )
+        if calc_chi:
+            epsilon_r = permittivity_from_vector(n_o, n_e, orientation)
+            chi = calc_scattering_potential_unscaled(epsilon_r, ri_medium)
+        else:
+            chi = None
+
+        pos = (sz * radius / 2) * orientation
         pos_offset = jnp.array(rand_offset * sz * (np.random.rand(3) - 0.5))
         # Draw line
-        obj = draw_line(
-            obj,
+        drawing = draw_line(
+            obj.shape,
             pos + pos_offset + mid,
             mid + pos_offset - pos,
             thickness=thickness,
             intensity=intensity,
         )
-
+        obj = update_object(obj, drawing, chi)
     # Reset the rng to the state before this function was called
     np.random.set_state(rng_state)
     return obj
