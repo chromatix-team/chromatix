@@ -22,7 +22,7 @@ def conditional_fft(field: Field, z: float, n: float):
         (z >= 0) * -1j * jnp.prod(field.dx, axis=0, keepdims=False) / L_sq
     )
     norm_ifft = (  # ifft for negative z, needs to use the conjugate and pre-apply a one pixel shift
-        1j
+        -1j  # also account for the conjugate beeing applied below
         * (z < 0)
         * (  # since all the steps should be run in backwards order we have to devide. However z is negative which changes the sign of norm, requiring the phase change
             L_sq / jnp.prod(du, axis=0, keepdims=False)
