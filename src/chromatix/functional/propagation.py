@@ -142,6 +142,7 @@ def asm_propagate(
     cval: float = 0,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     bandlimit: bool = False,
+    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -165,12 +166,13 @@ def asm_propagate(
         bandlimit: If provided, bandlimited the kernel according to "Band-Limited 
             Angular Spectrum Method for Numerical Simulation of Free-Space 
             Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
+        shift_yx: If provided, defines a shift in microns in the destination plane.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
-    propagator = compute_asm_propagator(field, z, n, kykx, bandlimit)
+    propagator = compute_asm_propagator(field, z, n, kykx, bandlimit, shift_yx)
     field = kernel_propagate(field, propagator)
     if mode == "same":
         field = crop(field, N_pad)
@@ -248,6 +250,7 @@ def compute_asm_propagator(
     n: float,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     bandlimit: bool = False,
+    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -264,13 +267,23 @@ def compute_asm_propagator(
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
+        bandlimit: If provided, bandlimited the kernel according to "Band-Limited 
+            Angular Spectrum Method for Numerical Simulation of Free-Space 
+            Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
+        shift_yx: If provided, defines a shift in microns in the destination plane.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
     delay = jnp.sqrt(jnp.abs(kernel))
     delay = jnp.where(kernel >= 0, delay, 1j * delay)  # keep evanescent modes
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * delay
+    
+    # shift in output plane
+    shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
+    out_shift = 2 * jnp.pi * jnp.sum(field.k_grid * shift_yx, axis=0)
+
+    # compute field
+    phase = 2 * jnp.pi * (z * n / field.spectrum) * delay + out_shift
     kernel_field = jnp.exp(1j * phase)
 
     if bandlimit:
