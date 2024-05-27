@@ -36,6 +36,7 @@ def transform_propagate(
     Fresnel propagate ``field`` for a distance ``z`` using transform method.
     This method is also called the single-FFT (SFT-FR) Fresnel propagation method.
     Note that this method changes the sampling of the resulting field.
+    If the distance is negative, the field is propagated back to the source inverting essentially performing an inverse.
 
     Args:
         field: ``Field`` to be propagated.
@@ -59,7 +60,10 @@ def transform_propagate(
         # Calculating input phase change (defining Q1)
         input_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
         field = field * jnp.exp(1j * input_phase)
-    field = 1j * optical_fft(field, z, n)
+    if z < 0:
+        field = 1j * optical_fft(field, z, n)
+    else:
+        field = 1j * optical_fft(field, z, n)
     # Calculating output phase change (defining Q2)
     if not skip_final_phase:
         output_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
