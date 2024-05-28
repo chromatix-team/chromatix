@@ -290,7 +290,6 @@ def compute_asm_propagator(
 
         # Table 1 of "Shifted angular spectrum method for off-axis numerical 
         # propagation" (2010) by Matsushima in vectorized form
-        shift_yx = (kykx / field.dk)    # shift in microns, TODO check if this is the shift or should be input arg
         k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
         k_limit_n = ((shift_yx - 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
         k0 = (1 / 2) * (
