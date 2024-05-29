@@ -367,10 +367,10 @@ def compute_asm_propagator(
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    delay = jnp.sqrt(jnp.abs(kernel))
-    delay = jnp.where(kernel >= 0, delay, 1j * delay)  # keep evanescent modes
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * delay
-    return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
+    delay = jnp.sqrt(jnp.complex64(kernel))  # keep evanescent modes
+    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * delay
+    kernel = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
+    return jnp.fft.ifftshift(kernel, axes=field.spatial_dims)
 
 
 def compute_padding_transform(height: int, spectrum: float, dx: float, z: float) -> int:
