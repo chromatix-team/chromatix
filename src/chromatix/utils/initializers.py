@@ -143,6 +143,7 @@ def zernike_aberrations(
     NA: float,
     ansi_indices: Sequence[int],
     coefficients: Sequence[float],
+    normalization: bool = True,
 ) -> Array:
     """
     Computes Zernike aberrations
@@ -213,6 +214,13 @@ def zernike_aberrations(
             Z = R_nm * jnp.sin(theta * abs(m))
 
         Z = Z * mask
+
+        if normalization:
+            if m == 0:
+                Z = Z * jnp.sqrt(n + 1)
+            else:
+                Z = Z * jnp.sqrt(2 * (n + 1))
+
         zernike_polynomials.append(Z)
 
     zernike_polynomials = jnp.asarray(zernike_polynomials)
