@@ -29,9 +29,14 @@ def transform_propagate(
     n: float,
     N_pad: Union[int, Tuple[int, int]],
     cval: float = 0,
+    skip_initial_phase: bool = False,
+    skip_final_phase: bool = False,
 ) -> Field:
     """
     Fresnel propagate ``field`` for a distance ``z`` using transform method.
+    This method is also called the single-FFT (SFT-FR) Fresnel propagation method.
+    Note that this method changes the sampling of the resulting field.
+    If the distance is negative, the field is propagated back to the source inverting essentially performing an inverse.
 
     Args:
         field: ``Field`` to be propagated.
@@ -48,14 +53,112 @@ def transform_propagate(
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     field = pad(field, N_pad, cval=cval)
     # Fourier normalization factor
-    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
-    # Calculating input phase change
-    input_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
+    # L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L # this should not be used, since it does not do the right thing for negative z
+    lambda_z = field.spectrum * z / n
     # New field is optical_fft minus -1j factor
-    field = 1j * optical_fft(field * jnp.exp(1j * input_phase), z, n)
-    output_phase = jnp.pi * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
-    field = field * jnp.exp(1j * output_phase)
+    if not skip_initial_phase:
+        # Calculating input phase change (defining Q1)
+        input_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
+        field = field * jnp.exp(1j * input_phase)
+    if z < 0:
+        field = 1j * optical_fft(field, z, n)
+    else:
+        field = 1j * optical_fft(field, z, n)
+    # Calculating output phase change (defining Q2)
+    if not skip_final_phase:
+        output_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
+        field = field * jnp.exp(1j * output_phase)
     return crop(field, N_pad)
+
+
+def get_precompensation_kernel(
+    field: Field,
+    z: Union[float, Array],
+    n: float,
+) -> Field:
+    sz = np.array(field.spatial_shape)
+    # helper varaibles
+    kz = 2 * z * jnp.pi * n / field.spectrum
+
+    # real space coordinates for padded array
+
+    # bandlimit helper
+    s = field.spectrum * field.k_grid / n
+    s_sq = s**2
+
+    # bandlimit filter for precompensation, not smoothened!
+    N = _broadcast_1d_to_grid(
+        sz, field.ndim
+    )  # make sure that the size is the outermost dimension
+    # N = np.reshape(sz, (2,*[1]*len(field.shape))) # alternative version
+
+    L = N * field.dx
+    pad_factor = 2
+    L_new = pad_factor * L
+    t = L_new / 2 / jnp.abs(z) + jnp.abs(s)
+    W = jnp.prod((s_sq * (2 + 1 / t**2) <= 1), axis=0)
+
+    # calculate kernels
+    H_AS = jnp.sqrt(
+        jnp.maximum(0, 1 - jnp.sum(s_sq, axis=0))
+    )  # or cast to complex? Can W be larger than the free-space limit?
+    H_Fr = 1 - jnp.sum(s_sq, axis=0) / 2
+    delta_H = W * jnp.exp(1j * kz * (H_AS - H_Fr))
+    delta_H = jnp.fft.ifftshift(delta_H, axes=field.spatial_dims)
+    return delta_H
+
+
+def transform_propagate_sas(
+    field: Field,
+    z: Union[float, Array],
+    n: float,
+    cval: float = 0,
+    skip_initial_phase: bool = False,
+    skip_final_phase: bool = False,
+) -> Field:
+    """
+    Propagate ``field`` for a distance ``z`` using the scalable angular spectrum (SAS) method.
+    See https://doi.org/10.1364/OPTICA.497809
+    It changes the pixelsize like the transform method, but it is more accurate because it precompensates
+    the phase error. Since it uses three FFTS, it is slower than the transform method.
+    Note that the field is automatically padded by a factor of 2, so the pixelsize is halved.
+
+    Note also that a negative propagation distance causes the code to apply the inverse propagation, i.e. the field is propagated back to the source.
+    In this case the order of single step Fresnel propagation and precompensation is reversed.
+
+    Args:
+        field: ``Field`` to be propagated.
+        z: Distance(s) to propagate, either a float or a 1D array.
+        n: A float that defines the refractive index of the medium.
+        cval: The background value to use when padding the Field. Defaults to 0
+            for zero padding.
+
+    """
+
+    # don't change this pad_factor, only 2 is supported
+    sz = np.array(field.spatial_shape)
+
+    pad_pix = sz // 2
+    # pad array
+    field = pad(field, pad_pix, cval=cval)
+
+    # apply precompensation
+
+    if z < 0:
+        field = transform_propagate(
+            field, z, n, 0, 0, skip_initial_phase, skip_final_phase
+        )  # z should be negative
+        delta_H = get_precompensation_kernel(field, z, n)
+        field = kernel_propagate(field, delta_H)  # jnp.conj(delta_H)
+    else:
+        delta_H = get_precompensation_kernel(field, z, n)
+        field = kernel_propagate(field, delta_H)
+        field = transform_propagate(
+            field, z, n, 0, 0, skip_initial_phase, skip_final_phase
+        )
+    return crop(
+        field, pad_pix
+    )  # cval is replaced by zero to help the compiler, since there is anyway no padding
 
 
 def transfer_propagate(
@@ -69,6 +172,7 @@ def transfer_propagate(
 ) -> Field:
     """
     Fresnel propagate ``field`` for a distance ``z`` using transfer method.
+    This method is also called the convolutional Fresnel propagation (CV-FR) method.
 
     Args:
         field: ``Field`` to be propagated.
@@ -275,19 +379,14 @@ def compute_asm_propagator(
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    delay = jnp.sqrt(jnp.abs(kernel))
-    delay = jnp.where(kernel >= 0, delay, 1j * delay)  # keep evanescent modes
-    
+    delay = jnp.sqrt(jnp.complex64(kernel))  # keep evanescent modes
     # shift in output plane
     shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
     out_shift = 2 * jnp.pi * jnp.sum(field.k_grid * shift_yx, axis=0)
-
     # compute field
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * delay + out_shift
-    kernel_field = jnp.exp(1j * phase)
-
+    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * delay + out_shift
+    kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
     if bandlimit:
-
         # Table 1 of "Shifted angular spectrum method for off-axis numerical 
         # propagation" (2010) by Matsushima in vectorized form
         k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
@@ -299,14 +398,11 @@ def compute_asm_propagator(
         k_width = jnp.sign(shift_yx + field.surface_area) * k_limit_p - \
             jnp.sign(shift_yx - field.surface_area) * k_limit_n
         k_max = k_width / 2
-
         # obtain rect filter to bandlimit (Eq. 23)
         H_filter_yx = (jnp.abs(field.k_grid - k0) <= k_max)
         H_filter = H_filter_yx[0] * H_filter_yx[1]
-
         # apply filter
         kernel_field = kernel_field * H_filter
-
     return jnp.fft.ifftshift(kernel_field, axes=field.spatial_dims)
 
 

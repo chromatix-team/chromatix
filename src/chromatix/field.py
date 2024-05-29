@@ -175,7 +175,8 @@ class Field(struct.PyTreeNode):
 
     @property
     def amplitude(self) -> Array:
-        """Amplitude of the complex field, shape `(B... H W C [1 | 3])`."""
+        """Amplitude of the complex field, shape `(B... H W C [1 | 3])`.
+        This is actually what is called the "magnitude"."""
         return jnp.abs(self.u)
 
     @property
@@ -211,6 +212,11 @@ class Field(struct.PyTreeNode):
         """Number of dimensions (the rank) of the complex field."""
         return self.u.ndim
 
+    @property
+    def conj(self) -> Array:
+        """conjugate of the complex field, as a field of the same shape."""
+        return self.replace(u=jnp.conj(self.u))
+
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
@@ -243,6 +249,12 @@ class Field(struct.PyTreeNode):
 
     def __rmul__(self, other: Any) -> Field:
         return self * other
+
+    def __matmul__(self, other: jnp.array) -> Field:
+        return self.replace(u=jnp.matmul(self.u, other))
+
+    def __rmatmul__(self, other: jnp.array) -> Field:
+        return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
     def __truediv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
@@ -408,6 +420,13 @@ class VectorField(Field):
 
 
 def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -> Field:
+    """
+    Pad the `field` with zeros in one or two dimensions.
+    Args:
+        field: The field to pad.
+        pad_width: The number of pixels to pad the field with.
+        cval: The value to pad the field with (defauls is zero).
+    """
     if isinstance(pad_width, int):
         pad_width = (pad_width, pad_width)
     u = jnp.pad(
@@ -419,6 +438,12 @@ def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -
 
 
 def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
+    """
+    Crop the `field` by removing pixels from the edges.
+    Args:
+        field: The field to crop.
+        crop_width: The number of pixels to remove from the edges.
+    """
     if isinstance(crop_width, int):
         crop_width = (crop_width, crop_width)
     crop = [
@@ -426,3 +451,29 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
         for size, n in zip(field.shape, (0,) * (field.ndim - 4) + (*crop_width, 0, 0))
     ]
     return field.replace(u=field.u[tuple(crop)])
+
+
+def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
+    """
+    Shift the `field` by an integer number of pixels in one or two dimensions.
+    Args:
+        field: The field to shift.
+        shiftby: The number of pixels to shift the field by.
+
+    See also shift_ft for subpixel shifts.
+    """
+    if isinstance(shiftby, int):
+        shiftby = (shiftby, shiftby)
+
+    crop = [
+        (slice(n, dsize) if (n > 0) else slice(0, dsize + n))
+        for dsize, n in zip(field.shape, (0,) * (field.ndim - 4) + (*shiftby, 0, 0))
+    ]
+
+    pads = [
+        ((0, n) if (n > 0) else (-n, 0))
+        for n in ((0,) * (field.ndim - 4) + (*shiftby, 0, 0))
+    ]
+    u = jnp.pad(field.u[tuple(crop)], pads)
+
+    return field.replace(u=u)
