@@ -50,6 +50,7 @@ class BasicSensor(nn.Module):
         self,
         sensor_input: Union[Field, Array],
         input_spacing: Optional[Union[float, Array]] = None,
+        resample: bool = True,
     ) -> Array:
         """
         Resample the given ``sensor_input`` to the pixels of the sensor and
@@ -59,16 +60,15 @@ class BasicSensor(nn.Module):
             sensor_input: The incoming ``Field`` or intensity ``Array``.
             input_spacing: The spacing of the input, only required if resampling
                 is required and the input is an ``Array``.
+            resample: Whether to perform resampling or not. Only matters if
+                ``resampling_method`` is ``None``. Defaults to ``True``.
         """
         if isinstance(sensor_input, Field):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same
             # spacing at all wavelengths when calculating intensity!
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
         input_spacing = jnp.atleast_1d(input_spacing)
-        # Only want to resample if the spacing does not match
-        if self.resampling_method is not None and jnp.any(
-            input_spacing != self.spacing
-        ):
+        if resample and self.resampling_method is not None:
             resample_fn = self.resample_fn
         else:
             resample_fn = None
