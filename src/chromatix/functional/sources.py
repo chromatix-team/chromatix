@@ -1,3 +1,5 @@
+import numpy as np
+import jax
 import jax.numpy as jnp
 from ..field import Field, ScalarField, VectorField
 from typing import Optional, Callable, Union, Tuple
@@ -29,6 +31,7 @@ def point_source(
     amplitude: Union[float, Array] = 1.0,
     pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
     scalar: bool = True,
+    epsilon: float = np.finfo(np.float32).eps,
 ) -> Field:
     """
     Generates field due to point source a distance ``z`` away.
@@ -51,14 +54,15 @@ def point_source(
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
+        epsilon: Value added to denominators for numerical stability.
     """
     create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    L = jnp.sqrt(field.spectrum * z / n)
-    phase = jnp.pi * l2_sq_norm(field.grid) / L**2
-    u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
+    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))
+    phase = jnp.pi * l2_sq_norm(field.grid) / (L**2 + epsilon)
+    u = amplitude * -1j / (L**2 + epsilon) * jnp.exp(1j * phase)
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
@@ -76,6 +80,7 @@ def objective_point_source(
     NA: float,
     power: float = 1.0,
     amplitude: Union[float, Array] = 1.0,
+    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     scalar: bool = True,
 ) -> Field:
     """
@@ -98,6 +103,8 @@ def objective_point_source(
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
+        offset: The offset of the point source in the plane. Should be an array
+            of shape `[2,]` in the format `[y, x]`.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
@@ -105,8 +112,9 @@ def objective_point_source(
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
+    offset = _broadcast_1d_to_grid(offset, field.ndim)
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid) / L**2
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2
     u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
     D = 2 * f * NA / n
@@ -143,7 +151,7 @@ def plane_wave(
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
         kykx: Defines the orientation of the plane wave. Should be an
-            array of shape `[2,]` in the format [ky, kx].
+            array of shape `[2,]` in the format `[ky, kx]`.
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.

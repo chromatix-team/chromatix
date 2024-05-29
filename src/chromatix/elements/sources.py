@@ -1,3 +1,4 @@
+import numpy as np
 import jax.numpy as jnp
 import flax.linen as nn
 from ..field import Field
@@ -39,6 +40,7 @@ class PointSource(nn.Module):
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
+        epsilon: Value added to denominators for numerical stability.
     """
 
     shape: Tuple[int, int]
@@ -51,6 +53,7 @@ class PointSource(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
+    epsilon: float = np.finfo(np.float32).eps,
 
     @nn.compact
     def __call__(self) -> Field:
@@ -69,6 +72,7 @@ class PointSource(nn.Module):
             amplitude,
             self.pupil,
             self.scalar,
+            self.epsilon
         )
 
 
@@ -108,6 +112,7 @@ class ObjectivePointSource(nn.Module):
     NA: Union[float, Callable[[PRNGKey], float]]
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
+    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     scalar: bool = True
 
     @nn.compact
@@ -117,6 +122,7 @@ class ObjectivePointSource(nn.Module):
         NA = register(self, "NA")
         power = register(self, "power")
         amplitude = register(self, "amplitude")
+        offset = register(self, "offset")
 
         return objective_point_source(
             self.shape,
@@ -129,6 +135,7 @@ class ObjectivePointSource(nn.Module):
             NA,
             power,
             amplitude,
+            offset,
             self.scalar,
         )
 
