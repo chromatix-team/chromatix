@@ -1,8 +1,9 @@
 from typing import Optional, Union, Tuple
 import jax
 import jax.numpy as jnp
-import numpy as np # for random
-
+import numpy as np
+from jax import Array
+from chromatix.utils.fft import fft, ifft
 from chex import Array, assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
 from chromatix.field import pad, crop
@@ -10,9 +11,6 @@ from ..utils import _broadcast_2d_to_spatial, center_pad
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 from .polarizers import polarizer
 
-
-# d = Tuple(p) .- start
-# return sum(abs2.(d .- sum(d.*n).*n)), sum(d.*n), sqrt(sum(abs2.(sum(d.*n).*n)));
 
 def sqr_dist_to_line(z, y, x, start, n):
     """
@@ -22,7 +20,10 @@ def sqr_dist_to_line(z, y, x, start, n):
     dy = y - start[1]
     dz = z - start[0]
     dot_dn = dx * n[2] + dy * n[1] + dz * n[0]
-    return (dx - dot_dn * n[2])**2 + (dy - dot_dn * n[1])**2 + (dz - dot_dn * n[0])**2, dot_dn
+    return (dx - dot_dn * n[2]) ** 2 + (dy - dot_dn * n[1]) ** 2 + (
+        dz - dot_dn * n[0]
+    ) ** 2, dot_dn
+
 
 def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
     """
@@ -39,22 +40,40 @@ def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
     line_length = jnp.sqrt(jnp.sum(jnp.square(direction)))
     n = direction / line_length
 
-    sigma2 = 2 * thickness ** 2
+    sigma2 = 2 * thickness**2
 
-    z, y, x = jnp.meshgrid(jnp.arange(arr.shape[0]), jnp.arange(arr.shape[1]), jnp.arange(arr.shape[2]), indexing='ij') 
+    z, y, x = jnp.meshgrid(
+        jnp.arange(arr.shape[0]),
+        jnp.arange(arr.shape[1]),
+        jnp.arange(arr.shape[2]),
+        indexing="ij",
+    )
     d2, t = sqr_dist_to_line(z, y, x, start, n)
 
-    line_weight = (t>0) * (t<line_length) + (t<=0) *  jnp.exp(-(t ** 2) / sigma2) + (t>=line_length)  *  jnp.exp(-((t-line_length) ** 2) / sigma2)
+    line_weight = (
+        (t > 0) * (t < line_length)
+        + (t <= 0) * jnp.exp(-(t**2) / sigma2)
+        + (t >= line_length) * jnp.exp(-((t - line_length) ** 2) / sigma2)
+    )
     return arr + intensity * jnp.exp(-d2 / sigma2) * line_weight
-    
-def filaments3D(sz, intensity=1.0, radius=0.8, rand_offset=0.05, rel_theta=1.0, num_filaments=50, apply_seed=True, thickness=0.3):
+
+
+def filaments_3d(
+    sz,
+    intensity=1.0,
+    radius=0.8,
+    rand_offset=0.05,
+    rel_theta=1.0,
+    num_filaments=50,
+    apply_seed=True,
+    thickness=0.3,
+):
     """
-    filaments3D(sz; radius = 0.8, rand_offset=0.05, rel_theta=1.0, num_filaments=50, apply_seed=true, thickness=0.8)
     Create a 3D representation of filaments.
 
     # Arguments
     - sz: A 3D shape tuple representing the size of the object.
-    - `radius`: A tuple of real numbers (or a single real number) representing the relative radius of the volume in which the filaments will be created. 
+    - `radius`: A tuple of real numbers (or a single real number) representing the relative radius of the volume in which the filaments will be created.
         Default is 0.8. If a tuple is used, the filamets will be created in a corresponding elliptical volume.
         Note that the radius is only enforced in the version `filaments3D` which creates the array rather than adding.
     - `rand_offset`: A tuple of real numbers representing the random offsets of the filaments in relation to the size. Default is 0.05.
@@ -63,7 +82,9 @@ def filaments3D(sz, intensity=1.0, radius=0.8, rand_offset=0.05, rel_theta=1.0, 
     - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
     - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
 
-    The result is added to the obj input array
+    The result is added to the obj input array.
+
+    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann.
     """
 
     sz = jnp.array(sz)
@@ -83,14 +104,90 @@ def filaments3D(sz, intensity=1.0, radius=0.8, rand_offset=0.05, rel_theta=1.0, 
         phi = 2 * jnp.pi * np.random.rand()
         # Theta should be scaled such that the distribution over the unit sphere is uniform
         theta = jnp.arccos(rel_theta * (1 - 2 * np.random.rand()))
-        pos = (sz * radius / 2) * jnp.array([jnp.sin(theta) * jnp.cos(phi), jnp.sin(theta) * jnp.sin(phi), jnp.cos(theta)])
+        pos = (sz * radius / 2) * jnp.array(
+            [
+                jnp.sin(theta) * jnp.cos(phi),
+                jnp.sin(theta) * jnp.sin(phi),
+                jnp.cos(theta),
+            ]
+        )
         pos_offset = jnp.array(rand_offset * sz * (np.random.rand(3) - 0.5))
         # Draw line
-        obj = draw_line(obj, pos + pos_offset + mid, mid + pos_offset - pos, thickness=thickness, intensity=intensity)
+        obj = draw_line(
+            obj,
+            pos + pos_offset + mid,
+            mid + pos_offset - pos,
+            thickness=thickness,
+            intensity=intensity,
+        )
 
     # Reset the rng to the state before this function was called
     np.random.set_state(rng_state)
     return obj
+
+
+def pollen_3d(
+    sz,
+    intensity=1.0,
+    radius=0.8,
+    dphi=0.0,
+    dtheta=0.0,
+    thickness=0.8,
+    filled=False,
+    filled_rel_intensity=0.1,
+):
+    """
+    Create a 3D representation of a pollen grain.
+
+    # Arguments
+    - `sz`: A tuple of three integers representing the size of the volume in which the pollen grain will be created. Default is (128, 128, 128).
+    - `radius`: roughly the relative radius of the pollen grain.
+    - `dphi`: A float representing the phi angle offset in radians. Default is 0.0.
+    - `dtheta`: A float representing the theta angle offset in radians. Default is 0.0.
+    - `thickness`: A float representing the thickness of the pollen grain. Default is 0.8.
+    - `filled`: A boolean representing whether the pollen grain should be filled. Default is false.
+    - `filled_rel_intensity`: A float representing the relative intensity of the filled part of the pollen grain. Default is 0.1.
+
+    # Returns
+    - `ret`: A 3D array representing the pollen grain.
+    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann and the original code by Kai Wicker.
+    """
+
+    sz = jnp.array(sz)
+    z, y, x = jnp.meshgrid(
+        jnp.linspace(-radius, radius, sz[0]),
+        jnp.linspace(-radius, radius, sz[1]),
+        jnp.linspace(-radius, radius, sz[2]),
+        indexing="ij",
+    )
+    thickness = thickness / sz[0]
+
+    r = x**2 + y**2 + z**2
+
+    phi = jnp.atan2(y, x)
+    theta = jnp.asin(z / (jnp.sqrt(x**2 + y**2 + z**2) + 1e-2)) + dtheta
+
+    a = jnp.abs(jnp.cos(theta * 20))
+    b = jnp.abs(
+        jnp.sin(
+            (phi + dphi) * jnp.sqrt(jnp.maximum(0, jnp.cos(theta) * (20.0**2)))
+            - theta
+            + jnp.pi / 2
+        )
+    )
+
+    # calculate the relative distance to the surface of the pollen grain
+    dc = ((0.4 + 1 / 20.0 * (a * b) ** 5) + jnp.cos(phi + dphi) * 1 / 20) - r
+    # return dc
+
+    sigma2 = 2 * (thickness**2)
+    res = (
+        intensity * jnp.exp(-(dc**2) / sigma2)
+        + filled * (dc > 0) * intensity * filled_rel_intensity
+    )
+
+    return res
+
 
 def jones_sample(
     field: VectorField, absorption: Array, dn: Array, thickness: Union[float, Array]
@@ -234,3 +331,66 @@ def multislice_thick_sample(
         field, z=-reverse_propagate_distance, n=n, kykx=kykx, N_pad=0
     )
     return crop(field, N_pad)
+
+
+# Propagation of a vector field through a thick sample
+# ----------------------------------------------------
+
+
+# depolarised wave
+def PTFT(k, km: Array) -> Array:
+    Q = jnp.zeros((3, 3, *k.shape[1:]))
+
+    # Setting diagonal
+    Q_diag = 1 - k**2 / km**2
+    Q = Q.at[jnp.diag_indices(3)].set(Q_diag)
+
+    # Calculating off-diagonal elements
+    q_ij = lambda i, j: -k[i] * k[j] / km**2
+    # Setting upper diagonal
+    Q = Q.at[0, 1].set(q_ij(0, 1))
+    Q = Q.at[0, 2].set(q_ij(0, 2))
+    Q = Q.at[1, 2].set(q_ij(1, 2))
+
+    # Setting lower diagonal, mirror symmetry
+    Q = Q.at[1, 0].set(q_ij(0, 1))
+    Q = Q.at[2, 0].set(q_ij(0, 2))
+    Q = Q.at[2, 1].set(q_ij(1, 2))
+
+    # We move the axes to the back, easier matmul
+    return jnp.moveaxis(Q.squeeze(-1), (0, 1), (-2, -1))
+
+
+def bmatvec(a, b):
+    return jnp.matmul(a, b[..., None]).squeeze(-1)
+
+
+def thick_sample_vector(
+    field: VectorField, scatter_potential: Array, dz: float, n: float
+) -> VectorField:
+    def P_op(u: Array) -> Array:
+        phase_factor = jnp.exp(1j * kz * dz)
+        return ifft(bmatvec(Q, phase_factor * fft(u)))
+
+    def Q_op(u: Array) -> Array:
+        return ifft(bmatvec(Q, fft(u)))
+
+    def H_op(u: Array) -> Array:
+        phase_factor = -1j * dz / 2 * jnp.exp(1j * kz * dz) / kz
+        return ifft(bmatvec(Q, phase_factor * fft(u)))
+
+    # Calculating k vector and PTFT
+    # We shift k to align in k-space so we dont need shift just like Q
+    km = 2 * jnp.pi * n / field.spectrum
+    k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
+    breakpoint()
+    kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
+    k = jnp.concatenate([k, kz[None, ...]], axis=0)
+    Q = PTFT(k, km)
+
+    def propagate_slice(u, potential_slice):
+        scatter_field = bmatvec(potential_slice, Q_op(u))
+        return P_op(u) + H_op(scatter_field), None
+
+    u, _ = jax.lax.scan(propagate_slice, field.u, scatter_potential)
+    return field.replace(u=u)
