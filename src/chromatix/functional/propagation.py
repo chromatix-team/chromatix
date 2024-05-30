@@ -49,24 +49,26 @@ def transform_propagate(
             compute the padding.
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+        skip_initial_phase: Whether to skip the input phase change (before
+            Fourier transforming). Defaults to False, in which case the input
+            phase change is not skipped.
+        skip_final_phase: Whether to skip the output phase change (after Fourier
+            transforming). Defaults to False, in which case the output phase
+            change is not skipped.
     """
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     field = pad(field, N_pad, cval=cval)
     # Fourier normalization factor
-    # L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L # this should not be used, since it does not do the right thing for negative z
     lambda_z = field.spectrum * z / n
     # New field is optical_fft minus -1j factor
     if not skip_initial_phase:
         # Calculating input phase change (defining Q1)
-        input_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
+        input_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)
         field = field * jnp.exp(1j * input_phase)
-    if z < 0:
-        field = 1j * optical_fft(field, z, n)
-    else:
-        field = 1j * optical_fft(field, z, n)
+    field = 1j * optical_fft(field, z, n)
     # Calculating output phase change (defining Q2)
     if not skip_final_phase:
-        output_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
+        output_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)
         field = field * jnp.exp(1j * output_phase)
     return crop(field, N_pad)
 
