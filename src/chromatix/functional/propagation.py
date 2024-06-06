@@ -36,6 +36,7 @@ def transform_propagate(
     Fresnel propagate ``field`` for a distance ``z`` using transform method.
     This method is also called the single-FFT (SFT-FR) Fresnel propagation method.
     Note that this method changes the sampling of the resulting field.
+    If the distance is negative, the field is propagated back to the source inverting essentially performing an inverse.
 
     Args:
         field: ``Field`` to be propagated.
@@ -59,7 +60,10 @@ def transform_propagate(
         # Calculating input phase change (defining Q1)
         input_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
         field = field * jnp.exp(1j * input_phase)
-    field = 1j * optical_fft(field, z, n)
+    if z < 0:
+        field = 1j * optical_fft(field, z, n)
+    else:
+        field = 1j * optical_fft(field, z, n)
     # Calculating output phase change (defining Q2)
     if not skip_final_phase:
         output_phase = (jnp.pi / lambda_z) * l2_sq_norm(field.grid)  # / jnp.abs(L) ** 2
@@ -241,6 +245,8 @@ def asm_propagate(
     N_pad: int,
     cval: float = 0,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    bandlimit: bool = False,
+    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -261,12 +267,16 @@ def asm_propagate(
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
+        bandlimit: If provided, bandlimited the kernel according to "Band-Limited 
+            Angular Spectrum Method for Numerical Simulation of Free-Space 
+            Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
+        shift_yx: If provided, defines a shift in microns in the destination plane.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
-    propagator = compute_asm_propagator(field, z, n, kykx)
+    propagator = compute_asm_propagator(field, z, n, kykx, bandlimit, shift_yx)
     field = kernel_propagate(field, propagator)
     if mode == "same":
         field = crop(field, N_pad)
@@ -343,6 +353,8 @@ def compute_asm_propagator(
     z: Union[float, Array],
     n: float,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    bandlimit: bool = False,
+    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -359,14 +371,39 @@ def compute_asm_propagator(
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
+        bandlimit: If provided, bandlimited the kernel according to "Band-Limited 
+            Angular Spectrum Method for Numerical Simulation of Free-Space 
+            Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
+        shift_yx: If provided, defines a shift in microns in the destination plane.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    delay = jnp.sqrt(jnp.abs(kernel))
-    delay = jnp.where(kernel >= 0, delay, 1j * delay)  # keep evanescent modes
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * delay
-    return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
+    delay = jnp.sqrt(jnp.complex64(kernel))  # keep evanescent modes
+    # shift in output plane
+    shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
+    out_shift = 2 * jnp.pi * jnp.sum(field.k_grid * shift_yx, axis=0)
+    # compute field
+    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * delay + out_shift
+    kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
+    if bandlimit:
+        # Table 1 of "Shifted angular spectrum method for off-axis numerical 
+        # propagation" (2010) by Matsushima in vectorized form
+        k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
+        k_limit_n = ((shift_yx - 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
+        k0 = (1 / 2) * (
+            jnp.sign(shift_yx + field.surface_area) * k_limit_p + \
+            jnp.sign(shift_yx - field.surface_area) * k_limit_n
+        )
+        k_width = jnp.sign(shift_yx + field.surface_area) * k_limit_p - \
+            jnp.sign(shift_yx - field.surface_area) * k_limit_n
+        k_max = k_width / 2
+        # obtain rect filter to bandlimit (Eq. 23)
+        H_filter_yx = (jnp.abs(field.k_grid - k0) <= k_max)
+        H_filter = H_filter_yx[0] * H_filter_yx[1]
+        # apply filter
+        kernel_field = kernel_field * H_filter
+    return jnp.fft.ifftshift(kernel_field, axes=field.spatial_dims)
 
 
 def compute_padding_transform(height: int, spectrum: float, dx: float, z: float) -> int:

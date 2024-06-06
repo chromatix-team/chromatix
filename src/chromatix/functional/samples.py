@@ -331,9 +331,10 @@ def multislice_thick_sample(
     Args:
         field: The complex field to be perturbed.
         absorption_stack: The sample absorption per micrometre for each slice
-            defined as ``(D H W)`` array, where D is the total number of slices
+            defined as ``(D H W)`` array, where D is the total number of slices.
         dn_stack: sample refractive index change for each slice ``(D H W)`` array.
             Shape should be the same that for ``absorption_stack``.
+        n: Average refractive index of the sample.
         thickness_per_slice: How far to propagate for each slice.
         N_pad: A keyword argument integer defining the pad length for the
             propagation FFT (NOTE: should not be a `jax` ``Array``, otherwise
@@ -367,8 +368,105 @@ def multislice_thick_sample(
     return crop(field, N_pad)
 
 
-# Propagation of a vector field through a thick sample
-# ----------------------------------------------------
+def fluorescent_multislice_thick_sample(
+    field: ScalarField,
+    fluorescence_stack: Array,
+    dn_stack: Array,
+    n: float,
+    thickness_per_slice: float,
+    N_pad: int,
+    key: jax.random.PRNGKey,
+    num_samples: int = 1,
+    propagator_forward: Optional[Array] = None,
+    propagator_backward: Optional[Array] = None,
+    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+) -> Array:
+    """
+    Perturbs incoming ``ScalarField`` as if it went through a thick,
+    transparent, and fluorescent sample, i.e. a sample consisting of some
+    distribution of fluorophores emitting within a clear (phase only) scattering
+    volume. The thick sample is modeled as being made of many thin slices each
+    of a given thickness. The ``fluorescence_stack`` contains the fluorescence
+    intensities of each sample slice. The ``dn_stack`` contains the phase delay
+    of each sample slice. Expects that the same sample is being applied to all
+    elements across the batch of the incoming ``ScalarField``.
+
+    This function simulates the incoherent light from fluorophores using a
+    Monte-Carlo approach in which random phases are applied to the fluorescence
+    and the resulting propagations are averaged.
+
+    A ``propagator_forward`` and a ``propagator_backward`` defining the
+    propagation kernels for the field going forward and backward through each
+    slice can be provided. By default, these propagator kernels is calculated
+    inside the function. After passing through all slices, the field is
+    propagated backwards slice by slice to compute the scattered fluorescence
+    intensity.
+
+    Returns an ``Array`` with the result of the scattered fluorescence volume.
+
+    Args:
+        field: The complex field to be perturbed.
+        fluorescence_stack: The sample fluorescence amplitude for each slice
+            defined as ``(D H W)`` array, where D is the total number of slices.
+        dn_stack: sample refractive index change for each slice ``(D H W)``
+            array. Shape should be the same that for ``fluorescence_stack``.
+        n: Average refractive index of the sample.
+        thickness_per_slice: How far to propagate for each slice.
+        N_pad: A keyword argument integer defining the pad length for the
+            propagation FFT (NOTE: should not be a `jax` ``Array``, otherwise
+            a ConcretizationError will arise when traced!). Use padding
+            calculator utilities from ``chromatix.functional.propagation`` to
+            calculate the padding.
+        key: A ``PRNGKey`` used to generate the random phases in each sample.
+        num_samples: The number of Monte-Carlo samples (random phases) to simulate.
+        propagator_forward: The propagator kernel for the forward propagation through
+            the sample.
+        propagator_backward: The propagator kernel for the backward propagation
+            through the sample.
+        kykx: If provided, defines the orientation of the propagation. Should
+            be an array of shape `(2,)` in the format ``[ky, kx]``.
+    """
+    keys = jax.random.split(key, num=num_samples)
+    original_field_shape = field.shape
+    axes = field.spatial_dims
+    assert_equal_shape([fluorescence_stack, dn_stack])
+    field = pad(field, N_pad)
+    dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
+    if propagator_forward is None:
+        propagator_forward = compute_asm_propagator(field, thickness_per_slice, n, kykx)
+    if propagator_backward is None:
+        propagator_backward = compute_asm_propagator(field, -thickness_per_slice, n, kykx)
+
+    def _forward(i, field_and_fluorescence_stack):
+        (field, fluorescence_stack) = field_and_fluorescence_stack
+        fluorescence = _broadcast_2d_to_spatial(fluorescence_stack[i], field.ndim)
+        dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
+        field = field * jnp.exp(1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum)
+        u = ifft(fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward, axes=axes, shift=False)
+        field = field.replace(u=u)
+        return field, fluorescence_stack
+
+    def _backward(i, field_and_intensity_stack):
+        (field, intensity_stack) = field_and_intensity_stack
+        u = field.u * propagator_backward
+        field = field.replace(u=u)
+        field_i = field.replace(u=ifft(u, axes=axes, shift=False))
+        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(crop(field_i, N_pad).intensity[0])
+        return (field, intensity_stack)
+
+    def _sample(i, field_and_intensity_stack):
+        (field, intensity_stack) = field_and_intensity_stack
+        random_phase_stack = jax.random.uniform(keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi)
+        _fluorescence_stack = center_pad(fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad))
+        (field, _) = jax.lax.fori_loop(0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack))
+        field = field.replace(u=fft(field.u, axes=axes, shift=False))
+        (field, intensity_stack) = jax.lax.fori_loop(0, intensity_stack.shape[0], _backward, (field, intensity_stack))
+        return (field, intensity_stack)
+
+    intensity_stack = jnp.zeros((fluorescence_stack.shape[0], *original_field_shape[1:]))
+    (_, intensity_stack) = jax.lax.fori_loop(0, num_samples, _sample, (field, intensity_stack))
+    intensity_stack /= num_samples
+    return intensity_stack
 
 
 # depolarised wave

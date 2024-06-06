@@ -144,6 +144,17 @@ class Field(struct.PyTreeNode):
         return 1 / (self.dx * shape)
 
     @property
+    def surface_area(self) -> Array:
+        """
+        The surface area of the field in microns. Defined as an array of shape
+        ``(2 1... 1 1 C 1 1)`` specifying the surface area in the y and x 
+        dimensions respectively.
+        """
+        shape = jnp.array(self.spatial_shape)
+        shape = _broadcast_1d_to_grid(shape, self.ndim)
+        return self.dx * shape
+
+    @property
     def spectrum(self) -> Array:
         """
         Wavelengths sampled by the complex field, shape ``(1... 1 1 C 1 1)``.
@@ -164,7 +175,8 @@ class Field(struct.PyTreeNode):
 
     @property
     def amplitude(self) -> Array:
-        """Amplitude of the complex field, shape `(B... H W C [1 | 3])`."""
+        """Amplitude of the complex field, shape `(B... H W C [1 | 3])`.
+        This is actually what is called the "magnitude"."""
         return jnp.abs(self.u)
 
     @property
@@ -199,6 +211,11 @@ class Field(struct.PyTreeNode):
     def ndim(self) -> int:
         """Number of dimensions (the rank) of the complex field."""
         return self.u.ndim
+
+    @property
+    def conj(self) -> Array:
+        """conjugate of the complex field, as a field of the same shape."""
+        return self.replace(u=jnp.conj(self.u))
 
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):

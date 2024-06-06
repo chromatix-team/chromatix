@@ -127,3 +127,10 @@ def l1_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
 def linf_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
     """Max absolute value, i.e. `max(|x|, |y|)`."""
     return jnp.max(jnp.abs(a), axis=axis)
+
+
+def matvec(x: Array, y: Array) -> Array:
+    """Implements batched matrix - vector multiplication.
+    Mostly used in polarisation calculations.
+    Example [..., N, M] x [...., M] -> [...., N]"""
+    return jnp.matmul(x, y[..., None]).squeeze(-1)
