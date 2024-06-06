@@ -2,6 +2,7 @@ from ..field import VectorField
 from typing import Union
 from chex import Array
 import jax.numpy as jnp
+from chromatix.utils.utils import matvec
 
 __all__ = [
     # General functions
@@ -98,10 +99,8 @@ def polarizer(
     """
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
-
-    # We need to add empty axis for batched matmul
-    u = jnp.matmul(LP, field.u[..., None]).squeeze(-1)
-    return field.replace(u=u)
+    LP = LP / jnp.linalg.norm(LP)
+    return field.replace(u=matvec(LP, field.u))
 
 
 def linear_polarizer(field: VectorField, angle: float) -> VectorField:
