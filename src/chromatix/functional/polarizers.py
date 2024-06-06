@@ -98,7 +98,10 @@ def polarizer(
     """
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
-    return field.replace(u=jnp.dot(field.u, LP))
+
+    # We need to add empty axis for batched matmul
+    u = jnp.matmul(LP, field.u[..., None]).squeeze(-1)
+    return field.replace(u=u)
 
 
 def linear_polarizer(field: VectorField, angle: float) -> VectorField:
