@@ -83,9 +83,9 @@ def filaments_3d(
     num_filaments=50,
     apply_seed=True,
     thickness=0.3,
+    calc_chi=False,
     ri_anisotropic=(1.0, 1.0),
     ri_medium=1.0,
-    calc_chi=False,
 ):
     """
     Create a 3D representation of filaments.
@@ -100,13 +100,14 @@ def filaments_3d(
     - `num_filaments`: An integer representing the number of filaments to be created. Default is 50.
     - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
     - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
+    - `calc_chi`: A boolean representing whether to calculate the scattering potential. Default is false.
     - `ri_anisotropic`: A tuple of real numbers representing the refractive indices of the filaments. Default is (1.0, 1.0).
     - `ri_medium`: A real number representing the refractive index of the surrounding medium. Default is 1.0.
-    - `calc_chi`: A boolean representing whether to calculate the scattering potential. Default is false.
 
     The result is added to the obj input array.
 
     This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann.
+    Scattering potential calculation was added by Geneva Schlafly.
     """
 
     sz = jnp.array(sz)
@@ -413,10 +414,9 @@ def thick_sample_vector(
         return ifft(bmatvec(Q, phase_factor * fft(u)))
 
     # Calculating k vector and PTFT
-    # We shift k to align in k-space so we dont need shift just like Q
+    # We shift k to align in k-space so we don't need shift just like Q
     km = 2 * jnp.pi * n / field.spectrum
     k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
-    breakpoint()
     kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
     k = jnp.concatenate([k, kz[None, ...]], axis=0)
     Q = PTFT(k, km)
