@@ -185,6 +185,7 @@ def pollen_3d(
 
     return res
 
+
 def siemens_star(
     num_pixels: int = 512, num_spokes: int = 32, radius: int = None
 ) -> np.ndarray:
