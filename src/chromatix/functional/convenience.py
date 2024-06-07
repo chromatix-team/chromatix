@@ -5,22 +5,21 @@ from chromatix import Field
 from typing import Union
 
 
-def optical_fft(field: Field, z: Union[float, Array], n: float) -> Field:
+def optical_fft(field: Field, z: float, n: float) -> Field:
     """
     Computes the optical ``fft`` or ``ifft`` on an incoming ``Field`` propagated
-    by ``z``, depending on the sign of ``z`` (which may be an array containing
-    both positive and negative values). If ``z`` is positive an ``fft```will
-    be performed, otherwise an ``ifft`` (due to the ``1 / (lambda * z)`` term
-    in the single Fourier transform Fresnel propagation, which requires this
-    behavior). The ``ifft`` is calculated in terms of the conjugate of the
-    ``fft`` with appropriate normalization applied so that propagating forwards
-    and then backwards yields the same ``Field`` up to numerical precision. This
-    function also appropriately changes the sampling of the ``Field`` that is
-    output (after propagating to some distance(s) ``z``).
+    by ``z``, depending on the sign of ``z`` (which is a scalar value that may
+    be positive or negative). If ``z`` is positive an ``fft```will be performed,
+    otherwise an ``ifft`` (due to the ``1 / (lambda * z)`` term in the single
+    Fourier transform Fresnel propagation, which requires this behavior).
+    The ``ifft`` is calculated in terms of the conjugate of the ``fft`` with
+    appropriate normalization applied so that propagating forwards and then
+    backwards yields the same ``Field`` up to numerical precision. This function
+    also appropriately changes the sampling of the ``Field`` that is output
+    (after propagating to some distance ``z``).
     Args:
         field: The ``Field`` to be propagated by ``fft``.
-        z: The distance the ``Field`` will be propagated, assumed to be
-            broadcasted to the innermost batch dimension.
+        z: The distance the ``Field`` will be propagated.
         n: Refractive index of the propagation medium.
     Returns:
         The propagated ``Field``, transformed by ``fft``/``ifft``.
@@ -28,20 +27,14 @@ def optical_fft(field: Field, z: Union[float, Array], n: float) -> Field:
     L_sq = field.spectrum * z / n
     du = field.dk * jnp.abs(L_sq)
     # Shift by one pixel in x and y when z < 0 and we ifft
-    shifter = jnp.exp(
-        1j * (1 * field.k_grid[0] + 1 * field.k_grid[1])
-    )
+    shifter = jnp.exp(1j * (1 * field.k_grid[0] + 1 * field.k_grid[1]))
     # Forward transform normalization for z >= 0
-    norm_fft = (
-        (z >= 0) * -1j * jnp.prod(field.dx, axis=0, keepdims=False) / L_sq
-    )
+    norm_fft = (z >= 0) * -1j * jnp.prod(field.dx, axis=0, keepdims=False) / L_sq
     # Inverse transform normalization for z < 0
     norm_ifft = (
         (z < 0)
         * -1j  # Sign change because we take the conjugate of the input
-        * (
-            L_sq / jnp.prod(du, axis=0, keepdims=False)  # Inverse length scale
-        )
+        * (L_sq / jnp.prod(du, axis=0, keepdims=False))  # Inverse length scale
         / jnp.prod(
             jnp.array(field.shape)  # Due to a different norm factor for fft and ifft
         )
