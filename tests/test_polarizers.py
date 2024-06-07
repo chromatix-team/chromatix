@@ -4,6 +4,7 @@ from chromatix import VectorField
 from functools import partial
 from chex import assert_axis_dimension
 import pytest
+import numpy as np
 
 
 def test_inits():
@@ -46,36 +47,71 @@ def test_linear_polarizer(E0, angle, power):
 
 
 def test_left_circular_polarizer():
+    # right circular light through left ciruclar
+    # polariser shouldnt give any output
     field = cf.plane_wave(
         (512, 512),
         1.0,
         0.532,
         1.0,
-        amplitude=cf.linear(0),
+        amplitude=cf.right_circular(),
         power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
         scalar=False,
     )
-
     field = cf.left_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
-    # TODO: add another test
+    assert np.allclose(field.power, 0.0)
 
-
-def test_right_circular_polarizer():
+    # Right circular light through right ciruclar
+    # polariser should return right circular light
     field = cf.plane_wave(
         (512, 512),
         1.0,
         0.532,
         1.0,
-        amplitude=cf.linear(0),
+        amplitude=cf.left_circular(),
+        power=1.0,
+        pupil=partial(cf.square_pupil, w=10.0),
+        scalar=False,
+    )
+    field_after = cf.left_circular_polarizer(field)
+    assert_axis_dimension(field.u, -1, 3)
+    assert np.allclose(field.u, field_after.u)
+
+
+def test_right_circular_polarizer():
+    # Left circular light through right ciruclar
+    # polariser shouldnt give any output
+    field = cf.plane_wave(
+        (512, 512),
+        1.0,
+        0.532,
+        1.0,
+        amplitude=cf.left_circular(),
         power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
         scalar=False,
     )
     field = cf.right_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
-    # TODO: add another test
+    assert np.allclose(field.power, 0.0)
+
+    # Right circular light through right ciruclar
+    # polariser should return right circular light
+    field = cf.plane_wave(
+        (512, 512),
+        1.0,
+        0.532,
+        1.0,
+        amplitude=cf.right_circular(),
+        power=1.0,
+        pupil=partial(cf.square_pupil, w=10.0),
+        scalar=False,
+    )
+    field_after = cf.right_circular_polarizer(field)
+    assert_axis_dimension(field.u, -1, 3)
+    assert np.allclose(field.u, field_after.u)
 
 
 def test_quarter_waveplate():

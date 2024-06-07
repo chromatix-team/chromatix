@@ -90,7 +90,7 @@ Chromatix was started by Diptodip Deb ([@diptodip](https://www.github.com/diptod
 
 * Amey Chaware ([@isildur7](https://www.github.com/isildur7))
 * Amit Kohli ([@apsk14](https://www.github.com/apsk14))
-* Cédric Allier
+* Cédric Allier ([@allierc](https://github.com/allierc))
 * Changjia Cai ([@caichangjia](https://github.com/caichangjia))
 * Geneva Schlafly ([@gschlafly](https://github.com/gschlafly))
 * Guanghan Meng ([@guanghanmeng](https://github.com/guanghanmeng))
