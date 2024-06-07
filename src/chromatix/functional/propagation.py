@@ -267,8 +267,8 @@ def asm_propagate(
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
-        bandlimit: If provided, bandlimited the kernel according to "Band-Limited 
-            Angular Spectrum Method for Numerical Simulation of Free-Space 
+        bandlimit: If provided, bandlimited the kernel according to "Band-Limited
+            Angular Spectrum Method for Numerical Simulation of Free-Space
             Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
         shift_yx: If provided, defines a shift in microns in the destination plane.
         mode: Either "full" or "same". If "same", the shape of the output
@@ -344,8 +344,9 @@ def compute_exact_propagator(
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
     kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
-    phase = 2 * jnp.pi * (z * n / field.spectrum) * jnp.sqrt(kernel)
-    return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
+    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * jnp.sqrt(kernel)
+    kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
+    return jnp.fft.ifftshift(kernel_field, axes=field.spatial_dims)
 
 
 def compute_asm_propagator(
@@ -371,8 +372,8 @@ def compute_asm_propagator(
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
-        bandlimit: If provided, bandlimited the kernel according to "Band-Limited 
-            Angular Spectrum Method for Numerical Simulation of Free-Space 
+        bandlimit: If provided, bandlimited the kernel according to "Band-Limited
+            Angular Spectrum Method for Numerical Simulation of Free-Space
             Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
         shift_yx: If provided, defines a shift in microns in the destination plane.
     """
@@ -387,19 +388,25 @@ def compute_asm_propagator(
     phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * delay + out_shift
     kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
     if bandlimit:
-        # Table 1 of "Shifted angular spectrum method for off-axis numerical 
+        # Table 1 of "Shifted angular spectrum method for off-axis numerical
         # propagation" (2010) by Matsushima in vectorized form
-        k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
-        k_limit_n = ((shift_yx - 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (-1 / 2) / field.spectrum
+        k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (
+            -1 / 2
+        ) / field.spectrum
+        k_limit_n = ((shift_yx - 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (
+            -1 / 2
+        ) / field.spectrum
         k0 = (1 / 2) * (
-            jnp.sign(shift_yx + field.surface_area) * k_limit_p + \
-            jnp.sign(shift_yx - field.surface_area) * k_limit_n
+            jnp.sign(shift_yx + field.surface_area) * k_limit_p
+            + jnp.sign(shift_yx - field.surface_area) * k_limit_n
         )
-        k_width = jnp.sign(shift_yx + field.surface_area) * k_limit_p - \
-            jnp.sign(shift_yx - field.surface_area) * k_limit_n
+        k_width = (
+            jnp.sign(shift_yx + field.surface_area) * k_limit_p
+            - jnp.sign(shift_yx - field.surface_area) * k_limit_n
+        )
         k_max = k_width / 2
         # obtain rect filter to bandlimit (Eq. 23)
-        H_filter_yx = (jnp.abs(field.k_grid - k0) <= k_max)
+        H_filter_yx = jnp.abs(field.k_grid - k0) <= k_max
         H_filter = H_filter_yx[0] * H_filter_yx[1]
         # apply filter
         kernel_field = kernel_field * H_filter
