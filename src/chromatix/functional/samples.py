@@ -326,9 +326,8 @@ def thick_sample_vector(
     # We shift k to align in k-space so we dont need shift just like Q
     km = 2 * jnp.pi * n / field.spectrum
     k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
-    breakpoint()
     kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
-    k = jnp.concatenate([k, kz[None, ...]], axis=0)
+    k = jnp.concatenate([kz[None, ...], k], axis=0)
     Q = PTFT(k, km)
 
     def propagate_slice(u, potential_slice):
