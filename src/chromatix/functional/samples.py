@@ -2,14 +2,14 @@ from typing import Optional, Union, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import Array
 from chromatix.utils.fft import fft, ifft
-from chex import Array, assert_equal_shape, assert_rank
+from chex import assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
 from chromatix.field import pad, crop
-from ..utils import _broadcast_2d_to_spatial, center_pad
+from ..utils import _broadcast_2d_to_spatial, center_pad, matvec, outer
 from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
 from .polarizers import polarizer
+from jax import Array
 
 
 def sqr_dist_to_line(z, y, x, start, n):
@@ -401,14 +401,22 @@ def fluorescent_multislice_thick_sample(
     if propagator_forward is None:
         propagator_forward = compute_asm_propagator(field, thickness_per_slice, n, kykx)
     if propagator_backward is None:
-        propagator_backward = compute_asm_propagator(field, -thickness_per_slice, n, kykx)
+        propagator_backward = compute_asm_propagator(
+            field, -thickness_per_slice, n, kykx
+        )
 
     def _forward(i, field_and_fluorescence_stack):
         (field, fluorescence_stack) = field_and_fluorescence_stack
         fluorescence = _broadcast_2d_to_spatial(fluorescence_stack[i], field.ndim)
         dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
-        field = field * jnp.exp(1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum)
-        u = ifft(fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward, axes=axes, shift=False)
+        field = field * jnp.exp(
+            1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum
+        )
+        u = ifft(
+            fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward,
+            axes=axes,
+            shift=False,
+        )
         field = field.replace(u=u)
         return field, fluorescence_stack
 
@@ -417,78 +425,60 @@ def fluorescent_multislice_thick_sample(
         u = field.u * propagator_backward
         field = field.replace(u=u)
         field_i = field.replace(u=ifft(u, axes=axes, shift=False))
-        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(crop(field_i, N_pad).intensity[0])
+        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(
+            crop(field_i, N_pad).intensity[0]
+        )
         return (field, intensity_stack)
 
     def _sample(i, field_and_intensity_stack):
         (field, intensity_stack) = field_and_intensity_stack
-        random_phase_stack = jax.random.uniform(keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi)
-        _fluorescence_stack = center_pad(fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad))
-        (field, _) = jax.lax.fori_loop(0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack))
+        random_phase_stack = jax.random.uniform(
+            keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi
+        )
+        _fluorescence_stack = center_pad(
+            fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad)
+        )
+        (field, _) = jax.lax.fori_loop(
+            0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack)
+        )
         field = field.replace(u=fft(field.u, axes=axes, shift=False))
-        (field, intensity_stack) = jax.lax.fori_loop(0, intensity_stack.shape[0], _backward, (field, intensity_stack))
+        (field, intensity_stack) = jax.lax.fori_loop(
+            0, intensity_stack.shape[0], _backward, (field, intensity_stack)
+        )
         return (field, intensity_stack)
 
-    intensity_stack = jnp.zeros((fluorescence_stack.shape[0], *original_field_shape[1:]))
-    (_, intensity_stack) = jax.lax.fori_loop(0, num_samples, _sample, (field, intensity_stack))
+    intensity_stack = jnp.zeros(
+        (fluorescence_stack.shape[0], *original_field_shape[1:])
+    )
+    (_, intensity_stack) = jax.lax.fori_loop(
+        0, num_samples, _sample, (field, intensity_stack)
+    )
     intensity_stack /= num_samples
     return intensity_stack
 
 
-# depolarised wave
-def PTFT(k, km: Array) -> Array:
-    Q = jnp.zeros((3, 3, *k.shape[1:]))
-
-    # Setting diagonal
-    Q_diag = 1 - k**2 / km**2
-    Q = Q.at[jnp.diag_indices(3)].set(Q_diag)
-
-    # Calculating off-diagonal elements
-    q_ij = lambda i, j: -k[i] * k[j] / km**2
-    # Setting upper diagonal
-    Q = Q.at[0, 1].set(q_ij(0, 1))
-    Q = Q.at[0, 2].set(q_ij(0, 2))
-    Q = Q.at[1, 2].set(q_ij(1, 2))
-
-    # Setting lower diagonal, mirror symmetry
-    Q = Q.at[1, 0].set(q_ij(0, 1))
-    Q = Q.at[2, 0].set(q_ij(0, 2))
-    Q = Q.at[2, 1].set(q_ij(1, 2))
-
-    # We move the axes to the back, easier matmul
-    return jnp.moveaxis(Q.squeeze(-1), (0, 1), (-2, -1))
-
-
-def bmatvec(a, b):
-    return jnp.matmul(a, b[..., None]).squeeze(-1)
-
-
-def thick_sample_vector(
+def thick_birefringent_sample(
     field: VectorField, scatter_potential: Array, dz: float, n: float
 ) -> VectorField:
-    def P_op(u: Array) -> Array:
+    def P(u: Array) -> Array:
         phase_factor = jnp.exp(1j * kz * dz)
-        return ifft(bmatvec(Q, phase_factor * fft(u)))
+        return ifft(matvec(q, phase_factor * fft(u)))
 
-    def Q_op(u: Array) -> Array:
-        return ifft(bmatvec(Q, fft(u)))
+    def Q(u: Array) -> Array:
+        return ifft(matvec(q, fft(u)))
 
-    def H_op(u: Array) -> Array:
+    def H(u: Array) -> Array:
         phase_factor = -1j * dz / 2 * jnp.exp(1j * kz * dz) / kz
-        return ifft(bmatvec(Q, phase_factor * fft(u)))
-
-    # Calculating k vector and PTFT
-    # We shift k to align in k-space so we dont need shift just like Q
-    km = 2 * jnp.pi * n / field.spectrum
-    k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
-    breakpoint()
-    kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
-    k = jnp.concatenate([k, kz[None, ...]], axis=0)
-    Q = PTFT(k, km)
+        return ifft(matvec(q, phase_factor * fft(u)))
 
     def propagate_slice(u, potential_slice):
-        scatter_field = bmatvec(potential_slice, Q_op(u))
-        return P_op(u) + H_op(scatter_field), None
+        scatter_field = matvec(potential_slice, Q(u))
+        return P(u) + H(scatter_field), None
 
+    k = field.k_grid(n=n, centered=False)  # to align with fft
+    q = jnp.eye(3) - outer(k, k) / field.wave_number(n=n) ** 2  # PTFT factor in paper
+    kz = k[..., [-1]]
+
+    # Scanning over field
     u, _ = jax.lax.scan(propagate_slice, field.u, scatter_potential)
     return field.replace(u=u)

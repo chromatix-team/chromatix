@@ -8,12 +8,12 @@ import numpy as np
 
 
 def test_inits():
-    assert jnp.allclose(cf.linear(0), jnp.array([0, 0, 1], dtype=jnp.complex64))
+    assert jnp.allclose(cf.linear(0), jnp.array([1, 0, 0], dtype=jnp.complex64))
     assert jnp.allclose(
         cf.linear(jnp.pi / 2), jnp.array([0, 1, 0], dtype=jnp.complex64), atol=1e-7
     )
-    assert jnp.allclose(cf.left_circular(), jnp.array([0, 1j, 1]) / jnp.sqrt(2))
-    assert jnp.allclose(cf.right_circular(), jnp.array([0, -1j, 1]) / jnp.sqrt(2))
+    assert jnp.allclose(cf.left_circular(), jnp.array([1, 1j, 0]) / jnp.sqrt(2))
+    assert jnp.allclose(cf.right_circular(), jnp.array([1, -1j, 0]) / jnp.sqrt(2))
 
 
 @pytest.mark.parametrize(

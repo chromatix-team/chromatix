@@ -1,11 +1,11 @@
 import jax.numpy as jnp
 import numpy as np
-from chex import Array
 from typing import Optional, Sequence, Tuple, Union
 from scipy.ndimage import distance_transform_edt  # type: ignore
 import flax.linen as nn
 from .shapes import _broadcast_2d_to_spatial
 from einops import rearrange
+from jax import Array
 
 
 def next_order(val: int) -> int:
@@ -134,3 +134,7 @@ def matvec(x: Array, y: Array) -> Array:
     Mostly used in polarisation calculations.
     Example [..., N, M] x [...., M] -> [...., N]"""
     return jnp.matmul(x, y[..., None]).squeeze(-1)
+
+
+def outer(x: Array, y: Array) -> Array:
+    return jnp.expand_dims(x, -1) * jnp.expand_dims(y, -2)

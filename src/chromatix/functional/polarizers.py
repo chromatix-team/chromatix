@@ -39,7 +39,7 @@ def jones_vector(theta: float, beta: float) -> Array:
     # Generates a Jones vector with a given beta = alpha_y - alpha_x.
     # Assumes alpha_x=0.
     return jnp.array(
-        [0, jnp.sin(theta) * jnp.exp(1j * beta), jnp.cos(theta)], dtype=jnp.complex64
+        [jnp.cos(theta), jnp.sin(theta) * jnp.exp(1j * beta), 0], dtype=jnp.complex64
     )
 
 
@@ -98,7 +98,7 @@ def polarizer(
         VectorField: Field after polarizer.
     """
     # Invert the axes as our order is zyx
-    LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
+    LP = jnp.array([[J00, J01, 0], [J10, J11, 0], [0, 0, 0]])
     LP = LP / jnp.linalg.norm(LP)
     return field.replace(u=matvec(LP, field.u))
 

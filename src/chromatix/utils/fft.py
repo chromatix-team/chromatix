@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from typing import Tuple
-from chex import Array
+from jax import Array
 from functools import partial
 
 
