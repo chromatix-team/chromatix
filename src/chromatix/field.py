@@ -147,7 +147,7 @@ class Field(struct.PyTreeNode):
     def surface_area(self) -> Array:
         """
         The surface area of the field in microns. Defined as an array of shape
-        ``(2 1... 1 1 C 1 1)`` specifying the surface area in the y and x 
+        ``(2 1... 1 1 C 1 1)`` specifying the surface area in the y and x
         dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
