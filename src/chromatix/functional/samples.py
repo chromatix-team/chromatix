@@ -12,183 +12,6 @@ from .propagation import exact_propagate, kernel_propagate, compute_exact_propag
 from .polarizers import polarizer
 
 
-def sqr_dist_to_line(z, y, x, start, n):
-    """
-    returns an array with each pixel being assigned to the square distance to that line and an array with the distance along the line
-    """
-    dx = x - start[2]
-    dy = y - start[1]
-    dz = z - start[0]
-    dot_dn = dx * n[2] + dy * n[1] + dz * n[0]
-    return (dx - dot_dn * n[2]) ** 2 + (dy - dot_dn * n[1]) ** 2 + (
-        dz - dot_dn * n[0]
-    ) ** 2, dot_dn
-
-
-def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
-    """
-    Draw a line in a 3D object with a given thickness and intensity.
-
-    Args:
-        obj: The object to draw the line in.
-        start: The start of the line.
-        end: The end of the line.
-        thickness: The thickness of the line.
-        intensity: The intensity of the line.
-    """
-    direction = jnp.subtract(stop, start)
-    line_length = jnp.sqrt(jnp.sum(jnp.square(direction)))
-    n = direction / line_length
-
-    sigma2 = 2 * thickness**2
-
-    z, y, x = jnp.meshgrid(
-        jnp.arange(arr.shape[0]),
-        jnp.arange(arr.shape[1]),
-        jnp.arange(arr.shape[2]),
-        indexing="ij",
-    )
-    d2, t = sqr_dist_to_line(z, y, x, start, n)
-
-    line_weight = (
-        (t > 0) * (t < line_length)
-        + (t <= 0) * jnp.exp(-(t**2) / sigma2)
-        + (t >= line_length) * jnp.exp(-((t - line_length) ** 2) / sigma2)
-    )
-    return arr + intensity * jnp.exp(-d2 / sigma2) * line_weight
-
-
-def filaments_3d(
-    sz,
-    intensity=1.0,
-    radius=0.8,
-    rand_offset=0.05,
-    rel_theta=1.0,
-    num_filaments=50,
-    apply_seed=True,
-    thickness=0.3,
-):
-    """
-    Create a 3D representation of filaments.
-
-    # Arguments
-    - sz: A 3D shape tuple representing the size of the object.
-    - `radius`: A tuple of real numbers (or a single real number) representing the relative radius of the volume in which the filaments will be created.
-        Default is 0.8. If a tuple is used, the filamets will be created in a corresponding elliptical volume.
-        Note that the radius is only enforced in the version `filaments3D` which creates the array rather than adding.
-    - `rand_offset`: A tuple of real numbers representing the random offsets of the filaments in relation to the size. Default is 0.05.
-    - `rel_theta`: A real number representing the relative theta range of the filaments. Default is 1.0.
-    - `num_filaments`: An integer representing the number of filaments to be created. Default is 50.
-    - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
-    - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
-
-    The result is added to the obj input array.
-
-    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann.
-    """
-
-    sz = jnp.array(sz)
-
-    # Save the state of the rng to reset it after the function is done
-    rng_state = np.random.get_state()
-    if apply_seed:
-        np.random.seed(42)
-
-    # Create the object
-    obj = jnp.zeros(sz, dtype=np.float32)
-
-    mid = sz // 2
-
-    # Draw random lines equally distributed over the 3D sphere
-    for n in range(num_filaments):
-        phi = 2 * jnp.pi * np.random.rand()
-        # Theta should be scaled such that the distribution over the unit sphere is uniform
-        theta = jnp.arccos(rel_theta * (1 - 2 * np.random.rand()))
-        pos = (sz * radius / 2) * jnp.array(
-            [
-                jnp.sin(theta) * jnp.cos(phi),
-                jnp.sin(theta) * jnp.sin(phi),
-                jnp.cos(theta),
-            ]
-        )
-        pos_offset = jnp.array(rand_offset * sz * (np.random.rand(3) - 0.5))
-        # Draw line
-        obj = draw_line(
-            obj,
-            pos + pos_offset + mid,
-            mid + pos_offset - pos,
-            thickness=thickness,
-            intensity=intensity,
-        )
-
-    # Reset the rng to the state before this function was called
-    np.random.set_state(rng_state)
-    return obj
-
-
-def pollen_3d(
-    sz,
-    intensity=1.0,
-    radius=0.8,
-    dphi=0.0,
-    dtheta=0.0,
-    thickness=0.8,
-    filled=False,
-    filled_rel_intensity=0.1,
-):
-    """
-    Create a 3D representation of a pollen grain.
-
-    # Arguments
-    - `sz`: A tuple of three integers representing the size of the volume in which the pollen grain will be created. Default is (128, 128, 128).
-    - `radius`: roughly the relative radius of the pollen grain.
-    - `dphi`: A float representing the phi angle offset in radians. Default is 0.0.
-    - `dtheta`: A float representing the theta angle offset in radians. Default is 0.0.
-    - `thickness`: A float representing the thickness of the pollen grain. Default is 0.8.
-    - `filled`: A boolean representing whether the pollen grain should be filled. Default is false.
-    - `filled_rel_intensity`: A float representing the relative intensity of the filled part of the pollen grain. Default is 0.1.
-
-    # Returns
-    - `ret`: A 3D array representing the pollen grain.
-    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann and the original code by Kai Wicker.
-    """
-
-    sz = jnp.array(sz)
-    z, y, x = jnp.meshgrid(
-        jnp.linspace(-radius, radius, sz[0]),
-        jnp.linspace(-radius, radius, sz[1]),
-        jnp.linspace(-radius, radius, sz[2]),
-        indexing="ij",
-    )
-    thickness = thickness / sz[0]
-
-    r = x**2 + y**2 + z**2
-
-    phi = jnp.atan2(y, x)
-    theta = jnp.asin(z / (jnp.sqrt(x**2 + y**2 + z**2) + 1e-2)) + dtheta
-
-    a = jnp.abs(jnp.cos(theta * 20))
-    b = jnp.abs(
-        jnp.sin(
-            (phi + dphi) * jnp.sqrt(jnp.maximum(0, jnp.cos(theta) * (20.0**2)))
-            - theta
-            + jnp.pi / 2
-        )
-    )
-
-    # calculate the relative distance to the surface of the pollen grain
-    dc = ((0.4 + 1 / 20.0 * (a * b) ** 5) + jnp.cos(phi + dphi) * 1 / 20) - r
-    # return dc
-
-    sigma2 = 2 * (thickness**2)
-    res = (
-        intensity * jnp.exp(-(dc**2) / sigma2)
-        + filled * (dc > 0) * intensity * filled_rel_intensity
-    )
-
-    return res
-
-
 def jones_sample(
     field: VectorField, absorption: Array, dn: Array, thickness: Union[float, Array]
 ) -> VectorField:
@@ -401,14 +224,22 @@ def fluorescent_multislice_thick_sample(
     if propagator_forward is None:
         propagator_forward = compute_asm_propagator(field, thickness_per_slice, n, kykx)
     if propagator_backward is None:
-        propagator_backward = compute_asm_propagator(field, -thickness_per_slice, n, kykx)
+        propagator_backward = compute_asm_propagator(
+            field, -thickness_per_slice, n, kykx
+        )
 
     def _forward(i, field_and_fluorescence_stack):
         (field, fluorescence_stack) = field_and_fluorescence_stack
         fluorescence = _broadcast_2d_to_spatial(fluorescence_stack[i], field.ndim)
         dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
-        field = field * jnp.exp(1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum)
-        u = ifft(fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward, axes=axes, shift=False)
+        field = field * jnp.exp(
+            1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum
+        )
+        u = ifft(
+            fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward,
+            axes=axes,
+            shift=False,
+        )
         field = field.replace(u=u)
         return field, fluorescence_stack
 
@@ -417,20 +248,34 @@ def fluorescent_multislice_thick_sample(
         u = field.u * propagator_backward
         field = field.replace(u=u)
         field_i = field.replace(u=ifft(u, axes=axes, shift=False))
-        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(crop(field_i, N_pad).intensity[0])
+        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(
+            crop(field_i, N_pad).intensity[0]
+        )
         return (field, intensity_stack)
 
     def _sample(i, field_and_intensity_stack):
         (field, intensity_stack) = field_and_intensity_stack
-        random_phase_stack = jax.random.uniform(keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi)
-        _fluorescence_stack = center_pad(fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad))
-        (field, _) = jax.lax.fori_loop(0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack))
+        random_phase_stack = jax.random.uniform(
+            keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi
+        )
+        _fluorescence_stack = center_pad(
+            fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad)
+        )
+        (field, _) = jax.lax.fori_loop(
+            0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack)
+        )
         field = field.replace(u=fft(field.u, axes=axes, shift=False))
-        (field, intensity_stack) = jax.lax.fori_loop(0, intensity_stack.shape[0], _backward, (field, intensity_stack))
+        (field, intensity_stack) = jax.lax.fori_loop(
+            0, intensity_stack.shape[0], _backward, (field, intensity_stack)
+        )
         return (field, intensity_stack)
 
-    intensity_stack = jnp.zeros((fluorescence_stack.shape[0], *original_field_shape[1:]))
-    (_, intensity_stack) = jax.lax.fori_loop(0, num_samples, _sample, (field, intensity_stack))
+    intensity_stack = jnp.zeros(
+        (fluorescence_stack.shape[0], *original_field_shape[1:])
+    )
+    (_, intensity_stack) = jax.lax.fori_loop(
+        0, num_samples, _sample, (field, intensity_stack)
+    )
     intensity_stack /= num_samples
     return intensity_stack
 
