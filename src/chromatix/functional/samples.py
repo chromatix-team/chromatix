@@ -401,14 +401,22 @@ def fluorescent_multislice_thick_sample(
     if propagator_forward is None:
         propagator_forward = compute_asm_propagator(field, thickness_per_slice, n, kykx)
     if propagator_backward is None:
-        propagator_backward = compute_asm_propagator(field, -thickness_per_slice, n, kykx)
+        propagator_backward = compute_asm_propagator(
+            field, -thickness_per_slice, n, kykx
+        )
 
     def _forward(i, field_and_fluorescence_stack):
         (field, fluorescence_stack) = field_and_fluorescence_stack
         fluorescence = _broadcast_2d_to_spatial(fluorescence_stack[i], field.ndim)
         dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
-        field = field * jnp.exp(1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum)
-        u = ifft(fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward, axes=axes, shift=False)
+        field = field * jnp.exp(
+            1j * 2 * jnp.pi * dn * thickness_per_slice / field.spectrum
+        )
+        u = ifft(
+            fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward,
+            axes=axes,
+            shift=False,
+        )
         field = field.replace(u=u)
         return field, fluorescence_stack
 
@@ -417,20 +425,34 @@ def fluorescent_multislice_thick_sample(
         u = field.u * propagator_backward
         field = field.replace(u=u)
         field_i = field.replace(u=ifft(u, axes=axes, shift=False))
-        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(crop(field_i, N_pad).intensity[0])
+        intensity_stack = intensity_stack.at[intensity_stack.shape[0] - 1 - i].add(
+            crop(field_i, N_pad).intensity[0]
+        )
         return (field, intensity_stack)
 
     def _sample(i, field_and_intensity_stack):
         (field, intensity_stack) = field_and_intensity_stack
-        random_phase_stack = jax.random.uniform(keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi)
-        _fluorescence_stack = center_pad(fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad))
-        (field, _) = jax.lax.fori_loop(0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack))
+        random_phase_stack = jax.random.uniform(
+            keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi
+        )
+        _fluorescence_stack = center_pad(
+            fluorescence_stack * jnp.exp(1j * random_phase_stack), (0, N_pad, N_pad)
+        )
+        (field, _) = jax.lax.fori_loop(
+            0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack)
+        )
         field = field.replace(u=fft(field.u, axes=axes, shift=False))
-        (field, intensity_stack) = jax.lax.fori_loop(0, intensity_stack.shape[0], _backward, (field, intensity_stack))
+        (field, intensity_stack) = jax.lax.fori_loop(
+            0, intensity_stack.shape[0], _backward, (field, intensity_stack)
+        )
         return (field, intensity_stack)
 
-    intensity_stack = jnp.zeros((fluorescence_stack.shape[0], *original_field_shape[1:]))
-    (_, intensity_stack) = jax.lax.fori_loop(0, num_samples, _sample, (field, intensity_stack))
+    intensity_stack = jnp.zeros(
+        (fluorescence_stack.shape[0], *original_field_shape[1:])
+    )
+    (_, intensity_stack) = jax.lax.fori_loop(
+        0, num_samples, _sample, (field, intensity_stack)
+    )
     intensity_stack /= num_samples
     return intensity_stack
 
@@ -481,9 +503,8 @@ def thick_sample_vector(
     # We shift k to align in k-space so we dont need shift just like Q
     km = 2 * jnp.pi * n / field.spectrum
     k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
-    breakpoint()
     kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
-    k = jnp.concatenate([k, kz[None, ...]], axis=0)
+    k = jnp.concatenate([kz[None, ...], k], axis=0)
     Q = PTFT(k, km)
 
     def propagate_slice(u, potential_slice):
