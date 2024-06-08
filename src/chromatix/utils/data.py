@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Tuple
+from typing import Optional, Tuple, Union
 
 try:
     import cv2
@@ -9,9 +9,12 @@ except ModuleNotFoundError:
     USE_CV2 = False
 
 
-def sqr_dist_to_line(z, y, x, start, n):
+def sqr_dist_to_line(
+    z: np.ndarray, y: np.ndarray, x: np.ndarray, start: np.ndarray, n: np.ndarray
+) -> np.ndarray:
     """
-    returns an array with each pixel being assigned to the square distance to that line and an array with the distance along the line
+    Returns an array with each pixel being assigned to the square distance to
+    that line and an array with the distance along the line.
     """
     dx = x - start[2]
     dy = y - start[1]
@@ -22,69 +25,83 @@ def sqr_dist_to_line(z, y, x, start, n):
     ) ** 2, dot_dn
 
 
-def draw_line(arr, start, stop, thickness=0.3, intensity=1.0):
+def draw_line(
+    arr: np.ndarray,
+    start: np.ndarray,
+    stop: np.ndarray,
+    thickness: float = 0.3,
+    intensity: float = 1.0,
+) -> np.ndarray:
     """
     Draw a line in a 3D object with a given thickness and intensity.
 
     Args:
-        obj: The object to draw the line in.
+        arr: The object to draw the line in.
         start: The start of the line.
         end: The end of the line.
         thickness: The thickness of the line.
         intensity: The intensity of the line.
     """
-    direction = jnp.subtract(stop, start)
-    line_length = jnp.sqrt(jnp.sum(jnp.square(direction)))
+    direction = np.subtract(stop, start)
+    line_length = np.sqrt(np.sum(np.square(direction)))
     n = direction / line_length
 
     sigma2 = 2 * thickness**2
 
-    z, y, x = jnp.meshgrid(
-        jnp.arange(arr.shape[0]),
-        jnp.arange(arr.shape[1]),
-        jnp.arange(arr.shape[2]),
+    z, y, x = np.meshgrid(
+        np.arange(arr.shape[0]),
+        np.arange(arr.shape[1]),
+        np.arange(arr.shape[2]),
         indexing="ij",
     )
     d2, t = sqr_dist_to_line(z, y, x, start, n)
 
     line_weight = (
         (t > 0) * (t < line_length)
-        + (t <= 0) * jnp.exp(-(t**2) / sigma2)
-        + (t >= line_length) * jnp.exp(-((t - line_length) ** 2) / sigma2)
+        + (t <= 0) * np.exp(-(t**2) / sigma2)
+        + (t >= line_length) * np.exp(-((t - line_length) ** 2) / sigma2)
     )
-    return arr + intensity * jnp.exp(-d2 / sigma2) * line_weight
+    return arr + intensity * np.exp(-d2 / sigma2) * line_weight
 
 
 def filaments_3d(
-    sz,
-    intensity=1.0,
-    radius=0.8,
-    rand_offset=0.05,
-    rel_theta=1.0,
-    num_filaments=50,
-    apply_seed=True,
-    thickness=0.3,
-):
+    sz: Tuple[int, int, int],
+    intensity: float = 1.0,
+    radius: Union[float, Tuple[float, float, float]] = 0.8,
+    rand_offset: float = 0.05,
+    rel_theta: float = 1.0,
+    num_filaments: int = 50,
+    apply_seed: bool = True,
+    thickness: float = 0.3,
+) -> np.ndarray:
     """
     Create a 3D representation of filaments.
 
-    # Arguments
-    - sz: A 3D shape tuple representing the size of the object.
-    - `radius`: A tuple of real numbers (or a single real number) representing the relative radius of the volume in which the filaments will be created.
-        Default is 0.8. If a tuple is used, the filamets will be created in a corresponding elliptical volume.
-        Note that the radius is only enforced in the version `filaments3D` which creates the array rather than adding.
-    - `rand_offset`: A tuple of real numbers representing the random offsets of the filaments in relation to the size. Default is 0.05.
-    - `rel_theta`: A real number representing the relative theta range of the filaments. Default is 1.0.
-    - `num_filaments`: An integer representing the number of filaments to be created. Default is 50.
-    - `apply_seed`: A boolean representing whether to apply a seed to the random number generator. Default is true.
-    - `thickness`: A real number representing the thickness of the filaments in pixels. Default is 0.8.
+    Args:
+        sz: A 3D shape tuple representing the size of the object.
+        radius: A tuple of real numbers (or a single real number) representing
+            the relative radius of the volume in which the filaments will be
+            created. Default is 0.8. If a tuple is used, the filamets will be
+            created in a corresponding elliptical volume. Note that the radius
+            is only enforced in the version `filaments_3d` which creates the
+            array rather than adding.
+        rand_offset: A tuple of real numbers representing the random offsets of
+            the filaments in relation to the size. Default is 0.05.
+        rel_theta: A real number representing the relative theta range of the
+            filaments. Default is 1.0.
+        num_filaments: An integer representing the number of filaments to be
+            created. Default is 50.
+        apply_seed: A boolean representing whether to apply a seed to the random
+            number generator. Default is ``True``.
+        thickness: A real number representing the thickness of the filaments in
+            pixels. Default is 0.8.
 
-    The result is added to the obj input array.
-
-    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann.
+    This code is based on the SyntheticObjects.jl package by Hossein Zarei
+    Oshtolagh and Rainer Heintzmann.
     """
 
-    sz = jnp.array(sz)
+    sz = np.array(sz)
+    radius = np.array(radius)
 
     # Save the state of the rng to reset it after the function is done
     rng_state = np.random.get_state()
@@ -92,23 +109,23 @@ def filaments_3d(
         np.random.seed(42)
 
     # Create the object
-    obj = jnp.zeros(sz, dtype=np.float32)
+    obj = np.zeros(sz, dtype=np.float32)
 
     mid = sz // 2
 
     # Draw random lines equally distributed over the 3D sphere
     for n in range(num_filaments):
-        phi = 2 * jnp.pi * np.random.rand()
+        phi = 2 * np.pi * np.random.rand()
         # Theta should be scaled such that the distribution over the unit sphere is uniform
-        theta = jnp.arccos(rel_theta * (1 - 2 * np.random.rand()))
-        pos = (sz * radius / 2) * jnp.array(
+        theta = np.arccos(rel_theta * (1 - 2 * np.random.rand()))
+        pos = (sz * radius / 2) * np.array(
             [
-                jnp.sin(theta) * jnp.cos(phi),
-                jnp.sin(theta) * jnp.sin(phi),
-                jnp.cos(theta),
+                np.sin(theta) * np.cos(phi),
+                np.sin(theta) * np.sin(phi),
+                np.cos(theta),
             ]
         )
-        pos_offset = jnp.array(rand_offset * sz * (np.random.rand(3) - 0.5))
+        pos_offset = np.array(rand_offset * sz * (np.random.rand(3) - 0.5))
         # Draw line
         obj = draw_line(
             obj,
@@ -124,62 +141,70 @@ def filaments_3d(
 
 
 def pollen_3d(
-    sz,
-    intensity=1.0,
-    radius=0.8,
-    dphi=0.0,
-    dtheta=0.0,
-    thickness=0.8,
-    filled=False,
+    sz: Tuple[int, int, int],
+    intensity: float = 1.0,
+    radius: float = 0.8,
+    dphi: float = 0.0,
+    dtheta: float = 0.0,
+    thickness: float = 0.8,
+    filled: bool = False,
     filled_rel_intensity=0.1,
-):
+) -> np.ndarray:
     """
     Create a 3D representation of a pollen grain.
 
-    # Arguments
-    - `sz`: A tuple of three integers representing the size of the volume in which the pollen grain will be created. Default is (128, 128, 128).
-    - `radius`: roughly the relative radius of the pollen grain.
-    - `dphi`: A float representing the phi angle offset in radians. Default is 0.0.
-    - `dtheta`: A float representing the theta angle offset in radians. Default is 0.0.
-    - `thickness`: A float representing the thickness of the pollen grain. Default is 0.8.
-    - `filled`: A boolean representing whether the pollen grain should be filled. Default is false.
-    - `filled_rel_intensity`: A float representing the relative intensity of the filled part of the pollen grain. Default is 0.1.
+    Args:
+        sz: A tuple of three integers representing the size of the volume in
+            which the pollen grain will be created. Default is ``(128, 128,
+            128)``.
+        radius: Roughly the relative radius of the pollen grain.
+        dphi: A float representing the phi angle offset in radians. Default
+            is 0.0.
+        dtheta: A float representing the theta angle offset in radians. Default
+            is 0.0.
+        thickness: A float representing the thickness of the pollen grain.
+            Default is 0.8.
+        filled: A boolean representing whether the pollen grain should be
+            filled. Default is ``False``.
+        filled_rel_intensity: A float representing the relative intensity of the
+            filled part of the pollen grain. Default is 0.1.
+    Returns:
+        ret: A 3D array representing the pollen grain.
 
-    # Returns
-    - `ret`: A 3D array representing the pollen grain.
-    This code is based on the SyntheticObjects.jl package by Hossein Zarei Oshtolagh and Rainer Heintzmann and the original code by Kai Wicker.
+    This code is based on the SyntheticObjects.jl package by Hossein Zarei
+    Oshtolagh and Rainer Heintzmann and the original code by Kai Wicker.
     """
 
-    sz = jnp.array(sz)
-    z, y, x = jnp.meshgrid(
-        jnp.linspace(-radius, radius, sz[0]),
-        jnp.linspace(-radius, radius, sz[1]),
-        jnp.linspace(-radius, radius, sz[2]),
+    sz = np.array(sz)
+    z, y, x = np.meshgrid(
+        np.linspace(-radius, radius, sz[0]),
+        np.linspace(-radius, radius, sz[1]),
+        np.linspace(-radius, radius, sz[2]),
         indexing="ij",
     )
     thickness = thickness / sz[0]
 
     r = x**2 + y**2 + z**2
 
-    phi = jnp.atan2(y, x)
-    theta = jnp.asin(z / (jnp.sqrt(x**2 + y**2 + z**2) + 1e-2)) + dtheta
+    phi = np.atan2(y, x)
+    theta = np.asin(z / (np.sqrt(x**2 + y**2 + z**2) + 1e-2)) + dtheta
 
-    a = jnp.abs(jnp.cos(theta * 20))
-    b = jnp.abs(
-        jnp.sin(
-            (phi + dphi) * jnp.sqrt(jnp.maximum(0, jnp.cos(theta) * (20.0**2)))
+    a = np.abs(np.cos(theta * 20))
+    b = np.abs(
+        np.sin(
+            (phi + dphi) * np.sqrt(np.maximum(0, np.cos(theta) * (20.0**2)))
             - theta
-            + jnp.pi / 2
+            + np.pi / 2
         )
     )
 
     # calculate the relative distance to the surface of the pollen grain
-    dc = ((0.4 + 1 / 20.0 * (a * b) ** 5) + jnp.cos(phi + dphi) * 1 / 20) - r
+    dc = ((0.4 + 1 / 20.0 * (a * b) ** 5) + np.cos(phi + dphi) * 1 / 20) - r
     # return dc
 
     sigma2 = 2 * (thickness**2)
     res = (
-        intensity * jnp.exp(-(dc**2) / sigma2)
+        intensity * np.exp(-(dc**2) / sigma2)
         + filled * (dc > 0) * intensity * filled_rel_intensity
     )
 
@@ -187,11 +212,13 @@ def pollen_3d(
 
 
 def siemens_star(
-    num_pixels: int = 512, num_spokes: int = 32, radius: int = None
+    num_pixels: int = 512, num_spokes: int = 32, radius: Optional[int] = None
 ) -> np.ndarray:
     """
-    Generates a 2D Siemens star image of shape ``num_pixels``. A single input is interpreted as a square-shaped array.
-    ``radius`` is the radius of the star in pixels. If not provided, it will be half of the image size along each dimension.
+    Generates a 2D Siemens star image of shape ``num_pixels``. A single input
+    is interpreted as a square-shaped array. ``radius`` is the radius of the
+    star in pixels. If not provided, it will be half of the image size along
+    each dimension.
 
     Number of spokes in the star can be controlled with ``num_spokes``. Spokes
     will alternate between black and white (0.0 and 1.0).
