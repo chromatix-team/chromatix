@@ -46,11 +46,12 @@ def transform_propagate(
         field: ``Field`` to be propagated.
         z: Distance to propagate.
         n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for the
-            propagation FFT (NOTE: should not be a Jax array, otherwise
-            a ConcretizationError will arise when traced!). Use padding
-            calculator utilities from ``chromatix.functional.propagation`` to
-            compute the padding.
+        N_pad: A keyword argument integer defining the pad length for
+            the propagation FFT. Use padding calculator utilities from
+            ``chromatix.functional.propagation`` to compute the padding.
+            !!! warning
+                The pad value hould not be a Jax array, otherwise a
+                ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
         skip_initial_phase: Whether to skip the input phase change (before
@@ -171,18 +172,19 @@ def transfer_propagate(
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
-    Fresnel propagate ``field`` for a distance ``z`` using transfer method.
-    This method is also called the convolutional Fresnel propagation (CV-FR) method.
+    Fresnel propagate ``field`` for a distance ``z`` using transfer method. This
+    method is also called the convolutional Fresnel propagation (CV-FR) method.
 
     Args:
         field: ``Field`` to be propagated.
         z: Distance(s) to propagate, either a float or a 1D array.
         n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for the
-            propagation FFT (NOTE: should not be a Jax array, otherwise
-            a ConcretizationError will arise when traced!). Use padding
-            calculator utilities from ``chromatix.functional.propagation`` to
-            compute the padding.
+        N_pad: A keyword argument integer defining the pad length for
+            the propagation FFT. Use padding calculator utilities from
+            ``chromatix.functional.propagation`` to compute the padding.
+            !!! warning
+                The pad value hould not be a Jax array, otherwise a
+                ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
@@ -217,11 +219,12 @@ def exact_propagate(
         field: ``Field`` to be propagated.
         z: Distance(s) to propagate, either a float or a 1D array.
         n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for the
-            propagation FFT (NOTE: should not be a Jax array, otherwise
-            a ConcretizationError will arise when traced!). Use padding
-            calculator utilities from ``chromatix.functional.propagation`` to
-            compute the padding.
+        N_pad: A keyword argument integer defining the pad length for
+            the propagation FFT. Use padding calculator utilities from
+            ``chromatix.functional.propagation`` to compute the padding.
+            !!! warning
+                The pad value hould not be a Jax array, otherwise a
+                ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
@@ -258,19 +261,22 @@ def asm_propagate(
         field: ``Field`` to be propagated.
         z: Distance(s) to propagate, either a float or a 1D array.
         n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for the
-            propagation FFT (NOTE: should not be a Jax array, otherwise
-            a ConcretizationError will arise when traced!). Use padding
-            calculator utilities from ``chromatix.functional.propagation`` to
-            compute the padding.
+        N_pad: A keyword argument integer defining the pad length for
+            the propagation FFT. Use padding calculator utilities from
+            ``chromatix.functional.propagation`` to compute the padding.
+            !!! warning
+                The pad value hould not be a Jax array, otherwise a
+                ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
-        bandlimit: If provided, bandlimited the kernel according to "Band-Limited
-            Angular Spectrum Method for Numerical Simulation of Free-Space
-            Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
-        shift_yx: If provided, defines a shift in microns in the destination plane.
+            be an array of shape `[2,]` in the format `[ky, kx]`.
+        bandlimit: If ``True``, bandlimited the kernel according to "Band-
+            Limited Angular Spectrum Method for Numerical Simulation of Free-
+            Space Propagation in Far and Near Fields" (2009) by Matsushima and
+            Shimobaba. Defaults to ``False``.
+        shift_yx: If provided, defines a shift in microns in the destination
+            plane. Should be an array of shape `[2,]` in the format `[y, x]`.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
@@ -310,7 +316,7 @@ def compute_transfer_propagator(
         z: Distance(s) to propagate, either a float or a 1D array.
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
+            be an array of shape `[2,]` in the format `[ky, kx]`.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
@@ -338,7 +344,7 @@ def compute_exact_propagator(
             1 1).
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
+            be an array of shape `[2,]` in the format `[ky, kx]`.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
@@ -371,11 +377,13 @@ def compute_asm_propagator(
             1 1).
         n: A float that defines the refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
-        bandlimit: If provided, bandlimited the kernel according to "Band-Limited
-            Angular Spectrum Method for Numerical Simulation of Free-Space
-            Propagation in Far and Near Fields" (2009) by Matsushima and Shimobaba.
-        shift_yx: If provided, defines a shift in microns in the destination plane.
+            be an array of shape `[2,]` in the format `[ky, kx]`.
+        bandlimit: If ``True``, bandlimited the kernel according to "Band-
+            Limited Angular Spectrum Method for Numerical Simulation of Free-
+            Space Propagation in Far and Near Fields" (2009) by Matsushima and
+            Shimobaba. Defaults to ``False``.
+        shift_yx: If provided, defines a shift in microns in the destination
+            plane. Should be an array of shape `[2,]` in the format `[y, x]`.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
@@ -448,7 +456,7 @@ def compute_padding_transfer(height: int, spectrum: float, dx: float, z: float) 
     Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
     M = height  # height of field in pixels
     Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
-    N = (jnp.ceil((Q * M) / 2) * 2).astype(int)
+    N = (np.ceil((Q * M) / 2) * 2).astype(int)
     N_pad = (N - M).astype(int)
     return N_pad
 
