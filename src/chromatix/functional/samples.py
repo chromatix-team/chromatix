@@ -1,14 +1,18 @@
 from typing import Optional, Union, Tuple
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax import Array
 from chromatix.utils.fft import fft, ifft
-from chex import Array, assert_equal_shape, assert_rank
+from chex import assert_equal_shape, assert_rank
 from ..field import VectorField, ScalarField
 from chromatix.field import pad, crop
 from ..utils import _broadcast_2d_to_spatial, center_pad
-from .propagation import exact_propagate, kernel_propagate, compute_exact_propagator
+from .propagation import (
+    exact_propagate,
+    kernel_propagate,
+    compute_exact_propagator,
+    compute_asm_propagator,
+)
 from .polarizers import polarizer
 
 
@@ -289,7 +293,9 @@ def PTFT(k, km: Array) -> Array:
     Q = Q.at[jnp.diag_indices(3)].set(Q_diag)
 
     # Calculating off-diagonal elements
-    q_ij = lambda i, j: -k[i] * k[j] / km**2
+    def q_ij(i, j):
+        return -k[i] * k[j] / km**2
+
     # Setting upper diagonal
     Q = Q.at[0, 1].set(q_ij(0, 1))
     Q = Q.at[0, 2].set(q_ij(0, 2))
