@@ -10,14 +10,22 @@ Chromatix tries to respect composable `jax` transformations, so you can use all 
 We discuss these styles of parallelism in our documentation on [Parallelism](parallelism.md).
 
 ## How do I decide which parameters get optimized?
-Any attribute of an element that is specified as a possibly trainable parameter can be initialized using `chromatix.utils.trainable` in order to make it trainable. Otherwise, the attribute will be initialized (using either an `Array`, `float`, or `Callable` that takes a shape argument as specified in the documentation for that function) as non-trainable state of that element. If you are initializing an attribute as trainable using an initialization function, then you can specify whether that function requires a `jax.random.PRNGKey` or not. For example, if you are initializing the pixels of a phase mask with the `flat_phase` function, then you can use `trainable(flat_phase, rng=False)` because `flat_phase` takes only a shape argument.
+Any attribute of a Chromatix element that is specified as a possibly trainable parameter can be initialized using `chromatix.utils.trainable` in order to make it trainable. Otherwise, the attribute will be initialized (using either an `Array`, `float`, or `Callable` that takes a shape argument as specified in the documentation for that function) as non-trainable state of that element. If you are initializing an attribute as trainable using an initialization function, then you can specify whether that function requires a `jax.random.PRNGKey` or not. For example, if you are initializing the pixels of a phase mask with the `flat_phase` function, then you can use `trainable(flat_phase, rng=False)` because `flat_phase` takes only a shape argument.
 
-For example:
+!!! warning
+    In order to use `trainable`, you must be using a Chromatix element as shown
+    below. This function will not work if you are making a custom `nn.Module`
+    using Flax and want something to always be a trainable parameter. In
+    that case, you must use `self.param` as shown in the [Flax documentation]
+    (https://flax.readthedocs.io/en/latest/api_reference/flax.linen/
+    module.html#flax.linen.Module.param).
+
+Here's an example of how to use `trainable`:
 
 ```python
 import jax
-from chromatix.elements import ThinLens, PhaseMask
-from chromatix.utils import trainable, flat_phase
+from chromatix.elements import ThinLens, PhaseMask, trainable
+from chromatix.utils import flat_phase
 
 # Refractive index is trainable and initialized to 1.33
 # Focal distance and NA are not trainable
