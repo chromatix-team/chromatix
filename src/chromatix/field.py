@@ -123,10 +123,10 @@ class Field(struct.PyTreeNode):
     def dx(self) -> Array:
         """
         The spacing of the samples in ``u`` discretizing a continuous field.
-        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the
-        spacing in the y and x directions respectively (can be the same for y
-        and x for the common case of square pixels). Spacing is the same per
-        wavelength for all entries in a batch.
+        Defined as an array of shape ``(2 1... 1 1 C 1)`` specifying the spacing
+        in the y and x directions respectively (can be the same for y and x for
+        the common case of square pixels). Spacing is the same per wavelength
+        for all entries in a batch.
         """
         return _broadcast_2d_to_grid(self._dx, self.ndim)
 
@@ -134,10 +134,10 @@ class Field(struct.PyTreeNode):
     def dk(self) -> Array:
         """
         The frequency spacing of the samples in the frequency space of ``u``.
-        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the
-        spacing in the y and x directions respectively (can be the same for y
-        and x for the common case of square pixels). Spacing is the same per
-        wavelength for all entries in a batch.
+        Defined as an array of shape ``(2 1... 1 1 C 1)`` specifying the spacing
+        in the y and x directions respectively (can be the same for y and x for
+        the common case of square pixels). Spacing is the same per wavelength
+        for all entries in a batch.
         """
         shape = jnp.array(self.spatial_shape)
         shape = _broadcast_1d_to_grid(shape, self.ndim)
@@ -146,8 +146,8 @@ class Field(struct.PyTreeNode):
     @property
     def surface_area(self) -> Array:
         """
-        The surface area of the field in microns. Defined as an array of shape
-        ``(2 1... 1 1 C 1 1)`` specifying the surface area in the y and x
+        The surface area of the field in microns. Defined as an array of
+        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
         dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
@@ -157,26 +157,31 @@ class Field(struct.PyTreeNode):
     @property
     def spectrum(self) -> Array:
         """
-        Wavelengths sampled by the complex field, shape ``(1... 1 1 C 1 1)``.
+        Wavelengths sampled by the complex field, shape ``(1... 1 1 C 1)``.
         """
         return _broadcast_1d_to_channels(self._spectrum, self.ndim)
 
     @property
     def spectral_density(self) -> Array:
         """
-        Weights of wavelengths sampled by the complex field, shape ``(1... 1 1 C 1 1)``.
+        Weights of wavelengths sampled by the complex field, shape ``(1... 1 1
+        C 1)``.
         """
         return _broadcast_1d_to_channels(self._spectral_density, self.ndim)
 
     @property
     def phase(self) -> Array:
-        """Phase of the complex field, shape `(B... H W C [1 | 3])`."""
+        """
+        Phase of the complex field, shape `(B... H W C [1 | 3])`.
+        """
         return jnp.angle(self.u)
 
     @property
     def amplitude(self) -> Array:
-        """Amplitude of the complex field, shape `(B... H W C [1 | 3])`.
-        This is actually what is called the "magnitude"."""
+        """
+        Amplitude of the complex field, shape `(B... H W C [1 | 3])`. This is
+        actually what is called the "magnitude".
+        """
         return jnp.abs(self.u)
 
     @property
