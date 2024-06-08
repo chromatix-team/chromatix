@@ -26,8 +26,6 @@ def optical_fft(field: Field, z: float, n: float) -> Field:
     """
     L_sq = field.spectrum * z / n
     du = field.dk * jnp.abs(L_sq)
-    # Shift by one pixel in x and y when z < 0 and we ifft
-    shifter = jnp.exp(1j * (1 * field.k_grid[0] + 1 * field.k_grid[1]))
     # Forward transform normalization for z >= 0
     norm_fft = (z >= 0) * -1j * jnp.prod(field.dx, axis=0, keepdims=False) / L_sq
     # Inverse transform normalization for z < 0
@@ -39,8 +37,8 @@ def optical_fft(field: Field, z: float, n: float) -> Field:
             jnp.array(field.shape)  # Due to a different norm factor for fft and ifft
         )
     )
-    # Inverse transform input needs to use the conjugate and pre-apply a one pixel shift
-    fft_input = (norm_fft * field.u) + (norm_ifft * field.conj.u * shifter)
+    # Inverse transform input needs to use the conjugate
+    fft_input = (norm_fft * field.u) + (norm_ifft * field.conj.u)
     fft_output = fft(fft_input, axes=field.spatial_dims, shift=True)
     u = (z >= 0) * fft_output + (z < 0) * jnp.conj(fft_output)
     return field.replace(u=u, _dx=_squeeze_grid_to_2d(du, field.ndim))
