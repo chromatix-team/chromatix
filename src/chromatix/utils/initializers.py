@@ -1,10 +1,12 @@
-import jax.numpy as jnp
-from einops import rearrange
-from chex import Array
-from typing import Sequence, Tuple
-from .utils import create_grid, grid_spatial_to_pupil
-from scipy.special import comb  # type: ignore
 import math
+from typing import Sequence, Tuple
+
+import jax.numpy as jnp
+from chex import Array
+from einops import rearrange
+from scipy.special import comb  # type: ignore
+
+from .utils import create_grid, grid_spatial_to_pupil
 
 __all__ = [
     "flat_phase",

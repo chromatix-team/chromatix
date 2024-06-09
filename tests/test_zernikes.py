@@ -1,12 +1,9 @@
 import jax.numpy as jnp
 import pytest
-
-from chromatix.functional import plane_wave, phase_change, circular_pupil
 from chromatix.utils import (
-    zernike_aberrations,
-    l2_sq_norm,
     create_grid,
     grid_spatial_to_pupil,
+    zernike_aberrations,
 )
 
 
@@ -17,8 +14,6 @@ def test_first_ten_zernikes():
     n = 1.33
     NA = 0.5
     wavelength = 0.532
-
-    field = plane_wave(size, dx=spacing, spectrum=wavelength, spectral_density=1.0)
 
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable

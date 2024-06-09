@@ -1,12 +1,15 @@
-import jax.numpy as jnp
-from flax import linen as nn
-from chex import Array, PRNGKey
-from jax.scipy.ndimage import map_coordinates
 from typing import Callable, Optional, Tuple, Union
-from ..field import Field
-from ..functional import wrap_phase, phase_change
-from ..utils import seidel_aberrations, zernike_aberrations
+
+import jax.numpy as jnp
+from chex import Array, PRNGKey
+from flax import linen as nn
+from jax.scipy.ndimage import map_coordinates
+
 from chromatix.elements.utils import register
+
+from ..field import Field
+from ..functional import phase_change, wrap_phase
+from ..utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
     "PhaseMask",

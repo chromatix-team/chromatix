@@ -1,11 +1,13 @@
-import jax.numpy as jnp
-from jax import vmap
+from typing import Literal, Optional, Tuple, Union
+
 import flax.linen as nn
-from typing import Optional, Literal, Tuple, Union
+import jax.numpy as jnp
 from chex import Array
+from jax import vmap
+
 from ..field import Field
-from ..ops import init_plane_resample
 from ..functional import basic_sensor
+from ..ops import init_plane_resample
 
 __all__ = ["BasicSensor"]
 

@@ -1,9 +1,10 @@
-from chromatix.elements import ObjectivePointSource, PhaseMask, FFLens
-from chromatix import OpticalSystem
+from time import perf_counter_ns
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from time import perf_counter_ns
+from chromatix import OpticalSystem
+from chromatix.elements import FFLens, ObjectivePointSource, PhaseMask
 
 num_devices = 4
 num_planes_per_device = 32

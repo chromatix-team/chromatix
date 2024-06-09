@@ -1,15 +1,17 @@
-import jax.numpy as jnp
+from typing import Callable, Optional, Tuple, Union
+
 import flax.linen as nn
+from chex import Array, PRNGKey
+
+from chromatix.elements.utils import register
+
 from ..field import Field
 from ..functional.sources import (
+    generic_field,
+    objective_point_source,
     plane_wave,
     point_source,
-    objective_point_source,
-    generic_field,
 )
-from typing import Optional, Callable, Tuple, Union
-from chex import PRNGKey, Array
-from chromatix.elements.utils import register
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
 

@@ -1,10 +1,10 @@
-import jax.numpy as jnp
-import chromatix.functional as cf
-from chromatix import VectorField
 from functools import partial
-from chex import assert_axis_dimension
-import pytest
+
+import chromatix.functional as cf
+import jax.numpy as jnp
 import numpy as np
+import pytest
+from chex import assert_axis_dimension
 
 
 def test_inits():

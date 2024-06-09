@@ -1,8 +1,8 @@
 import jax.numpy as jnp
-from chromatix.utils import _squeeze_grid_to_2d
-from chromatix.utils.fft import fft, ifft
+
 from chromatix import Field
-from typing import Union
+from chromatix.utils import _squeeze_grid_to_2d
+from chromatix.utils.fft import fft
 
 
 def optical_fft(field: Field, z: float, n: float) -> Field:

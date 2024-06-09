@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 from chex import Array, assert_rank
+
 from ..field import Field
 from ..utils.shapes import _broadcast_2d_to_spatial
 

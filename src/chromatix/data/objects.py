@@ -1,6 +1,6 @@
+import imageio
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import imageio
 from skimage import img_as_ubyte
 
 

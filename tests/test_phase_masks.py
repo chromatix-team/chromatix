@@ -1,16 +1,15 @@
-from chromatix.functional import (
-    plane_wave,
-    phase_change,
-)
-from chromatix.utils import (
-    flat_phase,
-    defocused_ramps,
-    zernike_aberrations,
-)
-
-from chromatix.elements import PhaseMask, trainable
 import jax
 import jax.numpy as jnp
+from chromatix.elements import PhaseMask, trainable
+from chromatix.functional import (
+    phase_change,
+    plane_wave,
+)
+from chromatix.utils import (
+    defocused_ramps,
+    flat_phase,
+    zernike_aberrations,
+)
 
 
 def test_flat_phase():

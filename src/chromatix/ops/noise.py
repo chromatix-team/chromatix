@@ -1,7 +1,8 @@
-import jax.numpy as jnp
-from jax import random, custom_jvp
-from chex import Array, PRNGKey
 from typing import Tuple
+
+import jax.numpy as jnp
+from chex import Array, PRNGKey
+from jax import custom_jvp, random
 
 
 @custom_jvp

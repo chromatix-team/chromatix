@@ -1,8 +1,11 @@
-from ..field import VectorField
 from typing import Union
-from chex import Array
+
 import jax.numpy as jnp
+from chex import Array
+
 from chromatix.utils.utils import matvec
+
+from ..field import VectorField
 
 __all__ = [
     # General functions

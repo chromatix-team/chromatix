@@ -1,10 +1,10 @@
 from functools import partial
-import pytest
-import numpy as np
-import jax.numpy as jnp
-from scipy.special import fresnel
-from chromatix import ScalarField
+
 import chromatix.functional as cf
+import jax.numpy as jnp
+import numpy as np
+import pytest
+from scipy.special import fresnel
 
 D = 40
 z = 100
@@ -16,13 +16,18 @@ Nf = (D / 2) ** 2 / (spectrum / n * z)
 def analytical_result_square_aperture(x, z, D, spectrum, n):
     Nf = (D / 2) ** 2 / (spectrum / n * z)
 
-    def I(x):
+    def intensity(x):
         Smin, Cmin = fresnel(jnp.sqrt(2 * Nf) * (1 - 2 * x / D))
         Splus, Cplus = fresnel(jnp.sqrt(2 * Nf) * (1 + 2 * x / D))
 
         return 1 / jnp.sqrt(2) * (Cmin + Cplus) + 1j / jnp.sqrt(2) * (Smin + Splus)
 
-    U = jnp.exp(1j * 2 * jnp.pi * z * n / spectrum) / 1j * I(x[0]) * I(x[1])
+    U = (
+        jnp.exp(1j * 2 * jnp.pi * z * n / spectrum)
+        / 1j
+        * intensity(x[0])
+        * intensity(x[1])
+    )
     # Return U/l as the input field has area l^2
     return U / D
 

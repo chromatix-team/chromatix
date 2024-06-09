@@ -1,8 +1,9 @@
-import jax.numpy as jnp
-import chromatix.functional as cf
 from functools import partial
-from chex import assert_shape
+
+import chromatix.functional as cf
+import jax.numpy as jnp
 import pytest
+from chex import assert_shape
 
 
 @pytest.mark.parametrize(

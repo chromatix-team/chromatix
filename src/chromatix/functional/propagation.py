@@ -1,13 +1,16 @@
+from typing import Literal, Tuple, Union
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 from chex import Array
-from typing import Literal, Tuple, Union
-from ..field import Field
-from ..utils import _broadcast_1d_to_innermost_batch, _broadcast_1d_to_grid, l2_sq_norm
-from chromatix.utils.fft import fft, ifft
+
+from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
-from chromatix.field import pad, crop
+from chromatix.utils.fft import fft, ifft
+
+from ..field import Field
+from ..utils import _broadcast_1d_to_grid, _broadcast_1d_to_innermost_batch, l2_sq_norm
 
 __all__ = [
     "transform_propagate",
@@ -437,7 +440,7 @@ def compute_padding_transform(height: int, spectrum: float, dx: float, z: float)
     M = height  # height of field in pixels
     Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
     N = (np.ceil((Q * M) / 2) * 2).astype(int)
-    N_pad = ((N - M)).astype(int)
+    N_pad = (N - M).astype(int)
     return N_pad
 
 

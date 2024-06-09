@@ -1,9 +1,12 @@
-import jax.numpy as jnp
 from typing import Optional
-from ..field import Field
-from .pupils import circular_pupil
+
+import jax.numpy as jnp
+
 from chromatix.functional.convenience import optical_fft
+
+from ..field import Field
 from ..utils import l2_sq_norm
+from .pupils import circular_pupil
 
 __all__ = ["thin_lens", "ff_lens", "df_lens"]
 
