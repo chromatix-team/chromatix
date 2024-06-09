@@ -144,24 +144,24 @@ def transform_propagate_sas(
     N_pad = sz // pad_factor
     field = pad(field, N_pad, cval=cval)
 
-    def _forward(field: Field, z) -> Field:
+    def _forward(field: Field, z) -> Tuple[Array, Array]:
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
-        return field
+        return field.u, field._dx
 
-    def _inverse(field: Field, z) -> Field:
+    def _inverse(field: Field, z) -> Tuple[Array, Array]:
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
-        return field
+        return field.u, field._dx
 
-    u = jax.lax.cond(z >= 0, _forward, _inverse, field, z)
-    field = field.replace(u=u)
+    u, _dx = jax.lax.cond(z >= 0, _forward, _inverse, field, z)
+    field = field.replace(u=u, _dx=_dx)
     return crop(field, N_pad)
 
 
