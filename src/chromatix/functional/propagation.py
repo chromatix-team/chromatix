@@ -140,7 +140,7 @@ def transform_propagate_sas(
     """
     # Don't change this pad_factor, only 2 is supported
     pad_factor = 2
-    sz = jnp.array(field.spatial_shape)
+    sz = np.array(field.spatial_shape)
     N_pad = sz // pad_factor
     field = pad(field, N_pad, cval=cval)
 
