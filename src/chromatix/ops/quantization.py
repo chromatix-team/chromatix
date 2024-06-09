@@ -1,4 +1,5 @@
 from typing import Optional, Tuple
+
 import jax
 import jax.numpy as jnp
 from chex import Array

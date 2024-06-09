@@ -1,8 +1,10 @@
 from typing import Optional, Sequence, Tuple
-from .ops import fourier_convolution
+
 from chex import Array
-from chromatix.utils import gaussian_kernel
-from chromatix.utils import _broadcast_2d_to_spatial
+
+from chromatix.utils import _broadcast_2d_to_spatial, gaussian_kernel
+
+from .ops import fourier_convolution
 
 __all__ = ["high_pass_filter", "gaussian_filter"]
 

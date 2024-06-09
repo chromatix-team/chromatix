@@ -1,11 +1,13 @@
-from typing import Callable, Union, Tuple
+from typing import Callable, Tuple, Union
+
+from chex import Array, PRNGKey
 from flax import linen as nn
-from chex import Array, PRNGKey, assert_rank
+
+from chromatix.elements.utils import register
 
 from ..field import Field
 from ..functional.amplitude_masks import amplitude_change
 from ..ops import binarize
-from chromatix.elements.utils import register
 
 __all__ = ["AmplitudeMask"]
 

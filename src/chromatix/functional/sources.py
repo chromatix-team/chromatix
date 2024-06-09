@@ -1,14 +1,16 @@
+from typing import Callable, Optional, Tuple, Union
+
 import jax.numpy as jnp
+from chex import Array, assert_axis_dimension, assert_equal_shape
+
 from ..field import Field, ScalarField, VectorField
-from typing import Optional, Callable, Union, Tuple
-from chex import Array, assert_equal_shape, assert_axis_dimension
-from .pupils import circular_pupil
 from ..utils import l2_sq_norm
 from ..utils.shapes import (
-    _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_grid,
+    _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_polarization,
 )
+from .pupils import circular_pupil
 
 __all__ = [
     "point_source",

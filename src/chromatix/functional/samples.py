@@ -1,19 +1,22 @@
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
+
 import jax
 import jax.numpy as jnp
-from jax import Array
-from chromatix.utils.fft import fft, ifft
 from chex import assert_equal_shape, assert_rank
-from ..field import VectorField, ScalarField
-from chromatix.field import pad, crop
+from jax import Array
+
+from chromatix.field import crop, pad
+from chromatix.utils.fft import fft, ifft
+
+from ..field import ScalarField, VectorField
 from ..utils import _broadcast_2d_to_spatial, center_pad
+from .polarizers import polarizer
 from .propagation import (
+    compute_asm_propagator,
+    compute_exact_propagator,
     exact_propagate,
     kernel_propagate,
-    compute_exact_propagator,
-    compute_asm_propagator,
 )
-from .polarizers import polarizer
 
 
 def jones_sample(

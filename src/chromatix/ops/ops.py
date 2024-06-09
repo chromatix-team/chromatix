@@ -1,7 +1,9 @@
-from chex import Array
-import jax.numpy as jnp
 from functools import partial
+
+import jax.numpy as jnp
+from chex import Array
 from jax import lax
+
 from chromatix.utils import next_order
 
 

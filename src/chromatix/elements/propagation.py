@@ -1,20 +1,22 @@
-import jax.numpy as jnp
-import flax.linen as nn
 from typing import Callable, Literal, Optional, Tuple, Union
+
+import flax.linen as nn
+from chex import Array, PRNGKey
+
+from chromatix.elements.utils import Trainable, register
+from chromatix.field import crop, pad
+
 from ..field import Field
-from chex import PRNGKey, Array
 from ..functional import (
-    transform_propagate,
-    transfer_propagate,
-    exact_propagate,
     asm_propagate,
-    kernel_propagate,
-    compute_transfer_propagator,
-    compute_exact_propagator,
     compute_asm_propagator,
+    compute_exact_propagator,
+    compute_transfer_propagator,
+    exact_propagate,
+    kernel_propagate,
+    transfer_propagate,
+    transform_propagate,
 )
-from chromatix.field import pad, crop
-from chromatix.elements.utils import register, Trainable
 
 __all__ = ["Propagate"]
 

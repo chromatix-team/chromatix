@@ -1,8 +1,9 @@
 # %% Imports
+from typing import Optional, Tuple
+
+import imageio
 import jax
 import jax.numpy as jnp
-from typing import Optional, Tuple
-import imageio
 
 
 def generate_permittivity_tensor(

@@ -1,11 +1,13 @@
+from typing import Optional, Sequence, Tuple, Union
+
+import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
 from chex import Array
-from typing import Optional, Sequence, Tuple, Union
-from scipy.ndimage import distance_transform_edt  # type: ignore
-import flax.linen as nn
-from .shapes import _broadcast_2d_to_spatial
 from einops import rearrange
+from scipy.ndimage import distance_transform_edt  # type: ignore
+
+from .shapes import _broadcast_2d_to_spatial
 
 
 def next_order(val: int) -> int:

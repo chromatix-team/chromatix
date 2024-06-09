@@ -1,8 +1,10 @@
-import jax.numpy as jnp
-import flax.linen as nn
-from ..field import Field
-from chex import Array
 from typing import Optional, Tuple, Union
+
+import flax.linen as nn
+import jax.numpy as jnp
+from chex import Array
+
+from ..field import Field
 from ..ops import binarize, quantize
 
 __all__ = ["Flip", "ScaleAndBias", "Binarize", "Quantize"]

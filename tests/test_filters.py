@@ -1,8 +1,8 @@
-from scipy import ndimage
-from chromatix.ops.filters import gaussian_filter, gaussian_kernel
 import numpy as np
-from scipy.ndimage._filters import _gaussian_kernel1d
 import pytest
+from chromatix.ops.filters import gaussian_filter, gaussian_kernel
+from scipy import ndimage
+from scipy.ndimage._filters import _gaussian_kernel1d
 
 
 def test_gaussian_kernel():

@@ -1,10 +1,13 @@
 from __future__ import annotations
+
+from numbers import Number
+from typing import Any, Optional, Tuple, Union
+
 import jax.numpy as jnp
 from chex import Array, assert_equal_shape, assert_rank
-from flax import struct
 from einops import rearrange
-from typing import Union, Optional, Tuple, Any
-from numbers import Number
+from flax import struct
+
 from .utils.shapes import (
     _broadcast_1d_to_channels,
     _broadcast_1d_to_grid,

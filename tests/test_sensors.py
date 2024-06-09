@@ -1,7 +1,7 @@
-import jax.numpy as jnp
-from jax.random import PRNGKey
 import chromatix.functional as cf
+import jax.numpy as jnp
 from chromatix.elements.sensors import BasicSensor
+from jax.random import PRNGKey
 
 
 def test_basic_sensor():

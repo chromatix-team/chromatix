@@ -1,7 +1,8 @@
-import jax.numpy as jnp
-from typing import Tuple
-from chex import Array
 from functools import partial
+from typing import Tuple
+
+import jax.numpy as jnp
+from chex import Array
 
 
 def fft(x: Array, axes: Tuple[int, int] = (1, 2), shift: bool = False) -> Array:
