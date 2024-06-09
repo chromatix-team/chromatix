@@ -13,8 +13,15 @@ dependencies = ["jax >= 0.4.1", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.5
 version = "0.3.0"
 
 [project.optional-dependencies]
-dev = ["black >= 23.1.0", "mypy>= 0.991", "pytest>=7.2.0", "ruff >= 0.0.246"]
+dev = ["mypy>= 0.991", "pytest>=7.2.0", "ruff >= 0.4.8"]
 docs = ["mkdocs >= 1.4.2", "mkdocs-material >= 9.0.6", "mkdocstrings-python >= 0.8.3", "mkdocs-jupyter"]
 
 [tool.ruff]
-ignore = ["F401", "F403"] #ignore unused imports errors
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = ["E402"]
+extend-select = ["I"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
