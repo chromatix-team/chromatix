@@ -1,8 +1,10 @@
+from typing import Callable, Literal, Optional, Union
+
 import jax.numpy as jnp
+from chex import Array, PRNGKey
 from jax import vmap
 from jax.lax import psum
-from chex import PRNGKey, Array
-from typing import Callable, Optional, Literal, Union
+
 from ..field import Field
 from ..ops import approximate_shot_noise, shot_noise
 

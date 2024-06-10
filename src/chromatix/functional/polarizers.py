@@ -1,7 +1,11 @@
-from ..field import VectorField
 from typing import Union
-from chex import Array
+
 import jax.numpy as jnp
+from chex import Array
+
+from chromatix.utils.utils import matvec
+
+from ..field import VectorField
 
 __all__ = [
     # General functions
@@ -16,6 +20,7 @@ __all__ = [
     "linear_polarizer",
     "left_circular_polarizer",
     "right_circular_polarizer",
+    "universal_compensator",
     # Waveplates
     "wave_plate",
     "halfwave_plate",
@@ -97,7 +102,8 @@ def polarizer(
     """
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
-    return field.replace(u=jnp.dot(field.u, LP))
+    LP = LP / jnp.linalg.norm(LP)
+    return field.replace(u=matvec(LP, field.u))
 
 
 def linear_polarizer(field: VectorField, angle: float) -> VectorField:
@@ -214,3 +220,20 @@ def quarterwave_plate(field: VectorField, theta: float) -> VectorField:
         VectorField: outgoing field.
     """
     return phase_retarder(field, theta, eta=jnp.pi / 2, phi=0)
+
+
+def universal_compensator(field: VectorField, retA: float, retB: float) -> VectorField:
+    """Applies the Universal Polarizer for the LC-PolScope to the incoming field.
+
+    Args:
+        field (VectorField): incoming field.
+        retA (float): retardance induced at a 45 deg angle.
+        retB (float): retardance induced at a 0 deg angle.
+
+    Returns:
+        VectorField: outgoing field.
+    """
+    field_LP = linear_polarizer(field, 0)
+    field_retA = wave_plate(field_LP, -jnp.pi / 4, retA)
+    field_retB = wave_plate(field_retA, 0, retB)
+    return field_retB

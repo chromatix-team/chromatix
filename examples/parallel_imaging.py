@@ -1,11 +1,12 @@
-from chromatix.systems import Microscope, Optical4FSystemPSF
-from chromatix.elements import BasicSensor, trainable
-from chromatix.utils import flat_phase
+from functools import partial
+from time import perf_counter_ns
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from functools import partial
-from time import perf_counter_ns
+from chromatix.elements import BasicSensor, trainable
+from chromatix.systems import Microscope, Optical4FSystemPSF
+from chromatix.utils import flat_phase
 
 num_devices = 4
 num_planes_per_device = 32

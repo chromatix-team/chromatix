@@ -1,7 +1,10 @@
 from __future__ import annotations
-from flax import linen as nn
-from chex import Array
+
 from typing import Any, Callable, Sequence, Union
+
+from chex import Array
+from flax import linen as nn
+
 from ..field import Field
 
 

@@ -1,10 +1,12 @@
-import jax.numpy as jnp
-from einops import rearrange
-from chex import Array
-from typing import Sequence, Tuple
-from .utils import create_grid, grid_spatial_to_pupil
-from scipy.special import comb  # type: ignore
 import math
+from typing import Sequence, Tuple
+
+import jax.numpy as jnp
+from chex import Array
+from einops import rearrange
+from scipy.special import comb  # type: ignore
+
+from .utils import create_grid, grid_spatial_to_pupil
 
 __all__ = [
     "flat_phase",
@@ -143,6 +145,7 @@ def zernike_aberrations(
     NA: float,
     ansi_indices: Sequence[int],
     coefficients: Sequence[float],
+    normalization: bool = True,
 ) -> Array:
     """
     Computes Zernike aberrations
@@ -213,6 +216,13 @@ def zernike_aberrations(
             Z = R_nm * jnp.sin(theta * abs(m))
 
         Z = Z * mask
+
+        if normalization:
+            if m == 0:
+                Z = Z * jnp.sqrt(n + 1)
+            else:
+                Z = Z * jnp.sqrt(2 * (n + 1))
+
         zernike_polynomials.append(Z)
 
     zernike_polynomials = jnp.asarray(zernike_polynomials)

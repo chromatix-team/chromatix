@@ -1,2 +1,2 @@
-from .optical_system import OpticalSystem
 from .microscopes import *
+from .optical_system import OpticalSystem
