@@ -32,7 +32,7 @@ def flat_phase(shape: tuple[int, int], *args, value: NumberLike = 0.0) -> Array:
 
 
 def potato_chip(
-    shape: tuple[int, ...],
+    shape: tuple[int, int],
     spacing: NumberLike,
     wavelength: NumberLike,
     n: NumberLike,

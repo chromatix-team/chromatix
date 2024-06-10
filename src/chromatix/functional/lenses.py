@@ -1,9 +1,9 @@
 import jax.numpy as jnp
 
+from chromatix import Field
 from chromatix.functional.convenience import optical_fft
 from chromatix.typing import NumberLike
 
-from ..field import Field
 from ..utils import l2_sq_norm
 from .pupils import circular_pupil
 

@@ -1,15 +1,15 @@
 import jax.numpy as jnp
 from chex import assert_rank
+from jax import Array
 
-from chromatix.typing import ArrayLike
+from chromatix import Field
 
-from ..field import Field
 from ..utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["amplitude_change"]
 
 
-def amplitude_change(field: Field, amplitude: ArrayLike) -> Field:
+def amplitude_change(field: Field, amplitude: Array) -> Field:
     """
     Perturbs ``field`` by ``amplitude``.
 

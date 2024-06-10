@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Sequence
 
 import jax.numpy as jnp
 from chex import PRNGKey
@@ -234,7 +234,7 @@ class ZernikeAberrations(nn.Module):
     f: ArrayLike
     n: ArrayLike
     NA: ArrayLike
-    ansi_indices: ArrayLike
+    ansi_indices: Sequence[int]
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from chromatix import Field
+from chromatix.field import Field
 from chromatix.typing import NumberLike
 from chromatix.utils import _squeeze_grid_to_2d
 from chromatix.utils.fft import fft

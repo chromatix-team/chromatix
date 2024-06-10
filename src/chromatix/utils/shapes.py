@@ -39,7 +39,7 @@ def _broadcast_1d_to_grid(x: ArrayLike | tuple[float, float], ndim: int) -> Arra
     Useful for vectorial ops on grids.
     """
     shape_spec = "d ->" + "d" + " 1" * (ndim - 4) + " 1 1 1 1"
-    return rearrange(jnp.atleast_1d(x), shape_spec, d=2)
+    return rearrange(jnp.atleast_1d(jnp.array(x)), shape_spec, d=2)
 
 
 def _broadcast_2d_to_grid(x: Array, ndim: int) -> Array:

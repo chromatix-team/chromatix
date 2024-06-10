@@ -10,7 +10,7 @@ from chromatix.functional.convenience import optical_fft
 from chromatix.typing import ArrayLike, NumberLike
 from chromatix.utils.fft import fft, ifft
 
-from ..field import Field
+from ..field import Field, ScalarField, VectorField
 from ..utils import _broadcast_1d_to_grid, _broadcast_1d_to_innermost_batch, l2_sq_norm
 
 __all__ = [
@@ -82,7 +82,7 @@ def transform_propagate(
 
 
 def compute_sas_precompensation(
-    field: Field,
+    field: ScalarField | VectorField,
     z: NumberLike,
     n: NumberLike,
 ) -> Array:
@@ -141,8 +141,8 @@ def transform_propagate_sas(
     """
     # Don't change this pad_factor, only 2 is supported
     pad_factor = 2
-    sz = jnp.array(field.spatial_shape)
-    N_pad = sz // pad_factor
+    sz = np.array(field.spatial_shape)
+    N_pad = tuple(sz // pad_factor)
     field = pad(field, N_pad, cval=cval)
 
     def _forward(field: Field, z) -> Field:
@@ -305,7 +305,7 @@ def kernel_propagate(field: Field, propagator: ArrayLike) -> Field:
 
 
 def compute_transfer_propagator(
-    field: Field,
+    field: ScalarField | VectorField,
     z: NumberLike,
     n: NumberLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
@@ -330,7 +330,7 @@ def compute_transfer_propagator(
 
 
 def compute_exact_propagator(
-    field: Field,
+    field: ScalarField | VectorField,
     z: NumberLike,
     n: NumberLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
@@ -360,7 +360,7 @@ def compute_exact_propagator(
 
 
 def compute_asm_propagator(
-    field: Field,
+    field: ScalarField | VectorField,
     z: NumberLike,
     n: NumberLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),

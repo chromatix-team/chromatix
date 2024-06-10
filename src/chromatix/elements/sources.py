@@ -7,7 +7,7 @@ from jax import Array
 from chromatix.elements.utils import register
 from chromatix.typing import ArrayLike, NumberLike
 
-from ..field import Field
+from ..field import Field, ScalarField, VectorField
 from ..functional.sources import (
     generic_field,
     objective_point_source,
@@ -16,6 +16,8 @@ from ..functional.sources import (
 )
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
+
+FieldPupil = Callable[[Field], Field]
 
 
 class PointSource(nn.Module):
@@ -53,11 +55,11 @@ class PointSource(nn.Module):
     n: NumberLike | Callable[[PRNGKey], Array]
     power: NumberLike | Callable[[PRNGKey], Array] = 1.0
     amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
-    pupil: Callable[[Field], Field] | None = None
+    pupil: FieldPupil | None = None
     scalar: bool = True
 
     @nn.compact
-    def __call__(self) -> Field:
+    def __call__(self) -> ScalarField | VectorField:
         power = register(self, "power")
         z = register(self, "z")
         n = register(self, "n")
@@ -115,7 +117,7 @@ class ObjectivePointSource(nn.Module):
     scalar: bool = True
 
     @nn.compact
-    def __call__(self, z: float) -> Field:
+    def __call__(self, z: float) -> ScalarField | VectorField:
         f = register(self, "f")
         n = register(self, "n")
         NA = register(self, "NA")
@@ -172,11 +174,11 @@ class PlaneWave(nn.Module):
     power: NumberLike | Callable[[PRNGKey], Array] = 1.0
     amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
-    pupil: Callable[[Field], Field] | None = None
+    pupil: FieldPupil | None = None
     scalar: bool = True
 
     @nn.compact
-    def __call__(self) -> Field:
+    def __call__(self) -> ScalarField | VectorField:
         kykx = register(self, "kykx")
         power = register(self, "power")
         amplitude = register(self, "amplitude")
@@ -222,11 +224,11 @@ class GenericField(nn.Module):
     amplitude: ArrayLike | Callable[[PRNGKey], Array]
     phase: ArrayLike | Callable[[PRNGKey], Array]
     power: NumberLike | Callable[[PRNGKey], Array] = 1.0
-    pupil: Callable[[Field], Field] | None = None
+    pupil: FieldPupil | None = None
     scalar: bool = True
 
     @nn.compact
-    def __call__(self) -> Field:
+    def __call__(self) -> ScalarField | VectorField:
         amplitude = register(self, "amplitude")
         phase = register(self, "phase")
         power = register(self, "power")

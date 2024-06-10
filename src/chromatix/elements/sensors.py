@@ -6,7 +6,7 @@ from jax import Array, vmap
 
 from chromatix.typing import ArrayLike
 
-from ..field import Field
+from ..field import Field, ScalarField, VectorField
 from ..functional import basic_sensor
 from ..ops import init_plane_resample
 
@@ -51,7 +51,7 @@ class BasicSensor(nn.Module):
 
     def __call__(
         self,
-        sensor_input: ArrayLike | Field,
+        sensor_input: Array | Field,
         input_spacing: ArrayLike | None = None,
     ) -> Array:
         """
@@ -63,11 +63,12 @@ class BasicSensor(nn.Module):
             input_spacing: The spacing of the input, only required if resampling
                 is required and the input is an ``Array``.
         """
-        if isinstance(sensor_input, Field):
+        if isinstance(sensor_input, (ScalarField, VectorField)):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same
             # spacing at all wavelengths when calculating intensity!
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
-        input_spacing = jnp.atleast_1d(input_spacing)
+        elif input_spacing is not None:
+            input_spacing = jnp.atleast_1d(input_spacing)
         # Only want to resample if the spacing does not match
         if self.resampling_method is not None and jnp.any(
             input_spacing != self.spacing
@@ -89,7 +90,7 @@ class BasicSensor(nn.Module):
             noise_key=noise_key,
         )
 
-    def resample(self, resample_input: ArrayLike, input_spacing: ArrayLike) -> Array:
+    def resample(self, resample_input: Array, input_spacing: ArrayLike) -> Array:
         """
         Resample the given ``resample_input`` to the pixels of the sensor.
 

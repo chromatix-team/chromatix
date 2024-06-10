@@ -4,15 +4,13 @@ from jax import Array
 
 from chromatix.typing import ArrayLike
 
-from ..field import Field
+from ..field import Field, ScalarField, VectorField
 from ..utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["phase_change", "wrap_phase", "spectrally_modulate_phase"]
 
 
-def phase_change(
-    field: Field, phase: ArrayLike, spectrally_modulate: bool = True
-) -> Field:
+def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -> Field:
     """
     Perturbs ``field`` by ``phase`` (given in radians).
 
@@ -31,6 +29,9 @@ def phase_change(
     if spectrally_modulate:
         phase = spectrally_modulate_phase(phase, field)
     return field * jnp.exp(1j * phase)
+
+
+# TODO: Move these two below to utils?
 
 
 def wrap_phase(
@@ -59,7 +60,7 @@ def wrap_phase(
     return phase
 
 
-def spectrally_modulate_phase(phase: Array, field: Field) -> Array:
+def spectrally_modulate_phase(phase: Array, field: ScalarField | VectorField) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
     central_wavelength = field.spectrum[..., 0, 0].squeeze()
     spectral_modulation = central_wavelength / field.spectrum

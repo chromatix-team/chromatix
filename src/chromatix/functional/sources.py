@@ -3,9 +3,9 @@ from typing import Callable
 import jax.numpy as jnp
 from chex import assert_axis_dimension, assert_equal_shape
 
+from chromatix import Field, ScalarField, VectorField
 from chromatix.typing import ArrayLike, NumberLike
 
-from ..field import Field, ScalarField, VectorField
 from ..utils import l2_sq_norm
 from ..utils.shapes import (
     _broadcast_1d_to_grid,
@@ -22,6 +22,10 @@ __all__ = [
 ]
 
 
+# We need this alias for typing to pass
+FieldPupil = Callable[[Field], Field]
+
+
 def point_source(
     shape: tuple[int, int],
     dx: NumberLike,
@@ -31,9 +35,9 @@ def point_source(
     n: NumberLike,
     power: NumberLike = 1.0,
     amplitude: NumberLike = 1.0,
-    pupil: Callable[[Field], Field] | None = None,
+    pupil: FieldPupil | None = None,
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates field due to point source a distance ``z`` away.
 
@@ -83,7 +87,7 @@ def objective_point_source(
     power: NumberLike = 1.0,
     amplitude: NumberLike = 1.0,
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates field due to a point source defocused by an amount ``z`` away from
     the focal plane, just after passing through a lens with focal length ``f``
@@ -128,9 +132,9 @@ def plane_wave(
     power: NumberLike = 1.0,
     amplitude: NumberLike = 1.0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
-    pupil: Callable[[Field], Field] | None = None,
+    pupil: FieldPupil | None = None,
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates plane wave of given ``power``.
 
@@ -172,9 +176,9 @@ def generic_field(
     amplitude: ArrayLike,
     phase: ArrayLike,
     power: NumberLike = 1.0,
-    pupil: Callable[[Field], Field] | None = None,
+    pupil: FieldPupil | None = None,
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates field with arbitrary ``phase`` and ``amplitude``.
 
@@ -204,7 +208,7 @@ def generic_field(
     assert_axis_dimension(amplitude, -1, vectorial_dimension)
     assert_axis_dimension(phase, -1, vectorial_dimension)
     assert_equal_shape([amplitude, phase])
-    u = amplitude * jnp.exp(1j * phase)
+    u = jnp.array(amplitude) * jnp.exp(1j * phase)
     field = create(dx, spectrum, spectral_density, u=u)
     if pupil is not None:
         field = pupil(field)

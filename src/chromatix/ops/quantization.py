@@ -2,13 +2,11 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from chromatix.typing import ArrayLike
-
 __all__ = ["binarize", "binarize_jvp", "quantize", "quantize_jvp"]
 
 
 @jax.custom_jvp
-def binarize(x: ArrayLike, threshold: float = 0.5) -> Array:
+def binarize(x: Array, threshold: float = 0.5) -> Array:
     """
     Binarize each pixel of amplitude mask to be either 0 or 1.
 

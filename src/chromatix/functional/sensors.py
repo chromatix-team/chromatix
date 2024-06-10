@@ -5,16 +5,16 @@ from chex import PRNGKey
 from jax import Array, vmap
 from jax.lax import psum
 
+from chromatix import ScalarField, VectorField
 from chromatix.typing import ArrayLike, NumberLike
 
-from ..field import Field
 from ..ops import approximate_shot_noise, shot_noise
 
 __all__ = ["basic_sensor"]
 
 
 def basic_sensor(
-    sensor_input: Field | Array,
+    sensor_input: ScalarField | VectorField | Array,
     shot_noise_mode: Literal["approximate", "poisson"] | None = None,
     resample_fn: Callable[[ArrayLike, NumberLike], Array] | None = None,
     reduce_axis: int | None = None,
@@ -43,16 +43,17 @@ def basic_sensor(
             spacing of the input to be used for resampling by the sensor.
         noise_key: If provided, will be used to generate the shot noise.
     """
-    if isinstance(sensor_input, Field):
+    if isinstance(sensor_input, (ScalarField, VectorField)):
         intensity = sensor_input.intensity
         # WARNING(dd): @copypaste(Microscope) Assumes that field has same
         # spacing at all wavelengths when calculating intensity!
         input_spacing = sensor_input.dx[..., 0, 0].squeeze()
     else:
         intensity = sensor_input
+
     if resample_fn is not None:
         assert input_spacing is not None, "Must provide input_spacing for intensity"
-    if resample_fn is not None:
+    if (resample_fn is not None) and (input_spacing is not None):
         for i in range(sensor_input.ndim - 4):
             resample_fn = vmap(resample_fn, in_axes=(0, None))
         image = resample_fn(intensity, input_spacing)

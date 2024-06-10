@@ -11,7 +11,7 @@ from chromatix.typing import ArrayLike, NumberLike
 from chromatix.utils import sigmoid_taper
 
 from ..elements import FFLens, ObjectivePointSource, PhaseMask
-from ..field import Field
+from ..field import ScalarField, VectorField
 from ..ops import fourier_convolution
 from ..utils import center_crop
 from .optical_system import OpticalSystem
@@ -69,7 +69,7 @@ class Microscope(nn.Module):
             to 0, in which case no tapering is applied.
     """
 
-    system_psf: Callable[[Microscope], Field | ArrayLike]
+    system_psf: Callable[[Microscope], ScalarField | VectorField | Array]
     sensor: nn.Module
     f: NumberLike
     n: NumberLike
@@ -98,12 +98,15 @@ class Microscope(nn.Module):
         psf = self._process_psf(system_psf, ndim, spatial_dims)
         return self.image(sample, psf, axes=spatial_dims)
 
-    def psf(self, *args: Any, **kwargs: Any) -> Field | ArrayLike:
+    def psf(self, *args: Any, **kwargs: Any) -> ScalarField | VectorField | Array:
         """Computes PSF of system, taking any necessary arguments."""
         return self.system_psf(self, *args, **kwargs)
 
     def _process_psf(
-        self, system_psf: Field | Array, ndim: int, spatial_dims: tuple[int, int]
+        self,
+        system_psf: ScalarField | VectorField | Array,
+        ndim: int,
+        spatial_dims: tuple[int, int],
     ) -> Array:
         """
         Prepare PSF to be convolved with a sample by doing the following:
@@ -122,7 +125,7 @@ class Microscope(nn.Module):
             padding = (0, 0)
         # WARNING(dd): Assumes that field has same spacing at all wavelengths
         # when calculating intensity!
-        if isinstance(system_psf, Field):
+        if isinstance(system_psf, (ScalarField | VectorField)):
             psf = system_psf.intensity
             spacing = system_psf.dx[..., 0, 0].squeeze()
         else:
@@ -134,7 +137,7 @@ class Microscope(nn.Module):
                 ]
             )
         if self.padding_ratio > 0:
-            pad_spec = [None for _ in range(ndim)]
+            pad_spec: list[Any] = [None for _ in range(ndim)]
             pad_spec[spatial_dims[0]] = padding[0] // 2
             pad_spec[spatial_dims[1]] = padding[1] // 2
             psf = center_crop(psf, pad_spec)
@@ -186,10 +189,10 @@ class Optical4FSystemPSF(nn.Module):
 
     shape: tuple[int, int]
     spacing: NumberLike
-    phase: ArrayLike | Callable[[PRNGKey, tuple[int, ...]], Array]
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
 
     @nn.compact
-    def __call__(self, microscope: Microscope, z: ArrayLike) -> Field:
+    def __call__(self, microscope: Microscope, z: ArrayLike) -> Array:
         padding = tuple(int(s * microscope.padding_ratio) for s in self.shape)
         padded_shape = tuple(s + p for s, p in zip(self.shape, padding))
         required_spacing = self.compute_required_spacing(
@@ -224,5 +227,5 @@ class Optical4FSystemPSF(nn.Module):
         f: NumberLike,
         n: NumberLike,
         spectrum: NumberLike,
-    ) -> Array:
+    ) -> NumberLike:
         return f * spectrum / (n * height * output_spacing)

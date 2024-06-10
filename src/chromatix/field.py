@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import Any
+from typing import Any, Self, TypeVar
 
 import jax.numpy as jnp
 from chex import assert_equal_shape, assert_rank
@@ -18,7 +18,7 @@ from .utils.shapes import (
 )
 
 
-class Field(struct.PyTreeNode):
+class BaseField(struct.PyTreeNode):
     """
     A container that describes the chromatic light field at a 2D plane.
 
@@ -224,93 +224,93 @@ class Field(struct.PyTreeNode):
         return self.u.ndim
 
     @property
-    def conj(self) -> Field:
+    def conj(self) -> Self:
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
-    def __add__(self, other: ArrayLike | Field) -> Field:
+    def __add__(self, other: NumberLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u + other.u)
         else:
             return NotImplemented
 
-    def __radd__(self, other: Any) -> Field:
+    def __radd__(self, other: Any) -> Self:
         return self + other
 
-    def __sub__(self, other: ArrayLike | Field) -> Field:
+    def __sub__(self, other: NumberLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u - other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u - other.u)
         else:
             return NotImplemented
 
-    def __rsub__(self, other: Any) -> Field:
+    def __rsub__(self, other: Any) -> Self:
         return (-1 * self) + other
 
-    def __mul__(self, other: ArrayLike | Field) -> Field:
+    def __mul__(self, other: NumberLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u * other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u * other.u)
         else:
             return NotImplemented
 
-    def __rmul__(self, other: Any) -> Field:
+    def __rmul__(self, other: Any) -> Self:
         return self * other
 
-    def __matmul__(self, other: ArrayLike) -> Field:
+    def __matmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(self.u, other))
 
-    def __rmatmul__(self, other: ArrayLike) -> Field:
+    def __rmatmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
-    def __truediv__(self, other: ArrayLike | Field) -> Field:
+    def __truediv__(self, other: NumberLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u / other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u / other.u)
         else:
             return NotImplemented
 
-    def __rtruediv__(self, other: Any) -> Field:
+    def __rtruediv__(self, other: Any) -> Self:
         return self.replace(u=other / self.u)
 
-    def __floordiv__(self, other: ArrayLike | Field) -> Field:
+    def __floordiv__(self, other: NumberLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u // other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u // other.u)
         else:
             return NotImplemented
 
-    def __rfloordiv__(self, other: Any) -> Field:
+    def __rfloordiv__(self, other: Any) -> Self:
         return self.replace(u=other // self.u)
 
-    def __mod__(self, other: ArrayLike | Field) -> Field:
+    def __mod__(self, other: NumberLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u % other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u % other.u)
         else:
             return NotImplemented
 
-    def __rmod__(self, other: Any) -> Field:
+    def __rmod__(self, other: Any) -> Self:
         return self.replace(u=other % self.u)
 
 
-class ScalarField(Field):
+class ScalarField(BaseField):
     @classmethod
     def create(
         cls,
         dx: NumberLike,
         spectrum: NumberLike,
         spectral_density: NumberLike,
-        u: ArrayLike | None = None,
+        u: Array | None = None,
         shape: tuple[int, int] | None = None,
-    ) -> Field:
+    ) -> Self:
         """
         Create a scalar approximation ``Field`` object in a convenient way.
 
@@ -362,16 +362,16 @@ class ScalarField(Field):
         return cls(u, dx, spectrum, spectral_density)
 
 
-class VectorField(Field):
+class VectorField(BaseField):
     @classmethod
     def create(
         cls,
         dx: NumberLike,
         spectrum: NumberLike,
         spectral_density: NumberLike,
-        u: ArrayLike | None = None,
+        u: Array | None = None,
         shape: tuple[int, int] | None = None,
-    ) -> Field:
+    ) -> Self:
         """
         Create a vectorial ``Field`` object in a convenient way.
 
@@ -428,6 +428,9 @@ class VectorField(Field):
         norm = jnp.linalg.norm(self.u, axis=-1, keepdims=True)
         norm = jnp.where(norm == 0, 1, norm)  # set to 1 to avoid division by zero
         return self.u / norm
+
+
+Field = TypeVar("Field", ScalarField, VectorField)
 
 
 def pad(field: Field, pad_width: int | tuple[int, int], cval: float = 0) -> Field:
