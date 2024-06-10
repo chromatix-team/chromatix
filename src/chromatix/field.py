@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import Any, Self, TypeVar
+from typing import Any, TypeVar
 
 import jax.numpy as jnp
 from chex import assert_equal_shape, assert_rank
 from einops import rearrange
 from flax import struct
 from jax import Array
+from typing_extensions import Self
 
 from chromatix.typing import ArrayLike, NumberLike
 
