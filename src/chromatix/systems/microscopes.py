@@ -65,6 +65,10 @@ class Microscope(nn.Module):
             smoothly bring the edges of the PSF to 0. This helps to prevent
             edge artifacts in the image if the PSF has edge artifacts. Defaults
             to 0, in which case no tapering is applied.
+        fast_fft_shape: If `True`, Fourier convolutions will be computed at
+            potentially larger shapes to gain speed at the expense of increased
+            memory requirements. If you are running out of memory, try setting
+            this to `False`. Defaults to `True`.
     """
 
     system_psf: Callable[[Microscope], Union[Field, Array]]
@@ -76,6 +80,7 @@ class Microscope(nn.Module):
     spectral_density: Array
     padding_ratio: float = 0
     taper_width: float = 0
+    fast_fft_shape: bool = True
 
     def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
         """
@@ -151,13 +156,11 @@ class Microscope(nn.Module):
             sample: The sample volume to image with of shape `(B... H W 1 1)`.
             psf: The PSF intensity volume to image with of shape `(B... H W 1 1)`.
         """
-        image = fourier_convolution(psf, sample, axes=axes)
+        image = fourier_convolution(sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape)
         # NOTE(dd): By this point, the image should already be at the same
         # spacing as the sensor. Any resampling to the pixels of the sensor
-        # should already have happened to the PSF. The intent of passing
-        # the sensor spacing as the input spacing is to bypass any further
-        # resampling.
-        image = self.sensor(image, self.sensor.spacing)
+        # should already have happened to the PSF.
+        image = self.sensor(image, self.sensor.spacing, resample=False)
         return image
 
 

@@ -323,8 +323,7 @@ def compute_transfer_propagator(
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
-    phase = -jnp.pi * jnp.abs(L) ** 2 * l2_sq_norm(field.k_grid - kykx)
+    phase = -jnp.pi * (field.spectrum / n) * z * l2_sq_norm(field.k_grid - kykx)
     return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
 
 

@@ -1,10 +1,9 @@
 from typing import Tuple
-
+import jax
 import jax.numpy as jnp
 from chex import Array, assert_rank
-
-from ..field import Field
-from ..utils.shapes import _broadcast_2d_to_spatial
+from chromatix.field import Field
+from chromatix.utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["phase_change", "wrap_phase", "spectrally_modulate_phase"]
 
@@ -30,6 +29,7 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
     return field * jnp.exp(1j * phase)
 
 
+@jax.custom_jvp
 def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
     """
     Wraps values of ``phase`` to the range given by ``limits``.
@@ -40,7 +40,6 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
             will be wrapped to.
     """
     phase_min, phase_max = limits
-    assert phase_min < phase_max, "Lower limit needs to be smaller than upper limit."
     phase = jnp.where(
         phase < phase_min,
         phase + 2 * jnp.pi * (1 + (phase_min - phase) // (2 * jnp.pi)),
@@ -52,6 +51,11 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
         phase,
     )
     return phase
+
+
+@wrap_phase.defjvp
+def wrap_phase_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+    return wrap_phase(*primals), tangents[0]
 
 
 def spectrally_modulate_phase(phase: Array, field: Field) -> Array:
