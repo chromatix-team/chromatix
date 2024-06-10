@@ -97,7 +97,7 @@ def compute_sas_precompensation(
     W = jnp.prod((s_sq * (2 + 1 / t**2) <= 1), axis=0)
     H_AS = jnp.sqrt(
         jnp.maximum(0, 1 - jnp.sum(s_sq, axis=0))
-    )  # NOTE(rh): or cast to complex? Can W be larger than the free-space limit?
+    )  # NOTE(rh): Or cast to complex? Can W be larger than the free-space limit?
     H_Fr = 1 - jnp.sum(s_sq, axis=0) / 2
     delta_H = W * jnp.exp(1j * kz * (H_AS - H_Fr))
     delta_H = jnp.fft.ifftshift(delta_H, axes=field.spatial_dims)
@@ -145,24 +145,24 @@ def transform_propagate_sas(
     N_pad = tuple(sz // pad_factor)
     field = pad(field, N_pad, cval=cval)
 
-    def _forward(field: Field, z) -> Field:
+    def _forward(field: Field, z) -> tuple[Array, Array]:
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
-        return field
+        return field.u, field._dx
 
-    def _inverse(field: Field, z) -> Field:
+    def _inverse(field: Field, z) -> tuple[Array, Array]:
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
-        return field
+        return field.u, field._dx
 
-    u = jax.lax.cond(z >= 0, _forward, _inverse, field, z)
-    field = field.replace(u=u)
+    u, _dx = jax.lax.cond(z >= 0, _forward, _inverse, field, z)
+    field = field.replace(u=u, _dx=_dx)
     return crop(field, N_pad)
 
 
@@ -324,8 +324,7 @@ def compute_transfer_propagator(
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))  # lengthscale L
-    phase = -jnp.pi * jnp.abs(L) ** 2 * l2_sq_norm(field.k_grid - kykx)
+    phase = -jnp.pi * (field.spectrum / n) * z * l2_sq_norm(field.k_grid - kykx)
     return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
 
 

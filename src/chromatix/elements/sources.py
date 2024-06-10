@@ -45,6 +45,7 @@ class PointSource(nn.Module):
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
+        epsilon: Value added to denominators for numerical stability.
     """
 
     shape: tuple[int, int]
@@ -57,6 +58,7 @@ class PointSource(nn.Module):
     amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     pupil: FieldPupil | None = None
     scalar: bool = True
+    epsilon: float = (np.finfo(np.float32).eps,)
 
     @nn.compact
     def __call__(self) -> ScalarField | VectorField:
@@ -75,6 +77,7 @@ class PointSource(nn.Module):
             amplitude,
             self.pupil,
             self.scalar,
+            self.epsilon,
         )
 
 
@@ -101,6 +104,8 @@ class ObjectivePointSource(nn.Module):
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
+        offset: The offset (y and x) in spatial coordinates of the point source.
+            Defaults to (0, 0) for no offset (a centered point source).
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
@@ -123,6 +128,7 @@ class ObjectivePointSource(nn.Module):
         NA = register(self, "NA")
         power = register(self, "power")
         amplitude = register(self, "amplitude")
+        offset = register(self, "offset")
 
         return objective_point_source(
             self.shape,
@@ -135,6 +141,7 @@ class ObjectivePointSource(nn.Module):
             NA,
             power,
             amplitude,
+            offset,
             self.scalar,
         )
 

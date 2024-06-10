@@ -62,6 +62,8 @@ class BasicSensor(nn.Module):
             sensor_input: The incoming ``Field`` or intensity ``Array``.
             input_spacing: The spacing of the input, only required if resampling
                 is required and the input is an ``Array``.
+            resample: Whether to perform resampling or not. Only matters if
+                ``resampling_method`` is ``None``. Defaults to ``True``.
         """
         if isinstance(sensor_input, (ScalarField, VectorField)):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same

@@ -5,7 +5,7 @@
   <img alt="Chromatix logo" src="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_black.png?raw=true">
 </picture>
 
-![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Black](https://github.com/chromatix-team/chromatix/actions/workflows/black.yaml/badge.svg)
+![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Ruff](https://github.com/chromatix-team/chromatix/actions/workflows/format_lint.yaml/badge.svg)
 
 [**Installation**](#installation)
 | [**Usage**](#usage)

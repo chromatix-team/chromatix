@@ -5,13 +5,12 @@ from chex import PRNGKey
 from flax import linen as nn
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
-
+from chromatix.field import Field
+from chromatix.functional import wrap_phase, phase_change
+from chromatix.utils import seidel_aberrations, zernike_aberrations
+from chromatix.ops import quantize
 from chromatix.elements.utils import register
 from chromatix.typing import ArrayLike, NumberLike
-
-from ..field import Field
-from ..functional import phase_change, wrap_phase
-from ..utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
     "PhaseMask",
@@ -112,6 +111,10 @@ class SpatialLightModulator(nn.Module):
         spacing: The pitch of the SLM pixels.
         phase_range: The phase range that the SLM can simulate, provided as
             (min, max).
+        num_bits: The number of bits of precision the phase pixels should be
+            quantized to. Defaults to None, in which case no quantization is
+            applied. Otherwise, the phase will be quantized to have
+            ``2.0 ** num_bits`` values within ``phase_range``.
         interpolation_order: The order of interpolation for the SLM pixels to
             the shape of the incoming ``Field``. Can be 0 or 1. Defaults to 0.
         f: Focal length of the system's objective. Defaults to None.
@@ -148,6 +151,8 @@ class SpatialLightModulator(nn.Module):
             phase.shape == self.shape
         ), "Provided phase shape should match provided SLM shape"
         phase = wrap_phase(phase, self.phase_range)
+        if self.num_bits is not None:
+            phase = quantize(phase, 2.0**self.num_bits, range=self.phase_range)
         field_pixel_grid = jnp.meshgrid(
             jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
             jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,

@@ -46,7 +46,6 @@ def wrap_phase(
             will be wrapped to.
     """
     phase_min, phase_max = limits
-    assert phase_min < phase_max, "Lower limit needs to be smaller than upper limit."
     phase = jnp.where(
         phase < phase_min,
         phase + 2 * jnp.pi * (1 + (phase_min - phase) // (2 * jnp.pi)),
