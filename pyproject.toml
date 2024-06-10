@@ -9,7 +9,7 @@ description = "Differentiable wave optics library using JAX"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-dependencies = ["jax >= 0.4.6", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.86", "optax >=0.1.4", "scipy >= 1.10.0"]
+dependencies = ["jax >= 0.4.6", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.86", "optax >=0.1.4", "scipy >= 1.10.0", "typing-extensions >=4.12"]
 version = "0.3.0"
 
 [project.optional-dependencies]
