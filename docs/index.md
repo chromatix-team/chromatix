@@ -4,9 +4,9 @@ Welcome to `chromatix`, a differentiable wave optics library built using `jax` w
 
 Here are some of the cool things we've already built with `chromatix`:
 
-- [**Holoscope**](docs/examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
-- [**Computer Generated Holography**](docs/examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
-- [**Aberration Phase Retrieval**](docs/examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
+- [**Holoscope**](examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
+- [**Computer Generated Holography**](examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
+- [**Aberration Phase Retrieval**](examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
 
 Chromatix describes optical systems as sequences of sources and optical elements, composed in a similar style as neural network layers. These elements pass `Field` objects to each other, which contain both the tensor representation of the field at particular planes as well as information about the spatial sampling of the field and its spectrum. Typically, a user will not have to construct or deal with these `Field` objects unless they want to, but they are how `chromatix` can keep track of a lot of details of a simulation under the hood. Here's a very brief example of using `chromatix` to calculate the intensity of a widefield PSF (point spread function) at a single wavelength by describing a 4f system with a flat phase mask:
 
