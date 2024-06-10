@@ -96,7 +96,7 @@ def compute_sas_precompensation(
     W = jnp.prod((s_sq * (2 + 1 / t**2) <= 1), axis=0)
     H_AS = jnp.sqrt(
         jnp.maximum(0, 1 - jnp.sum(s_sq, axis=0))
-    )  # NOTE(rh): or cast to complex? Can W be larger than the free-space limit?
+    )  # NOTE(rh): Or cast to complex? Can W be larger than the free-space limit?
     H_Fr = 1 - jnp.sum(s_sq, axis=0) / 2
     delta_H = W * jnp.exp(1j * kz * (H_AS - H_Fr))
     delta_H = jnp.fft.ifftshift(delta_H, axes=field.spatial_dims)
