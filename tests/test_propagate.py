@@ -54,6 +54,13 @@ def test_transform_propagation(shape, N_pad):
     rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(I_analytical**2)
     assert rel_error < 2e-2
 
+    # Forward and backward
+    field = cf.plane_wave(shape, spacing, 0.532, 1.0)
+    field = cf.square_pupil(field, w)  # Pupil after plane wave to lose some power
+    out_field = cf.transform_propagate(field, z, n, N_pad=0)
+    back_field = cf.transform_propagate(out_field, -z, n, N_pad=0)
+    assert jnp.allclose(back_field.u, field.u, rtol=2e-5)
+
 
 @pytest.mark.parametrize(
     ("shape", "N_pad"),
