@@ -3,9 +3,9 @@ from typing import Callable
 import flax.linen as nn
 from chex import PRNGKey
 from jax import Array
-from matplotlib.pylab import ArrayLike
 
 from chromatix.elements.utils import register
+from chromatix.typing import NumberLike
 
 from .. import functional as cf
 from ..field import Field
@@ -31,9 +31,9 @@ class ThinLens(nn.Module):
             to the incoming ``Field``.
     """
 
-    f: ArrayLike | Callable[[PRNGKey], Array]
-    n: ArrayLike | Callable[[PRNGKey], Array]
-    NA: ArrayLike | Callable[[PRNGKey], Array] | None = None
+    f: NumberLike | Callable[[PRNGKey], Array]
+    n: NumberLike | Callable[[PRNGKey], Array]
+    NA: NumberLike | Callable[[PRNGKey], Array] | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -62,9 +62,9 @@ class FFLens(nn.Module):
         inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
-    f: ArrayLike | Callable[[PRNGKey], Array]
-    n: ArrayLike | Callable[[PRNGKey], Array]
-    NA: ArrayLike | Callable[[PRNGKey], Array] | None = None
+    f: NumberLike | Callable[[PRNGKey], Array]
+    n: NumberLike | Callable[[PRNGKey], Array]
+    NA: NumberLike | Callable[[PRNGKey], Array] | None = None
     inverse: bool = False
 
     @nn.compact
@@ -95,10 +95,10 @@ class DFLens(nn.Module):
         inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
-    d: ArrayLike | Callable[[PRNGKey], Array]
-    f: ArrayLike | Callable[[PRNGKey], Array]
-    n: ArrayLike | Callable[[PRNGKey], Array]
-    NA: ArrayLike | Callable[[PRNGKey], Array] | None = None
+    d: NumberLike | Callable[[PRNGKey], Array]
+    f: NumberLike | Callable[[PRNGKey], Array]
+    n: NumberLike | Callable[[PRNGKey], Array]
+    NA: NumberLike | Callable[[PRNGKey], Array] | None = None
     inverse: bool = False
 
     @nn.compact

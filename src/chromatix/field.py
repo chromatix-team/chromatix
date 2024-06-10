@@ -8,7 +8,8 @@ from chex import assert_equal_shape, assert_rank
 from einops import rearrange
 from flax import struct
 from jax import Array
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike, NumberLike
 
 from .utils.shapes import (
     _broadcast_1d_to_channels,
@@ -223,7 +224,7 @@ class Field(struct.PyTreeNode):
         return self.u.ndim
 
     @property
-    def conj(self) -> Array:
+    def conj(self) -> Field:
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
@@ -304,9 +305,9 @@ class ScalarField(Field):
     @classmethod
     def create(
         cls,
-        dx: ArrayLike,
-        spectrum: ArrayLike,
-        spectral_density: ArrayLike,
+        dx: NumberLike,
+        spectrum: NumberLike,
+        spectral_density: NumberLike,
         u: ArrayLike | None = None,
         shape: tuple[int, int] | None = None,
     ) -> Field:
@@ -365,9 +366,9 @@ class VectorField(Field):
     @classmethod
     def create(
         cls,
-        dx: ArrayLike,
-        spectrum: ArrayLike,
-        spectral_density: ArrayLike,
+        dx: NumberLike,
+        spectrum: NumberLike,
+        spectral_density: NumberLike,
         u: ArrayLike | None = None,
         shape: tuple[int, int] | None = None,
     ) -> Field:

@@ -4,7 +4,8 @@ import jax.numpy as jnp
 from einops import reduce
 from jax import Array
 from jax.image import scale_and_translate
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike, NumberLike
 
 
 def pooling_downsample(
@@ -36,9 +37,9 @@ def pooling_downsample(
 
 def init_plane_resample(
     out_shape: tuple[int, ...],
-    out_spacing: ArrayLike,
+    out_spacing: NumberLike,
     resampling_method: str = "linear",
-) -> Callable[[ArrayLike, ArrayLike], Array]:
+) -> Callable[[ArrayLike, NumberLike], Array]:
     """
     Returns a function that resamples 2D planes to the specified output shape
     and spacing.
@@ -65,7 +66,7 @@ def init_plane_resample(
     ), "Spacing is either a float or array of shape (2,) for non-square pixels"
     if resampling_method == "pool":
 
-        def op(x: ArrayLike, in_spacing: ArrayLike) -> Array:
+        def op(x: ArrayLike, in_spacing: NumberLike) -> Array:
             return reduce(
                 x,
                 "(h hf) (w wf) ... -> h w ...",
@@ -76,7 +77,7 @@ def init_plane_resample(
 
     else:
 
-        def op(x: ArrayLike, in_spacing: ArrayLike) -> Array:
+        def op(x: ArrayLike, in_spacing: NumberLike) -> Array:
             in_spacing = jnp.atleast_1d(in_spacing).squeeze()
             assert (
                 in_spacing.size <= 2

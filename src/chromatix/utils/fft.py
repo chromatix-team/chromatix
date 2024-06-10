@@ -2,7 +2,8 @@ from functools import partial
 
 import jax.numpy as jnp
 from jax import Array
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 
 def fft(x: ArrayLike, axes: tuple[int, int] = (1, 2), shift: bool = False) -> Array:

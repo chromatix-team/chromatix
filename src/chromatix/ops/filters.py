@@ -1,8 +1,8 @@
 from typing import Sequence
 
 from jax import Array
-from jax.typing import ArrayLike
 
+from chromatix.typing import ArrayLike
 from chromatix.utils import _broadcast_2d_to_spatial, gaussian_kernel
 
 from .ops import fourier_convolution

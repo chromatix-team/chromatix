@@ -5,8 +5,9 @@ import jax.numpy as jnp
 import numpy as np
 from einops import rearrange
 from jax import Array
-from matplotlib.pylab import ArrayLike
-from scipy.ndimage import distance_transform_edt  # type: ignore
+from scipy.ndimage import distance_transform_edt
+
+from chromatix.typing import NumberLike  # type: ignore
 
 from .shapes import _broadcast_2d_to_spatial
 
@@ -15,7 +16,7 @@ def next_order(val: int) -> int:
     return int(2 ** np.ceil(np.log2(val)))
 
 
-def center_pad(u: ArrayLike, pad_width: Sequence[int], cval: float = 0) -> Array:
+def center_pad(u: Array, pad_width: Sequence[int], cval: float = 0) -> Array:
     """
     Symmetrically pads ``u`` with lengths specified per axis in ``n_padding``,
     which should be iterable and have the same size as ``u.ndims``.
@@ -24,7 +25,7 @@ def center_pad(u: ArrayLike, pad_width: Sequence[int], cval: float = 0) -> Array
     return jnp.pad(u, pad, constant_values=cval)
 
 
-def center_crop(u: ArrayLike, crop_length: Sequence[int]) -> Array:
+def center_crop(u: Array, crop_length: Sequence[int]) -> Array:
     """
     Symmetrically crops ``u`` with lengths specified per axis in
     ``crop_length``, which should be iterable with same size as ``u.ndims``.
@@ -81,7 +82,7 @@ def sigmoid_taper(shape: tuple[int, int], width: float, ndim: int = 5) -> Array:
     return _broadcast_2d_to_spatial(taper, ndim)
 
 
-def create_grid(shape: tuple[int, int], spacing: ArrayLike) -> Array:
+def create_grid(shape: tuple[int, int], spacing: NumberLike) -> Array:
     """
     Args:
         shape: The shape of the grid, described as a tuple of
@@ -107,7 +108,9 @@ def create_grid(shape: tuple[int, int], spacing: ArrayLike) -> Array:
     return grid
 
 
-def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
+def grid_spatial_to_pupil(
+    grid: Array, f: NumberLike, NA: NumberLike, n: NumberLike
+) -> Array:
     R = f * NA / n  # pupil radius
     return grid / R
 
@@ -132,7 +135,7 @@ def linf_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
     return jnp.max(jnp.abs(a), axis=axis)
 
 
-def matvec(x: ArrayLike, y: ArrayLike) -> Array:
+def matvec(x: Array, y: Array) -> Array:
     """Implements batched matrix - vector multiplication.
     Mostly used in polarisation calculations.
     Example [..., N, M] x [...., M] -> [...., N]"""

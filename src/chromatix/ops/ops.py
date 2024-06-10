@@ -2,8 +2,8 @@ from functools import partial
 
 import jax.numpy as jnp
 from jax import Array, lax
-from jax.typing import ArrayLike
 
+from chromatix.typing import ArrayLike
 from chromatix.utils import next_order
 
 

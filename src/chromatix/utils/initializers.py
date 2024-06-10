@@ -4,8 +4,9 @@ from typing import Sequence
 import jax.numpy as jnp
 from einops import rearrange
 from jax import Array
-from jax.typing import ArrayLike
 from scipy.special import comb  # type: ignore
+
+from chromatix.typing import NumberLike
 
 from .utils import create_grid, grid_spatial_to_pupil
 
@@ -18,7 +19,7 @@ __all__ = [
 ]
 
 
-def flat_phase(shape: tuple[int, int], *args, value: ArrayLike = 0.0) -> Array:
+def flat_phase(shape: tuple[int, int], *args, value: NumberLike = 0.0) -> Array:
     """
     Computes a flat mask (one with constant value).
 
@@ -32,13 +33,13 @@ def flat_phase(shape: tuple[int, int], *args, value: ArrayLike = 0.0) -> Array:
 
 def potato_chip(
     shape: tuple[int, ...],
-    spacing: ArrayLike,
-    wavelength: ArrayLike,
-    n: ArrayLike,
-    f: ArrayLike,
-    NA: ArrayLike,
-    d: ArrayLike = 50.0,
-    C0: ArrayLike = -146.7,
+    spacing: NumberLike,
+    wavelength: NumberLike,
+    n: NumberLike,
+    f: NumberLike,
+    NA: NumberLike,
+    d: NumberLike = 50.0,
+    C0: NumberLike = -146.7,
 ) -> Array:
     """
     Computes the "potato chip" phase mask described by [1].
@@ -79,14 +80,14 @@ def potato_chip(
 
 def seidel_aberrations(
     shape: tuple[int, int],
-    spacing: ArrayLike,
-    wavelength: ArrayLike,
-    n: ArrayLike,
-    f: ArrayLike,
-    NA: ArrayLike,
+    spacing: NumberLike,
+    wavelength: NumberLike,
+    n: NumberLike,
+    f: NumberLike,
+    NA: NumberLike,
     coefficients: Sequence[float],
-    u: ArrayLike = 0,
-    v: ArrayLike = 0,
+    u: NumberLike = 0,
+    v: NumberLike = 0,
 ) -> Array:
     """
     Computes the Seidel phase polynomial described by [1]. Accounts for spatially
@@ -139,11 +140,11 @@ def seidel_aberrations(
 
 def zernike_aberrations(
     shape: tuple[int, int],
-    spacing: ArrayLike,
-    wavelength: ArrayLike,
-    n: ArrayLike,
-    f: ArrayLike,
-    NA: ArrayLike,
+    spacing: NumberLike,
+    wavelength: NumberLike,
+    n: NumberLike,
+    f: NumberLike,
+    NA: NumberLike,
     ansi_indices: Sequence[int],
     coefficients: Sequence[float],
     normalization: bool = True,
@@ -236,11 +237,11 @@ def zernike_aberrations(
 
 def defocused_ramps(
     shape: tuple[int, int],
-    spacing: ArrayLike,
-    wavelength: ArrayLike,
-    n: ArrayLike,
-    f: ArrayLike,
-    NA: ArrayLike,
+    spacing: NumberLike,
+    wavelength: NumberLike,
+    n: NumberLike,
+    f: NumberLike,
+    NA: NumberLike,
     num_ramps: int = 6,
     delta: Sequence[float] = [2374.0] * 6,
     defocus: Sequence[float] = [-50.0, 150.0, -100.0, 50.0, -150.0, 100.0],

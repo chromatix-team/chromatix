@@ -3,10 +3,10 @@ from typing import Callable, Literal
 import flax.linen as nn
 from chex import PRNGKey
 from jax import Array
-from jax.typing import ArrayLike
 
 from chromatix.elements.utils import Trainable, register
 from chromatix.field import crop, pad
+from chromatix.typing import ArrayLike
 
 from ..field import Field
 from ..functional import (

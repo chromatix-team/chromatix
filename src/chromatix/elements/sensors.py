@@ -3,7 +3,8 @@ from typing import Literal
 import flax.linen as nn
 import jax.numpy as jnp
 from jax import Array, vmap
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 from ..field import Field
 from ..functional import basic_sensor

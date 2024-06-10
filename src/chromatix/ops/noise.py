@@ -3,7 +3,8 @@ from typing import Tuple
 import jax.numpy as jnp
 from chex import PRNGKey
 from jax import Array, custom_jvp, random
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 
 @custom_jvp

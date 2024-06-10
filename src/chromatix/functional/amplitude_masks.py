@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 from chex import assert_rank
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 from ..field import Field
 from ..utils.shapes import _broadcast_2d_to_spatial

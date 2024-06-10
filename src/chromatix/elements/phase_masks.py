@@ -5,9 +5,9 @@ from chex import PRNGKey
 from flax import linen as nn
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
-from jax.typing import ArrayLike
 
 from chromatix.elements.utils import register
+from chromatix.typing import ArrayLike, NumberLike
 
 from ..field import Field
 from ..functional import phase_change, wrap_phase
@@ -52,9 +52,9 @@ class PhaseMask(nn.Module):
     """
 
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
-    f: ArrayLike | None = None
-    n: ArrayLike | None = None
-    NA: ArrayLike | None = None
+    f: NumberLike | None = None
+    n: NumberLike | None = None
+    NA: NumberLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -121,12 +121,12 @@ class SpatialLightModulator(nn.Module):
 
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
     shape: tuple[int, int]
-    spacing: ArrayLike
-    phase_range: tuple[float, float]
+    spacing: NumberLike
+    phase_range: ArrayLike
     interpolation_order: int = 0
-    f: ArrayLike | None = None
-    n: ArrayLike | None = None
-    NA: ArrayLike | None = None
+    f: NumberLike | None = None
+    n: NumberLike | None = None
+    NA: NumberLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -183,11 +183,11 @@ class SeidelAberrations(nn.Module):
     """
 
     coefficients: ArrayLike | Callable[[PRNGKey], Array]
-    f: ArrayLike
-    n: ArrayLike
-    NA: ArrayLike
-    u: ArrayLike
-    v: ArrayLike
+    f: NumberLike
+    n: NumberLike
+    NA: NumberLike
+    u: NumberLike
+    v: NumberLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

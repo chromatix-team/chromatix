@@ -2,7 +2,8 @@ from typing import Callable
 
 import jax.numpy as jnp
 from chex import assert_axis_dimension, assert_equal_shape
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike, NumberLike
 
 from ..field import Field, ScalarField, VectorField
 from ..utils import l2_sq_norm
@@ -23,13 +24,13 @@ __all__ = [
 
 def point_source(
     shape: tuple[int, int],
-    dx: ArrayLike,
-    spectrum: ArrayLike,
-    spectral_density: ArrayLike,
-    z: float,
-    n: float,
-    power: float = 1.0,
-    amplitude: ArrayLike = 1.0,
+    dx: NumberLike,
+    spectrum: NumberLike,
+    spectral_density: NumberLike,
+    z: NumberLike,
+    n: NumberLike,
+    power: NumberLike = 1.0,
+    amplitude: NumberLike = 1.0,
     pupil: Callable[[Field], Field] | None = None,
     scalar: bool = True,
 ) -> Field:
@@ -72,15 +73,15 @@ def point_source(
 
 def objective_point_source(
     shape: tuple[int, int],
-    dx: ArrayLike,
-    spectrum: ArrayLike,
-    spectral_density: ArrayLike,
-    z: ArrayLike,
-    f: ArrayLike,
-    n: ArrayLike,
-    NA: ArrayLike,
-    power: ArrayLike = 1.0,
-    amplitude: ArrayLike = 1.0,
+    dx: NumberLike,
+    spectrum: NumberLike,
+    spectral_density: NumberLike,
+    z: NumberLike,
+    f: NumberLike,
+    n: NumberLike,
+    NA: NumberLike,
+    power: NumberLike = 1.0,
+    amplitude: NumberLike = 1.0,
     scalar: bool = True,
 ) -> Field:
     """
@@ -121,11 +122,11 @@ def objective_point_source(
 
 def plane_wave(
     shape: tuple[int, int],
-    dx: ArrayLike,
-    spectrum: ArrayLike,
-    spectral_density: ArrayLike,
-    power: ArrayLike = 1.0,
-    amplitude: ArrayLike = 1.0,
+    dx: NumberLike,
+    spectrum: NumberLike,
+    spectral_density: NumberLike,
+    power: NumberLike = 1.0,
+    amplitude: NumberLike = 1.0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     pupil: Callable[[Field], Field] | None = None,
     scalar: bool = True,
@@ -165,12 +166,12 @@ def plane_wave(
 
 
 def generic_field(
-    dx: ArrayLike,
-    spectrum: ArrayLike,
-    spectral_density: ArrayLike,
+    dx: NumberLike,
+    spectrum: NumberLike,
+    spectral_density: NumberLike,
     amplitude: ArrayLike,
     phase: ArrayLike,
-    power: ArrayLike = 1.0,
+    power: NumberLike = 1.0,
     pupil: Callable[[Field], Field] | None = None,
     scalar: bool = True,
 ) -> Field:

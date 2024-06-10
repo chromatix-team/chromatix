@@ -4,10 +4,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
-from jax.typing import ArrayLike
 
 from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
+from chromatix.typing import ArrayLike, NumberLike
 from chromatix.utils.fft import fft, ifft
 
 from ..field import Field
@@ -32,8 +32,8 @@ __all__ = [
 
 def transform_propagate(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     N_pad: int | tuple[int, int],
     cval: float = 0,
     skip_initial_phase: bool = False,
@@ -83,8 +83,8 @@ def transform_propagate(
 
 def compute_sas_precompensation(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
 ) -> Array:
     sz = np.array(field.spatial_shape)
     kz = 2 * z * jnp.pi * n / field.spectrum
@@ -106,8 +106,8 @@ def compute_sas_precompensation(
 
 def transform_propagate_sas(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -168,8 +168,8 @@ def transform_propagate_sas(
 
 def transfer_propagate(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     N_pad: int,
     cval: float = 0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
@@ -207,8 +207,8 @@ def transfer_propagate(
 
 def exact_propagate(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     N_pad: int,
     cval: float = 0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
@@ -247,8 +247,8 @@ def exact_propagate(
 
 def asm_propagate(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     N_pad: int,
     cval: float = 0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
@@ -306,8 +306,8 @@ def kernel_propagate(field: Field, propagator: ArrayLike) -> Field:
 
 def compute_transfer_propagator(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
@@ -331,8 +331,8 @@ def compute_transfer_propagator(
 
 def compute_exact_propagator(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
@@ -361,8 +361,8 @@ def compute_exact_propagator(
 
 def compute_asm_propagator(
     field: Field,
-    z: ArrayLike,
-    n: ArrayLike,
+    z: NumberLike,
+    n: NumberLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
     shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),

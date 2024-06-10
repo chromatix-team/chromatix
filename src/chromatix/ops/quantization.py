@@ -1,7 +1,8 @@
 import jax
 import jax.numpy as jnp
 from jax import Array
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 __all__ = ["binarize", "binarize_jvp", "quantize", "quantize_jvp"]
 

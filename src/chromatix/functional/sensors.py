@@ -4,7 +4,8 @@ import jax.numpy as jnp
 from chex import PRNGKey
 from jax import Array, vmap
 from jax.lax import psum
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike, NumberLike
 
 from ..field import Field
 from ..ops import approximate_shot_noise, shot_noise
@@ -13,12 +14,12 @@ __all__ = ["basic_sensor"]
 
 
 def basic_sensor(
-    sensor_input: Field | ArrayLike,
+    sensor_input: Field | Array,
     shot_noise_mode: Literal["approximate", "poisson"] | None = None,
-    resample_fn: Callable[[Array, ArrayLike], Array] | None = None,
+    resample_fn: Callable[[ArrayLike, NumberLike], Array] | None = None,
     reduce_axis: int | None = None,
     reduce_parallel_axis_name: str | None = None,
-    input_spacing: ArrayLike | None = None,
+    input_spacing: NumberLike | None = None,
     noise_key: PRNGKey | None = None,
 ) -> Array:
     """

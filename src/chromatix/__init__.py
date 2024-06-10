@@ -1,2 +1,2 @@
-from .field import Field, ScalarField, VectorField
+from .field import ArrayLike, Field, ScalarField, VectorField
 from .systems import OpticalSystem

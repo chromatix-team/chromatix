@@ -7,7 +7,7 @@ try:
 except ModuleNotFoundError:
     USE_CV2 = False
 
-from jax.typing import ArrayLike
+from chromatix.typing import ArrayLike
 
 
 def sqr_dist_to_line(

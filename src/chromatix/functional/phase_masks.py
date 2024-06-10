@@ -1,7 +1,8 @@
 import jax.numpy as jnp
 from chex import assert_rank
 from jax import Array
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 from ..field import Field
 from ..utils.shapes import _broadcast_2d_to_spatial
@@ -58,7 +59,7 @@ def wrap_phase(
     return phase
 
 
-def spectrally_modulate_phase(phase: ArrayLike, field: Field) -> Array:
+def spectrally_modulate_phase(phase: Array, field: Field) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
     central_wavelength = field.spectrum[..., 0, 0].squeeze()
     spectral_modulation = central_wavelength / field.spectrum

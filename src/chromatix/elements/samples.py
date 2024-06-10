@@ -3,7 +3,8 @@ from typing import Callable
 import flax.linen as nn
 from chex import PRNGKey
 from jax import Array
-from jax.typing import ArrayLike
+
+from chromatix.typing import ArrayLike
 
 from ..field import ScalarField
 from ..functional.samples import thin_sample

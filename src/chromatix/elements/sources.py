@@ -3,9 +3,9 @@ from typing import Callable
 import flax.linen as nn
 from chex import PRNGKey
 from jax import Array
-from jax.typing import ArrayLike
 
 from chromatix.elements.utils import register
+from chromatix.typing import ArrayLike, NumberLike
 
 from ..field import Field
 from ..functional.sources import (
@@ -46,13 +46,13 @@ class PointSource(nn.Module):
     """
 
     shape: tuple[int, int]
-    dx: ArrayLike
-    spectrum: ArrayLike
-    spectral_density: ArrayLike
-    z: ArrayLike | Callable[[PRNGKey], Array]
-    n: ArrayLike | Callable[[PRNGKey], Array]
-    power: ArrayLike | Callable[[PRNGKey], Array] = 1.0
-    amplitude: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    dx: NumberLike
+    spectrum: NumberLike
+    spectral_density: NumberLike
+    z: NumberLike | Callable[[PRNGKey], Array]
+    n: NumberLike | Callable[[PRNGKey], Array]
+    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     pupil: Callable[[Field], Field] | None = None
     scalar: bool = True
 
@@ -104,14 +104,14 @@ class ObjectivePointSource(nn.Module):
     """
 
     shape: tuple[int, int]
-    dx: ArrayLike
-    spectrum: ArrayLike
-    spectral_density: ArrayLike
-    f: ArrayLike | Callable[[PRNGKey], Array]
-    n: ArrayLike | Callable[[PRNGKey], Array]
-    NA: ArrayLike | Callable[[PRNGKey], Array]
-    power: ArrayLike | Callable[[PRNGKey], Array] = 1.0
-    amplitude: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    dx: NumberLike
+    spectrum: NumberLike
+    spectral_density: NumberLike
+    f: NumberLike | Callable[[PRNGKey], Array]
+    n: NumberLike | Callable[[PRNGKey], Array]
+    NA: NumberLike | Callable[[PRNGKey], Array]
+    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     scalar: bool = True
 
     @nn.compact
@@ -166,11 +166,11 @@ class PlaneWave(nn.Module):
     """
 
     shape: tuple[int, int]
-    dx: ArrayLike
-    spectrum: ArrayLike
-    spectral_density: ArrayLike
-    power: ArrayLike | Callable[[PRNGKey], Array] = 1.0
-    amplitude: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    dx: NumberLike
+    spectrum: NumberLike
+    spectral_density: NumberLike
+    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
     pupil: Callable[[Field], Field] | None = None
     scalar: bool = True
@@ -216,12 +216,12 @@ class GenericField(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    dx: ArrayLike
-    spectrum: ArrayLike
-    spectral_density: ArrayLike
+    dx: NumberLike
+    spectrum: NumberLike
+    spectral_density: NumberLike
     amplitude: ArrayLike | Callable[[PRNGKey], Array]
     phase: ArrayLike | Callable[[PRNGKey], Array]
-    power: ArrayLike | Callable[[PRNGKey], float] = 1.0
+    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
     pupil: Callable[[Field], Field] | None = None
     scalar: bool = True
 

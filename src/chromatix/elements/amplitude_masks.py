@@ -3,12 +3,12 @@ from typing import Callable
 from chex import PRNGKey
 from flax import linen as nn
 from jax import Array
-from jax.typing import ArrayLike
 
 from chromatix.elements.utils import register
 from chromatix.field import Field
 from chromatix.functional.amplitude_masks import amplitude_change
 from chromatix.ops import binarize
+from chromatix.typing import ArrayLike
 
 __all__ = ["AmplitudeMask"]
 

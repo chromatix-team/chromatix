@@ -1,6 +1,7 @@
 import flax.linen as nn
 import jax.numpy as jnp
-from jax.typing import ArrayLike
+
+from chromatix.typing import NumberLike
 
 from ..field import Field
 from ..ops import binarize, quantize
@@ -29,8 +30,8 @@ class ScaleAndBias(nn.Module):
     broadcastable to the shape of the incoming ``Field``.
     """
 
-    bias: ArrayLike
-    scale: ArrayLike
+    bias: NumberLike
+    scale: NumberLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
