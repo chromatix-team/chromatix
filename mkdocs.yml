@@ -11,14 +11,6 @@ nav:
     - Training: training.ipynb
     - Higher Rank Fields: higher_rank.ipynb
     - FAQ: FAQ.md
-  - Examples:
-    - Holoscope: examples/holoscope.ipynb
-    - Computer Generated Holography: examples/cgh.ipynb
-    - Digital Micromirror Device: examples/dmd.ipynb
-    - Fourier Ptychography: examples/fourier_ptychography.md
-    - Synchrotron X-ray Holography: examples/tomography.md
-    - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
-    - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
   - API:
     - Field: api/field.md
     - Functional: api/functional.md
@@ -26,6 +18,16 @@ nav:
     - Systems: api/systems.md
     - Operations: api/ops.md
     - Utilities: api/utils.md
+  - Examples:
+    - Holoscope: examples/holoscope.ipynb
+    - Computer Generated Holography: examples/cgh.ipynb
+    - Digital Micromirror Device: examples/dmd.ipynb
+    - Scalable Angular Spectrum: examples/sas.ipynb
+    - Bandlimited Angular Spectrum: examples/bandlimited_angular_spectrum.ipynb
+    - Fourier Ptychography: examples/fourier_ptychography.md
+    - Synchrotron X-ray Holography: examples/tomography.md
+    - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
+    - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
 
 theme:
   logo: media/logo_symbol_white.png

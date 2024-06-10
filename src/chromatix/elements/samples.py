@@ -1,7 +1,9 @@
-import flax.linen as nn
 from typing import Callable, Union
-from chex import PRNGKey, Array
-from ..field import Field, ScalarField
+
+import flax.linen as nn
+from chex import Array, PRNGKey
+
+from ..field import ScalarField
 from ..functional.samples import thin_sample
 from .utils import register
 

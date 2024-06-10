@@ -1,7 +1,8 @@
-from flax import linen as nn
 from dataclasses import dataclass
 from typing import Any, Callable
-from chex import PRNGKey, Array
+
+from chex import Array, PRNGKey
+from flax import linen as nn
 
 
 @dataclass

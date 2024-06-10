@@ -5,7 +5,7 @@
   <img alt="Chromatix logo" src="https://github.com/chromatix-team/chromatix/blob/main/docs/media/logo_text_black.png?raw=true">
 </picture>
 
-![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Black](https://github.com/chromatix-team/chromatix/actions/workflows/black.yaml/badge.svg)
+![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Ruff](https://github.com/chromatix-team/chromatix/actions/workflows/format_lint.yaml/badge.svg)
 
 [**Installation**](#installation)
 | [**Usage**](#usage)
@@ -90,7 +90,7 @@ Chromatix was started by Diptodip Deb ([@diptodip](https://www.github.com/diptod
 
 * Amey Chaware ([@isildur7](https://www.github.com/isildur7))
 * Amit Kohli ([@apsk14](https://www.github.com/apsk14))
-* Cédric Allier
+* Cédric Allier ([@allierc](https://github.com/allierc))
 * Changjia Cai ([@caichangjia](https://github.com/caichangjia))
 * Geneva Schlafly ([@gschlafly](https://github.com/gschlafly))
 * Guanghan Meng ([@guanghanmeng](https://github.com/guanghanmeng))

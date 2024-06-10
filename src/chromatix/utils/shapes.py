@@ -1,7 +1,8 @@
-from einops import rearrange
-from chex import Array
 from typing import Union
+
 import jax.numpy as jnp
+from chex import Array
+from einops import rearrange
 
 __all__ = [
     "_broadcast_1d_to_channels",

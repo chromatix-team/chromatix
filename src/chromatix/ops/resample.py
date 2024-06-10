@@ -1,8 +1,9 @@
-from einops import reduce
 from typing import Callable, Tuple, Union
-from jax.image import scale_and_translate
-from chex import Array
+
 import jax.numpy as jnp
+from chex import Array
+from einops import reduce
+from jax.image import scale_and_translate
 
 
 def pooling_downsample(

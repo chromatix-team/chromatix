@@ -1,11 +1,13 @@
+from typing import Optional, Sequence, Tuple, Union
+
+import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
 from chex import Array
-from typing import Optional, Sequence, Tuple, Union
-from scipy.ndimage import distance_transform_edt  # type: ignore
-import flax.linen as nn
-from .shapes import _broadcast_2d_to_spatial
 from einops import rearrange
+from scipy.ndimage import distance_transform_edt  # type: ignore
+
+from .shapes import _broadcast_2d_to_spatial
 
 
 def next_order(val: int) -> int:
@@ -127,3 +129,10 @@ def l1_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
 def linf_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
     """Max absolute value, i.e. `max(|x|, |y|)`."""
     return jnp.max(jnp.abs(a), axis=axis)
+
+
+def matvec(x: Array, y: Array) -> Array:
+    """Implements batched matrix - vector multiplication.
+    Mostly used in polarisation calculations.
+    Example [..., N, M] x [...., M] -> [...., N]"""
+    return jnp.matmul(x, y[..., None]).squeeze(-1)
