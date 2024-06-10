@@ -63,6 +63,29 @@ def test_transform_propagation(shape, N_pad):
 
 
 @pytest.mark.parametrize(
+    ("shape"),
+    [((256, 256)), ((1024, 256))],
+)
+def test_transform_sas_propagation(shape):
+    dxi = D / np.array(shape)
+    spacing = dxi[..., np.newaxis]
+
+    # Input field
+    field = cf.plane_wave(
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+    )
+    out_field = cf.transform_propagate_sas(field, z, n)
+    I_numerical = out_field.intensity.squeeze()
+
+    # Analytical
+    xi = np.array(out_field.grid.squeeze())
+    U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
+    I_analytical = jnp.abs(U_analytical) ** 2
+    rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(I_analytical**2)
+    assert rel_error < 2e-2
+
+
+@pytest.mark.parametrize(
     ("shape", "N_pad"),
     [((256, 256), (512, 512)), ((1024, 256), (256, 512))],
 )
