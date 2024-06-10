@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 
 
 @dataclass

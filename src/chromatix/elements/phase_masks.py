@@ -1,9 +1,11 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable
 
 import jax.numpy as jnp
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 from jax.scipy.ndimage import map_coordinates
+from jax.typing import ArrayLike
 
 from chromatix.elements.utils import register
 
@@ -49,10 +51,10 @@ class PhaseMask(nn.Module):
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    f: ArrayLike | None = None
+    n: ArrayLike | None = None
+    NA: ArrayLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -117,14 +119,14 @@ class SpatialLightModulator(nn.Module):
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    shape: Tuple[int, int]
-    spacing: float
-    phase_range: Tuple[float, float]
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    shape: tuple[int, int]
+    spacing: ArrayLike
+    phase_range: tuple[float, float]
     interpolation_order: int = 0
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    f: ArrayLike | None = None
+    n: ArrayLike | None = None
+    NA: ArrayLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -180,12 +182,12 @@ class SeidelAberrations(nn.Module):
         v: The vertical position of the object field point
     """
 
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
-    u: float
-    v: float
+    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    f: ArrayLike
+    n: ArrayLike
+    NA: ArrayLike
+    u: ArrayLike
+    v: ArrayLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -228,11 +230,11 @@ class ZernikeAberrations(nn.Module):
             have same length as coefficients.
     """
 
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
-    ansi_indices: Array
+    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    f: ArrayLike
+    n: ArrayLike
+    NA: ArrayLike
+    ansi_indices: ArrayLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

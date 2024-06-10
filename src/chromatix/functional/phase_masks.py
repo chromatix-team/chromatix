@@ -1,7 +1,7 @@
-from typing import Tuple
-
 import jax.numpy as jnp
-from chex import Array, assert_rank
+from chex import assert_rank
+from jax import Array
+from jax.typing import ArrayLike
 
 from ..field import Field
 from ..utils.shapes import _broadcast_2d_to_spatial
@@ -9,7 +9,9 @@ from ..utils.shapes import _broadcast_2d_to_spatial
 __all__ = ["phase_change", "wrap_phase", "spectrally_modulate_phase"]
 
 
-def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -> Field:
+def phase_change(
+    field: Field, phase: ArrayLike, spectrally_modulate: bool = True
+) -> Field:
     """
     Perturbs ``field`` by ``phase`` (given in radians).
 
@@ -30,7 +32,9 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
     return field * jnp.exp(1j * phase)
 
 
-def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
+def wrap_phase(
+    phase: ArrayLike, limits: ArrayLike | tuple[float, float] = (-jnp.pi, jnp.pi)
+) -> Array:
     """
     Wraps values of ``phase`` to the range given by ``limits``.
 
@@ -54,7 +58,7 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
     return phase
 
 
-def spectrally_modulate_phase(phase: Array, field: Field) -> Array:
+def spectrally_modulate_phase(phase: ArrayLike, field: Field) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
     central_wavelength = field.spectrum[..., 0, 0].squeeze()
     spectral_modulation = central_wavelength / field.spectrum

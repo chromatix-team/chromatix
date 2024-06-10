@@ -1,9 +1,9 @@
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal
 
 import flax.linen as nn
 import jax.numpy as jnp
-from chex import Array
-from jax import vmap
+from jax import Array, vmap
+from jax.typing import ArrayLike
 
 from ..field import Field
 from ..functional import basic_sensor
@@ -35,12 +35,12 @@ class BasicSensor(nn.Module):
             name.
     """
 
-    shape: Tuple[int, int]
-    spacing: Union[float, Array]
-    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
-    resampling_method: Optional[str] = "linear"
-    reduce_axis: Optional[int] = None
-    reduce_parallel_axis_name: Optional[str] = None
+    shape: tuple[int, int]
+    spacing: ArrayLike
+    shot_noise_mode: Literal["approximate", "poisson"] | None = None
+    resampling_method: str | None = "linear"
+    reduce_axis: int | None = None
+    reduce_parallel_axis_name: str | None = None
 
     def setup(self):
         if self.resampling_method is not None:
@@ -50,8 +50,8 @@ class BasicSensor(nn.Module):
 
     def __call__(
         self,
-        sensor_input: Union[Field, Array],
-        input_spacing: Optional[Union[float, Array]] = None,
+        sensor_input: ArrayLike | Field,
+        input_spacing: ArrayLike | None = None,
     ) -> Array:
         """
         Resample the given ``sensor_input`` to the pixels of the sensor and
@@ -88,7 +88,7 @@ class BasicSensor(nn.Module):
             noise_key=noise_key,
         )
 
-    def resample(self, resample_input: Array, input_spacing: float) -> Array:
+    def resample(self, resample_input: ArrayLike, input_spacing: ArrayLike) -> Array:
         """
         Resample the given ``resample_input`` to the pixels of the sensor.
 

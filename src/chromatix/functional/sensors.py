@@ -1,9 +1,10 @@
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Literal
 
 import jax.numpy as jnp
-from chex import Array, PRNGKey
-from jax import vmap
+from chex import PRNGKey
+from jax import Array, vmap
 from jax.lax import psum
+from jax.typing import ArrayLike
 
 from ..field import Field
 from ..ops import approximate_shot_noise, shot_noise
@@ -12,13 +13,13 @@ __all__ = ["basic_sensor"]
 
 
 def basic_sensor(
-    sensor_input: Union[Field, Array],
-    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None,
-    resample_fn: Optional[Callable[[Array, float], Array]] = None,
-    reduce_axis: Optional[int] = None,
-    reduce_parallel_axis_name: Optional[str] = None,
-    input_spacing: Optional[Union[float, Array]] = None,
-    noise_key: Optional[PRNGKey] = None,
+    sensor_input: Field | ArrayLike,
+    shot_noise_mode: Literal["approximate", "poisson"] | None = None,
+    resample_fn: Callable[[Array, ArrayLike], Array] | None = None,
+    reduce_axis: int | None = None,
+    reduce_parallel_axis_name: str | None = None,
+    input_spacing: ArrayLike | None = None,
+    noise_key: PRNGKey | None = None,
 ) -> Array:
     """
     Produces an intensity image from an incoming ``Field`` or intensity

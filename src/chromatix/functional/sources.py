@@ -1,7 +1,8 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable
 
 import jax.numpy as jnp
-from chex import Array, assert_axis_dimension, assert_equal_shape
+from chex import assert_axis_dimension, assert_equal_shape
+from jax.typing import ArrayLike
 
 from ..field import Field, ScalarField, VectorField
 from ..utils import l2_sq_norm
@@ -21,15 +22,15 @@ __all__ = [
 
 
 def point_source(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
+    shape: tuple[int, int],
+    dx: ArrayLike,
+    spectrum: ArrayLike,
+    spectral_density: ArrayLike,
     z: float,
     n: float,
     power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
-    pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
+    amplitude: ArrayLike = 1.0,
+    pupil: Callable[[Field], Field] | None = None,
     scalar: bool = True,
 ) -> Field:
     """
@@ -70,16 +71,16 @@ def point_source(
 
 
 def objective_point_source(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    z: float,
-    f: float,
-    n: float,
-    NA: float,
-    power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
+    shape: tuple[int, int],
+    dx: ArrayLike,
+    spectrum: ArrayLike,
+    spectral_density: ArrayLike,
+    z: ArrayLike,
+    f: ArrayLike,
+    n: ArrayLike,
+    NA: ArrayLike,
+    power: ArrayLike = 1.0,
+    amplitude: ArrayLike = 1.0,
     scalar: bool = True,
 ) -> Field:
     """
@@ -119,14 +120,14 @@ def objective_point_source(
 
 
 def plane_wave(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-    pupil: Optional[Callable[[Field], Field]] = None,
+    shape: tuple[int, int],
+    dx: ArrayLike,
+    spectrum: ArrayLike,
+    spectral_density: ArrayLike,
+    power: ArrayLike = 1.0,
+    amplitude: ArrayLike = 1.0,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    pupil: Callable[[Field], Field] | None = None,
     scalar: bool = True,
 ) -> Field:
     """
@@ -164,13 +165,13 @@ def plane_wave(
 
 
 def generic_field(
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    amplitude: Array,
-    phase: Array,
-    power: Optional[float] = 1.0,
-    pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
+    dx: ArrayLike,
+    spectrum: ArrayLike,
+    spectral_density: ArrayLike,
+    amplitude: ArrayLike,
+    phase: ArrayLike,
+    power: ArrayLike = 1.0,
+    pupil: Callable[[Field], Field] | None = None,
     scalar: bool = True,
 ) -> Field:
     """

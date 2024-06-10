@@ -1,12 +1,13 @@
 from typing import Tuple
 
 import jax.numpy as jnp
-from chex import Array, PRNGKey
-from jax import custom_jvp, random
+from chex import PRNGKey
+from jax import Array, custom_jvp, random
+from jax.typing import ArrayLike
 
 
 @custom_jvp
-def approximate_shot_noise(key: PRNGKey, image: Array) -> Array:
+def approximate_shot_noise(key: PRNGKey, image: ArrayLike) -> Array:
     """
     Approximates Poisson shot noise using a Gaussian for differentiability.
     """
@@ -15,7 +16,7 @@ def approximate_shot_noise(key: PRNGKey, image: Array) -> Array:
 
 
 @approximate_shot_noise.defjvp
-def approximate_shotnoise_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+def approximate_shotnoise_jvp(primals: tuple, tangents: tuple) -> tuple:
     """
     Custom gradient for ``approximate_shot_noise``.
 
@@ -35,7 +36,7 @@ def approximate_shotnoise_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
 
 
 @custom_jvp
-def shot_noise(key: PRNGKey, image: Array) -> Array:
+def shot_noise(key: PRNGKey, image: ArrayLike) -> Array:
     """
     Simulates Poisson shot noise whose gradient is approximated using
     the gradient of a Gaussian, just as if the simulation had been

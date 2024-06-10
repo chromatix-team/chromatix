@@ -1,14 +1,13 @@
-from typing import Optional, Tuple
-
 import jax
 import jax.numpy as jnp
-from chex import Array
+from jax import Array
+from jax.typing import ArrayLike
 
 __all__ = ["binarize", "binarize_jvp", "quantize", "quantize_jvp"]
 
 
 @jax.custom_jvp
-def binarize(x: Array, threshold: float = 0.5) -> Array:
+def binarize(x: ArrayLike, threshold: float = 0.5) -> Array:
     """
     Binarize each pixel of amplitude mask to be either 0 or 1.
 
@@ -30,7 +29,7 @@ def binarize(x: Array, threshold: float = 0.5) -> Array:
 
 
 @binarize.defjvp
-def binarize_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+def binarize_jvp(primals: tuple, tangents: tuple) -> tuple:
     """
     Custom gradient for ``binarize``.
 
@@ -43,9 +42,7 @@ def binarize_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
 
 
 @jax.custom_jvp
-def quantize(
-    x: Array, bit_depth: float, range: Optional[Tuple[int, int]] = None
-) -> Array:
+def quantize(x: Array, bit_depth: float, range: tuple[int, int] | None = None) -> Array:
     """
     Quantize the input ``x`` to the specified ``bit_depth``. Surrogate gradient
     approach [1] is used to adjust the bit depth differentiably.
@@ -74,7 +71,7 @@ def quantize(
 
 
 @quantize.defjvp
-def quantize_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+def quantize_jvp(primals: tuple, tangents: tuple) -> tuple:
     """
     Custom gradient for ``quantize``.
 

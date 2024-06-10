@@ -1,11 +1,11 @@
 from functools import partial
-from typing import Tuple
 
 import jax.numpy as jnp
-from chex import Array
+from jax import Array
+from jax.typing import ArrayLike
 
 
-def fft(x: Array, axes: Tuple[int, int] = (1, 2), shift: bool = False) -> Array:
+def fft(x: ArrayLike, axes: tuple[int, int] = (1, 2), shift: bool = False) -> Array:
     """
     Computes ``fft2`` for input of shape `(B... H W C)`.
     If shift is true, first applies ``ifftshift``, than an ``fftshift`` to
@@ -20,7 +20,7 @@ def fft(x: Array, axes: Tuple[int, int] = (1, 2), shift: bool = False) -> Array:
         return fft(x)
 
 
-def ifft(x: Array, axes: Tuple[int, int] = (1, 2), shift: bool = False) -> Array:
+def ifft(x: ArrayLike, axes: tuple[int, int] = (1, 2), shift: bool = False) -> Array:
     """
     Computes ``ifft2`` for input of shape `(B... H W C)`.
     If shift is true, first applies ``ifftshift``, than an ``fftshift`` to

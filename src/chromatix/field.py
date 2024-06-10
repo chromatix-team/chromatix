@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import jax.numpy as jnp
-from chex import Array, assert_equal_shape, assert_rank
+from chex import assert_equal_shape, assert_rank
 from einops import rearrange
 from flax import struct
+from jax import Array
+from jax.typing import ArrayLike
 
 from .utils.shapes import (
     _broadcast_1d_to_channels,
@@ -201,17 +203,17 @@ class Field(struct.PyTreeNode):
         return jnp.sum(self.intensity, axis=(-4, -3), keepdims=True) * area
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """Shape of the complex field."""
         return self.u.shape
 
     @property
-    def spatial_shape(self) -> Tuple[int, int]:
+    def spatial_shape(self) -> tuple[int, int]:
         """Only the height and width of the complex field."""
         return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
 
     @property
-    def spatial_dims(self) -> Tuple[int, int]:
+    def spatial_dims(self) -> tuple[int, int]:
         """Dimensions representing the height and width of the complex field."""
         return (-4, -3)
 
@@ -225,7 +227,7 @@ class Field(struct.PyTreeNode):
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
-    def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __add__(self, other: ArrayLike | Field) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
         elif isinstance(other, Field):
@@ -236,7 +238,7 @@ class Field(struct.PyTreeNode):
     def __radd__(self, other: Any) -> Field:
         return self + other
 
-    def __sub__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __sub__(self, other: ArrayLike | Field) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u - other)
         elif isinstance(other, Field):
@@ -247,7 +249,7 @@ class Field(struct.PyTreeNode):
     def __rsub__(self, other: Any) -> Field:
         return (-1 * self) + other
 
-    def __mul__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __mul__(self, other: ArrayLike | Field) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u * other)
         elif isinstance(other, Field):
@@ -258,13 +260,13 @@ class Field(struct.PyTreeNode):
     def __rmul__(self, other: Any) -> Field:
         return self * other
 
-    def __matmul__(self, other: jnp.array) -> Field:
+    def __matmul__(self, other: ArrayLike) -> Field:
         return self.replace(u=jnp.matmul(self.u, other))
 
-    def __rmatmul__(self, other: jnp.array) -> Field:
+    def __rmatmul__(self, other: ArrayLike) -> Field:
         return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
-    def __truediv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __truediv__(self, other: ArrayLike | Field) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u / other)
         elif isinstance(other, Field):
@@ -275,7 +277,7 @@ class Field(struct.PyTreeNode):
     def __rtruediv__(self, other: Any) -> Field:
         return self.replace(u=other / self.u)
 
-    def __floordiv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __floordiv__(self, other: ArrayLike | Field) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u // other)
         elif isinstance(other, Field):
@@ -286,7 +288,7 @@ class Field(struct.PyTreeNode):
     def __rfloordiv__(self, other: Any) -> Field:
         return self.replace(u=other // self.u)
 
-    def __mod__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __mod__(self, other: ArrayLike | Field) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u % other)
         elif isinstance(other, Field):
@@ -302,11 +304,11 @@ class ScalarField(Field):
     @classmethod
     def create(
         cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
+        dx: ArrayLike,
+        spectrum: ArrayLike,
+        spectral_density: ArrayLike,
+        u: ArrayLike | None = None,
+        shape: tuple[int, int] | None = None,
     ) -> Field:
         """
         Create a scalar approximation ``Field`` object in a convenient way.
@@ -363,11 +365,11 @@ class VectorField(Field):
     @classmethod
     def create(
         cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
+        dx: ArrayLike,
+        spectrum: ArrayLike,
+        spectral_density: ArrayLike,
+        u: ArrayLike | None = None,
+        shape: tuple[int, int] | None = None,
     ) -> Field:
         """
         Create a vectorial ``Field`` object in a convenient way.
@@ -427,7 +429,7 @@ class VectorField(Field):
         return self.u / norm
 
 
-def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -> Field:
+def pad(field: Field, pad_width: int | tuple[int, int], cval: float = 0) -> Field:
     """
     Pad the `field` with zeros in one or two dimensions.
     Args:
@@ -445,7 +447,7 @@ def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -
     return field.replace(u=u)
 
 
-def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
+def crop(field: Field, crop_width: int | tuple[int, int]) -> Field:
     """
     Crop the `field` by removing pixels from the edges.
     Args:
@@ -461,7 +463,7 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
     return field.replace(u=field.u[tuple(crop)])
 
 
-def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
+def shift(field: Field, shiftby: int | tuple[int, int]) -> Field:
     """
     Shift the `field` by an integer number of pixels in one or two dimensions.
     Args:

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable
 
 import jax.numpy as jnp
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
+from jax.typing import ArrayLike
 
 from chromatix.utils import sigmoid_taper
 
@@ -67,17 +69,17 @@ class Microscope(nn.Module):
             to 0, in which case no tapering is applied.
     """
 
-    system_psf: Callable[[Microscope], Union[Field, Array]]
+    system_psf: Callable[[Microscope], Field | ArrayLike]
     sensor: nn.Module
-    f: float
-    n: float
-    NA: float
-    spectrum: Array
-    spectral_density: Array
+    f: ArrayLike
+    n: ArrayLike
+    NA: ArrayLike
+    spectrum: ArrayLike
+    spectral_density: ArrayLike
     padding_ratio: float = 0
     taper_width: float = 0
 
-    def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
+    def __call__(self, sample: ArrayLike, *args: Any, **kwargs: Any) -> Array:
         """
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
@@ -96,12 +98,12 @@ class Microscope(nn.Module):
         psf = self._process_psf(system_psf, ndim, spatial_dims)
         return self.image(sample, psf, axes=spatial_dims)
 
-    def psf(self, *args: Any, **kwargs: Any) -> Union[Field, Array]:
+    def psf(self, *args: Any, **kwargs: Any) -> Field | ArrayLike:
         """Computes PSF of system, taking any necessary arguments."""
         return self.system_psf(self, *args, **kwargs)
 
     def _process_psf(
-        self, system_psf: Union[Field, Array], ndim: int, spatial_dims: Tuple[int, int]
+        self, system_psf: Field | Array, ndim: int, spatial_dims: tuple[int, int]
     ) -> Array:
         """
         Prepare PSF to be convolved with a sample by doing the following:
@@ -141,7 +143,9 @@ class Microscope(nn.Module):
         psf = self.sensor.resample(psf, spacing)
         return psf
 
-    def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
+    def image(
+        self, sample: ArrayLike, psf: ArrayLike, axes: tuple[int, int] = (1, 2)
+    ) -> Array:
         """
         Computes image or batch of images using the specified ``psf`` and
         ``sample``. Assumes that both the ``sample`` and ``psf`` have already
@@ -180,12 +184,12 @@ class Optical4FSystemPSF(nn.Module):
             initialization function (e.g. using trainable).
     """
 
-    shape: Tuple[int, int]
-    spacing: float
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+    shape: tuple[int, int]
+    spacing: ArrayLike
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, ...]], Array]
 
     @nn.compact
-    def __call__(self, microscope: Microscope, z: Array) -> Field:
+    def __call__(self, microscope: Microscope, z: ArrayLike) -> Field:
         padding = tuple(int(s * microscope.padding_ratio) for s in self.shape)
         padded_shape = tuple(s + p for s, p in zip(self.shape, padding))
         required_spacing = self.compute_required_spacing(
@@ -215,6 +219,10 @@ class Optical4FSystemPSF(nn.Module):
 
     @staticmethod
     def compute_required_spacing(
-        height: int, output_spacing: float, f: float, n: float, spectrum: Array
-    ) -> float:
+        height: int,
+        output_spacing: ArrayLike,
+        f: ArrayLike,
+        n: ArrayLike,
+        spectrum: ArrayLike,
+    ) -> Array:
         return f * spectrum / (n * height * output_spacing)

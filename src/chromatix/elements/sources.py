@@ -1,7 +1,9 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable
 
 import flax.linen as nn
-from chex import Array, PRNGKey
+from chex import PRNGKey
+from jax import Array
+from jax.typing import ArrayLike
 
 from chromatix.elements.utils import register
 
@@ -43,15 +45,15 @@ class PointSource(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    shape: Tuple[int, int]
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    z: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
-    pupil: Optional[Callable[[Field], Field]] = None
+    shape: tuple[int, int]
+    dx: ArrayLike
+    spectrum: ArrayLike
+    spectral_density: ArrayLike
+    z: ArrayLike | Callable[[PRNGKey], Array]
+    n: ArrayLike | Callable[[PRNGKey], Array]
+    power: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    pupil: Callable[[Field], Field] | None = None
     scalar: bool = True
 
     @nn.compact
@@ -101,15 +103,15 @@ class ObjectivePointSource(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    shape: Tuple[int, int]
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    f: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    NA: Union[float, Callable[[PRNGKey], float]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
+    shape: tuple[int, int]
+    dx: ArrayLike
+    spectrum: ArrayLike
+    spectral_density: ArrayLike
+    f: ArrayLike | Callable[[PRNGKey], Array]
+    n: ArrayLike | Callable[[PRNGKey], Array]
+    NA: ArrayLike | Callable[[PRNGKey], Array]
+    power: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ArrayLike | Callable[[PRNGKey], Array] = 1.0
     scalar: bool = True
 
     @nn.compact
@@ -163,14 +165,14 @@ class PlaneWave(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    shape: Tuple[int, int]
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
-    pupil: Optional[Callable[[Field], Field]] = None
+    shape: tuple[int, int]
+    dx: ArrayLike
+    spectrum: ArrayLike
+    spectral_density: ArrayLike
+    power: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ArrayLike | Callable[[PRNGKey], Array] = 1.0
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
+    pupil: Callable[[Field], Field] | None = None
     scalar: bool = True
 
     @nn.compact
@@ -214,13 +216,13 @@ class GenericField(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    amplitude: Union[Array, Callable[[PRNGKey], Array]]
-    phase: Union[Array, Callable[[PRNGKey], Array]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    pupil: Optional[Callable[[Field], Field]] = None
+    dx: ArrayLike
+    spectrum: ArrayLike
+    spectral_density: ArrayLike
+    amplitude: ArrayLike | Callable[[PRNGKey], Array]
+    phase: ArrayLike | Callable[[PRNGKey], Array]
+    power: ArrayLike | Callable[[PRNGKey], float] = 1.0
+    pupil: Callable[[Field], Field] | None = None
     scalar: bool = True
 
     @nn.compact

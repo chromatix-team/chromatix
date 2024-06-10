@@ -1,9 +1,8 @@
-from typing import Optional, Tuple, Union
-
 import jax
 import jax.numpy as jnp
-from chex import assert_equal_shape, assert_rank
+from chex import PRNGKey, assert_equal_shape, assert_rank
 from jax import Array
+from jax.typing import ArrayLike
 
 from chromatix.field import crop, pad
 from chromatix.utils.fft import fft, ifft
@@ -20,7 +19,7 @@ from .propagation import (
 
 
 def jones_sample(
-    field: VectorField, absorption: Array, dn: Array, thickness: Union[float, Array]
+    field: VectorField, absorption: ArrayLike, dn: ArrayLike, thickness: ArrayLike
 ) -> VectorField:
     """
     Perturbs an incoming ``VectorField`` as if it went through a thin sample
@@ -61,7 +60,7 @@ def jones_sample(
 
 
 def thin_sample(
-    field: ScalarField, absorption: Array, dn: Array, thickness: Union[float, Array]
+    field: ScalarField, absorption: ArrayLike, dn: ArrayLike, thickness: ArrayLike
 ) -> ScalarField:
     """
     Perturbs an incoming ``ScalarField`` as if it went through a thin sample
@@ -100,14 +99,14 @@ def thin_sample(
 
 def multislice_thick_sample(
     field: ScalarField,
-    absorption_stack: Array,
-    dn_stack: Array,
-    n: float,
-    thickness_per_slice: float,
+    absorption_stack: ArrayLike,
+    dn_stack: ArrayLike,
+    n: ArrayLike,
+    thickness_per_slice: ArrayLike,
     N_pad: int,
-    propagator: Optional[Array] = None,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-    reverse_propagate_distance: Optional[float] = None,
+    propagator: ArrayLike | None = None,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    reverse_propagate_distance: ArrayLike | None = None,
 ) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
@@ -166,17 +165,17 @@ def multislice_thick_sample(
 
 def fluorescent_multislice_thick_sample(
     field: ScalarField,
-    fluorescence_stack: Array,
-    dn_stack: Array,
-    n: float,
-    thickness_per_slice: float,
+    fluorescence_stack: ArrayLike,
+    dn_stack: ArrayLike,
+    n: ArrayLike,
+    thickness_per_slice: ArrayLike,
     N_pad: int,
-    key: jax.random.PRNGKey,
+    key: PRNGKey,
     num_samples: int = 1,
-    propagator_forward: Optional[Array] = None,
-    propagator_backward: Optional[Array] = None,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-) -> Array:
+    propagator_forward: ArrayLike | None = None,
+    propagator_backward: ArrayLike | None = None,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick,
     transparent, and fluorescent sample, i.e. a sample consisting of some
@@ -288,7 +287,7 @@ def fluorescent_multislice_thick_sample(
 
 
 # depolarised wave
-def PTFT(k, km: Array) -> Array:
+def PTFT(k: ArrayLike, km: ArrayLike) -> Array:
     Q = jnp.zeros((3, 3, *k.shape[1:]))
 
     # Setting diagonal

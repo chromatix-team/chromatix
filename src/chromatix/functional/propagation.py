@@ -1,9 +1,10 @@
-from typing import Literal, Tuple, Union
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from chex import Array
+from jax import Array
+from jax.typing import ArrayLike
 
 from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
@@ -31,9 +32,9 @@ __all__ = [
 
 def transform_propagate(
     field: Field,
-    z: float,
-    n: float,
-    N_pad: Union[int, Tuple[int, int]],
+    z: ArrayLike,
+    n: ArrayLike,
+    N_pad: int | tuple[int, int],
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -82,9 +83,9 @@ def transform_propagate(
 
 def compute_sas_precompensation(
     field: Field,
-    z: float,
-    n: float,
-) -> Field:
+    z: ArrayLike,
+    n: ArrayLike,
+) -> Array:
     sz = np.array(field.spatial_shape)
     kz = 2 * z * jnp.pi * n / field.spectrum
     s = field.spectrum * field.k_grid / n
@@ -105,8 +106,8 @@ def compute_sas_precompensation(
 
 def transform_propagate_sas(
     field: Field,
-    z: float,
-    n: float,
+    z: ArrayLike,
+    n: ArrayLike,
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -167,11 +168,11 @@ def transform_propagate_sas(
 
 def transfer_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ArrayLike,
+    n: ArrayLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -206,11 +207,11 @@ def transfer_propagate(
 
 def exact_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ArrayLike,
+    n: ArrayLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -246,13 +247,13 @@ def exact_propagate(
 
 def asm_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ArrayLike,
+    n: ArrayLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
-    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -292,7 +293,7 @@ def asm_propagate(
     return field
 
 
-def kernel_propagate(field: Field, propagator: Array) -> Field:
+def kernel_propagate(field: Field, propagator: ArrayLike) -> Field:
     """
     Propagate an incoming ``Field`` by the given propagation kernel
     (``propagator``). This amounts to performing a Fourier convolution of the
@@ -305,9 +306,9 @@ def kernel_propagate(field: Field, propagator: Array) -> Field:
 
 def compute_transfer_propagator(
     field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    z: ArrayLike,
+    n: ArrayLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for Fresnel propagation.
@@ -330,9 +331,9 @@ def compute_transfer_propagator(
 
 def compute_exact_propagator(
     field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    z: ArrayLike,
+    n: ArrayLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -360,11 +361,11 @@ def compute_exact_propagator(
 
 def compute_asm_propagator(
     field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    z: ArrayLike,
+    n: ArrayLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
-    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.

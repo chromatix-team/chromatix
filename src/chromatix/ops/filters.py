@@ -1,6 +1,7 @@
-from typing import Optional, Sequence, Tuple
+from typing import Sequence
 
-from chex import Array
+from jax import Array
+from jax.typing import ArrayLike
 
 from chromatix.utils import _broadcast_2d_to_spatial, gaussian_kernel
 
@@ -10,10 +11,10 @@ __all__ = ["high_pass_filter", "gaussian_filter"]
 
 
 def high_pass_filter(
-    data: Array,
+    data: ArrayLike,
     sigma: Sequence[float],
-    axes: Tuple[int, int] = (1, 2),
-    kernel_shape: Optional[Sequence[int]] = None,
+    axes: tuple[int, int] = (1, 2),
+    kernel_shape: Sequence[int] | None = None,
 ) -> Array:
     """
     Performs a high pass filter on ``data``.
@@ -47,8 +48,8 @@ def high_pass_filter(
 def gaussian_filter(
     data: Array,
     sigma: Sequence[float],
-    axes: Tuple[int, int] = (1, 2),
-    kernel_shape: Optional[Sequence[int]] = None,
+    axes: tuple[int, int] = (1, 2),
+    kernel_shape: Sequence[int] | None = None,
 ) -> Array:
     """
     Performs a Gaussian filter on ``data``.

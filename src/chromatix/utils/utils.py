@@ -1,10 +1,11 @@
-from typing import Optional, Sequence, Tuple, Union
+from typing import Sequence
 
 import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
-from chex import Array
 from einops import rearrange
+from jax import Array
+from matplotlib.pylab import ArrayLike
 from scipy.ndimage import distance_transform_edt  # type: ignore
 
 from .shapes import _broadcast_2d_to_spatial
@@ -14,7 +15,7 @@ def next_order(val: int) -> int:
     return int(2 ** np.ceil(np.log2(val)))
 
 
-def center_pad(u: jnp.ndarray, pad_width: Sequence[int], cval: float = 0) -> Array:
+def center_pad(u: ArrayLike, pad_width: Sequence[int], cval: float = 0) -> Array:
     """
     Symmetrically pads ``u`` with lengths specified per axis in ``n_padding``,
     which should be iterable and have the same size as ``u.ndims``.
@@ -23,7 +24,7 @@ def center_pad(u: jnp.ndarray, pad_width: Sequence[int], cval: float = 0) -> Arr
     return jnp.pad(u, pad, constant_values=cval)
 
 
-def center_crop(u: jnp.ndarray, crop_length: Sequence[int]) -> Array:
+def center_crop(u: ArrayLike, crop_length: Sequence[int]) -> Array:
     """
     Symmetrically crops ``u`` with lengths specified per axis in
     ``crop_length``, which should be iterable with same size as ``u.ndims``.
@@ -34,7 +35,7 @@ def center_crop(u: jnp.ndarray, crop_length: Sequence[int]) -> Array:
 
 
 def gaussian_kernel(
-    sigma: Sequence[float], truncate: float = 4.0, shape: Optional[Sequence[int]] = None
+    sigma: Sequence[float], truncate: float = 4.0, shape: Sequence[int] | None = None
 ) -> Array:
     """
     Creates ND Gaussian kernel of given ``sigma``.
@@ -74,13 +75,13 @@ def gaussian_kernel(
     return phi / phi.sum()
 
 
-def sigmoid_taper(shape: Tuple[int, int], width: float, ndim: int = 5) -> Array:
+def sigmoid_taper(shape: tuple[int, int], width: float, ndim: int = 5) -> Array:
     dist = distance_transform_edt(np.pad(np.ones((shape[0] - 2, shape[1] - 2)), 1))
     taper = 2 * (nn.sigmoid(dist / width) - 0.5)
     return _broadcast_2d_to_spatial(taper, ndim)
 
 
-def create_grid(shape: Tuple[int, int], spacing: Union[float, Array]) -> Array:
+def create_grid(shape: tuple[int, int], spacing: ArrayLike) -> Array:
     """
     Args:
         shape: The shape of the grid, described as a tuple of
@@ -111,27 +112,27 @@ def grid_spatial_to_pupil(grid: Array, f: float, NA: float, n: float) -> Array:
     return grid / R
 
 
-def l2_sq_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+def l2_sq_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
     """Sum of squares, i.e. `x**2 + y**2`."""
     return jnp.sum(a**2, axis=axis)
 
 
-def l2_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+def l2_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
     """Square root of ``l2_sq_norm``, i.e. `sqrt(x**2 + y**2)`."""
     return jnp.sqrt(jnp.sum(a**2, axis=axis))
 
 
-def l1_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+def l1_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
     """Sum absolute value, i.e. `|x| + |y|`."""
     return jnp.sum(jnp.abs(a), axis=axis)
 
 
-def linf_norm(a: Array, axis: Union[int, Tuple[int, ...]] = 0) -> Array:
+def linf_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
     """Max absolute value, i.e. `max(|x|, |y|)`."""
     return jnp.max(jnp.abs(a), axis=axis)
 
 
-def matvec(x: Array, y: Array) -> Array:
+def matvec(x: ArrayLike, y: ArrayLike) -> Array:
     """Implements batched matrix - vector multiplication.
     Mostly used in polarisation calculations.
     Example [..., N, M] x [...., M] -> [...., N]"""
