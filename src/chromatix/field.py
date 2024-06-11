@@ -359,7 +359,7 @@ class ScalarField(BaseField):
         # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            _u = jnp.empty((1, *shape, _spectrum.size, 3), dtype=jnp.complex64)
+            _u = jnp.empty((1, *shape, _spectrum.size, 1), dtype=jnp.complex64)
         else:
             _u = jnp.array(u)
         ndim = len(_u.shape)
