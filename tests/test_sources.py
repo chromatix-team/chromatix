@@ -1,5 +1,7 @@
 from functools import partial
 
+from jax import Array
+
 import chromatix.functional as cf
 import jax.numpy as jnp
 import pytest
@@ -43,84 +45,122 @@ def test_plane_wave_vectorial(power, amplitude, shape, pupil):
     assert_shape(field.u, (1, *shape, 1, 3))
 
 
-@pytest.mark.parametrize(
-    "power, z, shape, pupil",
-    [
-        (1.0, 0.5, (512, 512), partial(cf.square_pupil, w=10.0)),
-        (100.0, 1.0, (256, 256), None),
-    ],
-)
-def test_point_source(power, z, shape, pupil):
-    field = cf.point_source(shape, 0.1, 0.532, 1.0, z, 1.33, power=power, pupil=pupil)
-
-    assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *shape, 1, 1))
-
-
-@pytest.mark.parametrize(
-    "power, z, shape", [(1.0, 0.5, (512, 512)), (100.0, 1.0, (256, 256))]
-)
-def test_objective_point_source(power, z, shape):
-    field = cf.objective_point_source(
-        shape, 0.1, 0.532, 1.0, z, 100.0, 1.33, NA=0.8, power=power
+class TestObjectivePointSource:
+    @pytest.mark.parametrize(
+        "power, z, shape, pupil",
+        [
+            (1.0, 0.5, (512, 512), partial(cf.square_pupil, w=10.0)),
+            (100.0, 1.0, (256, 256), None),
+            (20.0, 2, (256, 512), None),  # should work for z =0
+        ],
     )
+    @pytest.mark.parametrize(
+        "power, z, shape", [(1.0, 0.5, (512, 512)), (100.0, 1.0, (256, 256))]
+    )
+    def test_scalar(power, z, shape):
+        field = cf.objective_point_source(
+            shape, 0.1, 0.532, 1.0, z, 100.0, 1.33, NA=0.8, power=power
+        )
 
-    assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *shape, 1, 1))
+        assert jnp.allclose(field.power, power)
+        assert_shape(field.u, (1, *shape, 1, 1))
 
-
-def test_point_source_wrong_size():
-    with pytest.raises(AssertionError) as e_info:
+    def test_vectorial(self):
         field = cf.point_source(
-            (256, 256),
+            (512, 512),
             0.1,
             0.532,
             1.0,
             1.0,
-            1.33,
-            amplitude=jnp.array([1.0, 1.0]),
-            scalar=True,
+            amplitude=cf.left_circular(),
+            n=1.33,
             power=1.0,
             pupil=None,
-        )
-    with pytest.raises(AssertionError) as e_info:
-        field = cf.point_source(
-            (256, 256),
-            0.1,
-            0.532,
-            1.0,
-            1.0,
-            1.33,
-            amplitude=jnp.array([1.0, 1.0]),
             scalar=False,
-            power=1.0,
-            pupil=None,
+        )
+        assert jnp.allclose(field.power, 1.0)
+        assert_shape(field.u, (1, 512, 512, 1, 3))
+
+    @pytest.mark.parametrize(
+        "amplitude, scalar",
+        [
+            (jnp.ones((2,)), True),
+            (jnp.ones((2,)), False),
+            (jnp.ones((1,)), False),
+            (jnp.ones((3,)), True),
+        ],
+    )
+    def test_wrong_amplitude_size(self, amplitude: Array, scalar: bool):
+        # Using wrong shape for amplitude should raise Assertion error
+        with pytest.raises(AssertionError):
+            _ = cf.point_source(
+                (256, 256),
+                0.1,
+                0.532,
+                1.0,
+                1.0,
+                1.33,
+                amplitude=amplitude,
+                scalar=scalar,
+                power=1.0,
+                pupil=None,
+            )
+
+
+class TestPointSource:
+    @pytest.mark.parametrize(
+        "power, z, shape, pupil",
+        [
+            (1.0, 0.5, (512, 512), partial(cf.square_pupil, w=10.0)),
+            (100.0, 1.0, (256, 256), None),
+            (20.0, 2, (256, 512), None),  # should work for z =0
+        ],
+    )
+    def test_scalar(self, power, z, shape, pupil):
+        field = cf.point_source(
+            shape, 0.1, 0.532, 1.0, z, 1.33, power=power, pupil=pupil
         )
 
-    with pytest.raises(AssertionError) as e_info:
+        assert jnp.allclose(field.power, power)
+        assert_shape(field.u, (1, *shape, 1, 1))
+
+    def test_vectorial(self):
         field = cf.point_source(
-            (256, 256),
+            (512, 512),
             0.1,
             0.532,
             1.0,
             1.0,
-            1.33,
-            amplitude=jnp.array([1.0, 1.0, 1.0]),
-            scalar=True,
+            amplitude=cf.left_circular(),
+            n=1.33,
             power=1.0,
             pupil=None,
-        )
-
-    with pytest.raises(AssertionError) as e_info:
-        field = cf.point_source(
-            (256, 256),
-            0.1,
-            0.532,
-            1.0,
-            1.0,
-            1.33,
-            amplitude=1.0,
             scalar=False,
-            power=1.0,
-            pupil=None,
         )
+        assert jnp.allclose(field.power, 1.0)
+        assert_shape(field.u, (1, 512, 512, 1, 3))
+
+    @pytest.mark.parametrize(
+        "amplitude, scalar",
+        [
+            (jnp.ones((2,)), True),
+            (jnp.ones((2,)), False),
+            (jnp.ones((1,)), False),
+            (jnp.ones((3,)), True),
+        ],
+    )
+    def test_wrong_amplitude_size(self, amplitude: Array, scalar: bool):
+        # Using wrong shape for amplitude should raise Assertion error
+        with pytest.raises(AssertionError):
+            _ = cf.point_source(
+                (256, 256),
+                0.1,
+                0.532,
+                1.0,
+                1.0,
+                1.33,
+                amplitude=amplitude,
+                scalar=scalar,
+                power=1.0,
+                pupil=None,
+            )
