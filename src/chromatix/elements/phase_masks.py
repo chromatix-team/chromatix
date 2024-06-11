@@ -14,8 +14,6 @@ from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
-    "PhaseMask",
-    "SpatialLightModulator",
     "SeidelAberrations",
     "ZernikeAberrations",
 ]

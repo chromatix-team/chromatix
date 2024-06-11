@@ -105,6 +105,8 @@ class ObjectivePointSource(nn.Module):
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
+        offset: The offset (y and x) in spatial coordinates of the point source.
+            Defaults to (0, 0) for no offset (a centered point source).
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
         offset: The offset (y and x) in spatial coordinates of the point source.
