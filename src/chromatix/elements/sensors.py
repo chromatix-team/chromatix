@@ -66,16 +66,17 @@ class BasicSensor(nn.Module):
             resample: Whether to perform resampling or not. Only matters if
                 ``resampling_method`` is ``None``. Defaults to ``True``.
         """
-        if isinstance(sensor_input, (ScalarField, VectorField)):
+
+        if (input_spacing is not None) and isinstance(
+            sensor_input, (ScalarField, VectorField)
+        ):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same
             # spacing at all wavelengths when calculating intensity!
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
         elif input_spacing is not None:
             input_spacing = jnp.atleast_1d(input_spacing)
-        # Only want to resample if the spacing does not match
-        if self.resampling_method is not None and jnp.any(
-            input_spacing != self.spacing
-        ):
+
+        if resample and self.resampling_method is not None:
             resample_fn = self.resample_fn
         else:
             resample_fn = None

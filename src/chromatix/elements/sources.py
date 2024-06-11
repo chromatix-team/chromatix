@@ -1,6 +1,7 @@
 from typing import Callable
 
 import flax.linen as nn
+import numpy as np
 from chex import PRNGKey
 from jax import Array
 
@@ -58,6 +59,7 @@ class PointSource(nn.Module):
     amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     pupil: FieldPupil | None = None
     scalar: bool = True
+    epsilon: float = float(np.finfo(np.float32).eps)
 
     @nn.compact
     def __call__(self) -> ScalarField | VectorField:

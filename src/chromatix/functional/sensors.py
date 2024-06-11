@@ -6,7 +6,7 @@ from jax import Array, vmap
 from jax.lax import psum
 
 from chromatix import ScalarField, VectorField
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import NumberLike
 
 from ..ops import approximate_shot_noise, shot_noise
 

@@ -25,7 +25,6 @@ __all__ = [
 
 # We need this alias for typing to pass
 FieldPupil = Callable[[Field], Field]
-eps = float(np.finfo(np.float32).eps)
 
 
 def point_source(
@@ -39,7 +38,7 @@ def point_source(
     amplitude: NumberLike = 1.0,
     pupil: FieldPupil | None = None,
     scalar: bool = True,
-    epsilon: float = eps,
+    epsilon: float = float(np.finfo(np.float32).eps),
 ) -> ScalarField | VectorField:
     """
     Generates field due to point source a distance ``z`` away.
