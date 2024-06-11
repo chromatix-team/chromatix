@@ -212,7 +212,7 @@ class BaseField(struct.PyTreeNode):
     @property
     def spatial_shape(self) -> tuple[int, int]:
         """Only the height and width of the complex field."""
-        return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
+        return (self.u.shape[self.spatial_dims[0]], self.u.shape[self.spatial_dims[1]])
 
     @property
     def spatial_dims(self) -> tuple[int, int]:
@@ -344,23 +344,29 @@ class ScalarField(BaseField):
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
-        dx: Array = jnp.atleast_1d(dx)
-        spectrum: Array = jnp.atleast_1d(spectrum)
-        spectral_density: Array = jnp.atleast_1d(spectral_density)
+        # Parsing dx
+        _dx = jnp.atleast_1d(dx)
+        if _dx.ndim == 1:
+            _dx = jnp.stack([_dx, _dx])
+        assert_rank(_dx, 2)  # dx should have shape (2, C) here
+
+        # Parsing spectrum and density
+        _spectrum = jnp.atleast_1d(spectrum)
+        _spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([_spectrum, _spectral_density])
+        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
+
+        # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
-        ndim = len(u.shape)
-        assert (
-            ndim >= 5
-        ), "Field must be Array with at least 5 dimensions: (B... H W C 1)."
-        assert u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+            _u = jnp.empty((1, *shape, _spectrum.size, 3), dtype=jnp.complex64)
+        else:
+            _u = jnp.array(u)
+        ndim = len(_u.shape)
+        assert ndim >= 5, "Field must be Array with at least 5 dimensions: (B H W C 3)."
+        assert _u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
+
+        return cls(_u, _dx, _spectrum, _spectral_density)
 
 
 class VectorField(BaseField):
@@ -370,7 +376,7 @@ class VectorField(BaseField):
         dx: NumberLike,
         spectrum: NumberLike,
         spectral_density: NumberLike,
-        u: Array | None = None,
+        u: ArrayLike | None = None,
         shape: tuple[int, int] | None = None,
     ) -> Self:
         """
@@ -405,23 +411,30 @@ class VectorField(BaseField):
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
-        dx: Array = jnp.atleast_1d(dx)
-        spectrum: Array = jnp.atleast_1d(spectrum)
-        spectral_density: Array = jnp.atleast_1d(spectral_density)
+
+        # Parsing dx
+        _dx = jnp.atleast_1d(dx)
+        if _dx.ndim == 1:
+            _dx = jnp.stack([_dx, _dx])
+        assert_rank(_dx, 2)  # dx should have shape (2, C) here
+
+        # Parsing spectrum and density
+        _spectrum = jnp.atleast_1d(spectrum)
+        _spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([_spectrum, _spectral_density])
+        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
+
+        # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
-        ndim = len(u.shape)
-        assert (
-            ndim >= 5
-        ), "Field must be Array with at least 5 dimensions: (B... H W C 3)."
-        assert u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+            _u = jnp.empty((1, *shape, _spectrum.size, 3), dtype=jnp.complex64)
+        else:
+            _u = jnp.array(u)
+        ndim = len(_u.shape)
+        assert ndim >= 5, "Field must be Array with at least 5 dimensions: (B H W C 3)."
+        assert _u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
+
+        return cls(_u, _dx, _spectrum, _spectral_density)
 
     @property
     def jones_vector(self) -> Array:

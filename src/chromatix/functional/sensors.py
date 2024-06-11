@@ -16,7 +16,7 @@ __all__ = ["basic_sensor"]
 def basic_sensor(
     sensor_input: ScalarField | VectorField | Array,
     shot_noise_mode: Literal["approximate", "poisson"] | None = None,
-    resample_fn: Callable[[ArrayLike, NumberLike], Array] | None = None,
+    resample_fn: Callable[[Array, NumberLike], Array] | None = None,
     reduce_axis: int | None = None,
     reduce_parallel_axis_name: str | None = None,
     input_spacing: NumberLike | None = None,

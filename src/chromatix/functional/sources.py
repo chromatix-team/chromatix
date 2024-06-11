@@ -1,6 +1,7 @@
 from typing import Callable
 
 import jax.numpy as jnp
+import numpy as np
 from chex import assert_axis_dimension, assert_equal_shape
 
 from chromatix import Field, ScalarField, VectorField
@@ -24,6 +25,7 @@ __all__ = [
 
 # We need this alias for typing to pass
 FieldPupil = Callable[[Field], Field]
+eps = float(np.finfo(np.float32).eps)
 
 
 def point_source(
@@ -37,6 +39,7 @@ def point_source(
     amplitude: NumberLike = 1.0,
     pupil: FieldPupil | None = None,
     scalar: bool = True,
+    epsilon: float = eps,
 ) -> ScalarField | VectorField:
     """
     Generates field due to point source a distance ``z`` away.
@@ -86,6 +89,7 @@ def objective_point_source(
     power: NumberLike = 1.0,
     amplitude: NumberLike = 1.0,
     scalar: bool = True,
+    offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> ScalarField | VectorField:
     """
     Generates field due to a point source defocused by an amount ``z`` away from
@@ -122,7 +126,7 @@ def objective_point_source(
     u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
     D = 2 * f * NA / n
-    field = circular_pupil(field, D)
+    field = circular_pupil(field, D)  # type: ignore
     return field * jnp.sqrt(power / field.power)
 
 

@@ -58,7 +58,6 @@ class PointSource(nn.Module):
     amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     pupil: FieldPupil | None = None
     scalar: bool = True
-    epsilon: float = (np.finfo(np.float32).eps,)
 
     @nn.compact
     def __call__(self) -> ScalarField | VectorField:
@@ -141,8 +140,8 @@ class ObjectivePointSource(nn.Module):
             NA,
             power,
             amplitude,
-            offset,
             self.scalar,
+            offset,
         )
 
 

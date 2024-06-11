@@ -310,7 +310,7 @@ def defocused_ramps(
             grid[0] - jnp.sin(center) * defocus_center
         ) ** 2
         phase += ramp_mask * (ramp_defocus * ramp_quadratic)
-        phase -= ramp_mask * jnp.where(ramp_mask > 0, phase, 0).mean()
+        phase -= ramp_mask * jnp.where(ramp_mask > 0, phase, 0)  # typing: ignore
         return phase
 
     for ramp_idx in range(num_ramps):

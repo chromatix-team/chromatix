@@ -5,12 +5,13 @@ from chex import PRNGKey
 from flax import linen as nn
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
-from chromatix.field import Field
-from chromatix.functional import wrap_phase, phase_change
-from chromatix.utils import seidel_aberrations, zernike_aberrations
-from chromatix.ops import quantize
+
 from chromatix.elements.utils import register
+from chromatix.field import Field
+from chromatix.functional import phase_change, wrap_phase
+from chromatix.ops import quantize
 from chromatix.typing import ArrayLike, NumberLike
+from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
     "PhaseMask",

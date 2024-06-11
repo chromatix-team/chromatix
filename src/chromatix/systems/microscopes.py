@@ -147,7 +147,7 @@ class Microscope(nn.Module):
             pad_spec[spatial_dims[1]] = padding[1] // 2
             psf = center_crop(psf, pad_spec)
         if self.taper_width > 0:
-            psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
+            psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)  # type: ignore
         psf = self.sensor.resample(psf, spacing)
         return psf
 
@@ -163,7 +163,9 @@ class Microscope(nn.Module):
             sample: The sample volume to image with of shape `(B... H W 1 1)`.
             psf: The PSF intensity volume to image with of shape `(B... H W 1 1)`.
         """
-        image = fourier_convolution(sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape)
+        image = fourier_convolution(
+            sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape
+        )
         # NOTE(dd): By this point, the image should already be at the same
         # spacing as the sensor. Any resampling to the pixels of the sensor
         # should already have happened to the PSF.
@@ -208,7 +210,7 @@ class Optical4FSystemPSF(nn.Module):
         system = OpticalSystem(
             [
                 ObjectivePointSource(
-                    padded_shape,
+                    padded_shape,  # type: ignore
                     required_spacing,
                     microscope.spectrum,
                     microscope.spectral_density,

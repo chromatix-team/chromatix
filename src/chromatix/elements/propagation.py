@@ -130,6 +130,8 @@ class Propagate(nn.Module):
                     "kernel",
                     lambda: compute_asm_propagator(*propagator_args),
                 )
+            else:
+                raise NotImplementedError
             field = kernel_propagate(field, propagator.value)
             if self.mode == "same":
                 field = crop(field, self.N_pad)

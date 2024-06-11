@@ -136,17 +136,12 @@ def register(
     try:
         init = getattr(module, name)
     except AttributeError:
-        print("Variable does not exist.")
+        raise AttributeError
 
     if isinstance(init, Trainable):
         return module.param(f"_{name}", parse_init(init.val), *args)
     else:
-        return module.variable(
-            "state",
-            f"_{name}",
-            parse_init(init),
-            *args,
-        ).value
+        return module.variable("state", f"_{name}", parse_init(init), *args).value
 
 
 def parse_init(x: Any) -> Callable:

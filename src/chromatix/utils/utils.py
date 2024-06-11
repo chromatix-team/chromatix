@@ -78,7 +78,7 @@ def gaussian_kernel(
 
 def sigmoid_taper(shape: tuple[int, int], width: float, ndim: int = 5) -> Array:
     dist = distance_transform_edt(np.pad(np.ones((shape[0] - 2, shape[1] - 2)), 1))
-    taper = 2 * (nn.sigmoid(dist / width) - 0.5)
+    taper = 2 * (nn.sigmoid(dist / width) - 0.5)  # type: ignore - it's an array!
     return _broadcast_2d_to_spatial(taper, ndim)
 
 
