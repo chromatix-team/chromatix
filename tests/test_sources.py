@@ -67,3 +67,60 @@ def test_objective_point_source(power, z, shape):
 
     assert jnp.allclose(field.power, power)
     assert_shape(field.u, (1, *shape, 1, 1))
+
+
+def test_point_source_wrong_size():
+    with pytest.raises(AssertionError) as e_info:
+        field = cf.point_source(
+            (256, 256),
+            0.1,
+            0.532,
+            1.0,
+            1.0,
+            1.33,
+            amplitude=jnp.array([1.0, 1.0]),
+            scalar=True,
+            power=1.0,
+            pupil=None,
+        )
+    with pytest.raises(AssertionError) as e_info:
+        field = cf.point_source(
+            (256, 256),
+            0.1,
+            0.532,
+            1.0,
+            1.0,
+            1.33,
+            amplitude=jnp.array([1.0, 1.0]),
+            scalar=False,
+            power=1.0,
+            pupil=None,
+        )
+
+    with pytest.raises(AssertionError) as e_info:
+        field = cf.point_source(
+            (256, 256),
+            0.1,
+            0.532,
+            1.0,
+            1.0,
+            1.33,
+            amplitude=jnp.array([1.0, 1.0, 1.0]),
+            scalar=True,
+            power=1.0,
+            pupil=None,
+        )
+
+    with pytest.raises(AssertionError) as e_info:
+        field = cf.point_source(
+            (256, 256),
+            0.1,
+            0.532,
+            1.0,
+            1.0,
+            1.33,
+            amplitude=1.0,
+            scalar=False,
+            power=1.0,
+            pupil=None,
+        )

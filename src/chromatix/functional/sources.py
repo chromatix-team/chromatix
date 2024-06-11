@@ -56,6 +56,13 @@ def point_source(
         epsilon: Value added to denominators for numerical stability.
     """
     create = ScalarField.create if scalar else VectorField.create
+    # If scalar, last axis should 1, else 3.
+    amplitude = jnp.atleast_1d(amplitude)
+    if scalar:
+        assert_axis_dimension(amplitude, -1, 1)
+    else:
+        assert_axis_dimension(amplitude, -1, 3)
+
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
@@ -108,6 +115,14 @@ def objective_point_source(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
+
+    # If scalar, last axis should 1, else 3.
+    amplitude = jnp.atleast_1d(amplitude)
+    if scalar:
+        assert_axis_dimension(amplitude, -1, 1)
+    else:
+        assert_axis_dimension(amplitude, -1, 3)
+
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
@@ -156,6 +171,14 @@ def plane_wave(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
+
+    # If scalar, last axis should 1, else 3.
+    amplitude = jnp.atleast_1d(amplitude)
+    if scalar:
+        assert_axis_dimension(amplitude, -1, 1)
+    else:
+        assert_axis_dimension(amplitude, -1, 3)
+
     field = create(dx, spectrum, spectral_density, shape=shape)
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
