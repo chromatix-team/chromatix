@@ -16,6 +16,8 @@ from chromatix.utils import seidel_aberrations, zernike_aberrations
 __all__ = [
     "SeidelAberrations",
     "ZernikeAberrations",
+    "PhaseMask",
+    "SpatialLightModulator",
 ]
 
 
