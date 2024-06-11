@@ -143,7 +143,6 @@ class ObjectivePointSource(nn.Module):
             NA,
             power,
             amplitude,
-            offset,
             self.scalar,
             offset,
         )
