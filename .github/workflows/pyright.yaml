@@ -15,6 +15,6 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyright==1.1.366
+          pip install .[dev]
       - name: Type check with pyright 
         run: pyright 
