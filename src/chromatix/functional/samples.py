@@ -4,7 +4,7 @@ from chex import PRNGKey, assert_equal_shape, assert_rank
 from jax import Array
 
 from chromatix.field import crop, pad
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils.fft import fft, ifft
 
 from ..field import ScalarField, VectorField
@@ -19,7 +19,7 @@ from .propagation import (
 
 
 def jones_sample(
-    field: VectorField, absorption: ArrayLike, dn: ArrayLike, thickness: NumberLike
+    field: VectorField, absorption: ArrayLike, dn: ArrayLike, thickness: ScalarLike
 ) -> VectorField:
     """
     Perturbs an incoming ``VectorField`` as if it went through a thin sample
@@ -60,7 +60,7 @@ def jones_sample(
 
 
 def thin_sample(
-    field: ScalarField, absorption: ArrayLike, dn: ArrayLike, thickness: NumberLike
+    field: ScalarField, absorption: ArrayLike, dn: ArrayLike, thickness: ScalarLike
 ) -> ScalarField:
     """
     Perturbs an incoming ``ScalarField`` as if it went through a thin sample
@@ -101,12 +101,12 @@ def multislice_thick_sample(
     field: ScalarField,
     absorption_stack: ArrayLike,
     dn_stack: ArrayLike,
-    n: NumberLike,
-    thickness_per_slice: NumberLike,
+    n: ScalarLike,
+    thickness_per_slice: ScalarLike,
     N_pad: int,
     propagator: ArrayLike | None = None,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
-    reverse_propagate_distance: NumberLike | None = None,
+    reverse_propagate_distance: ScalarLike | None = None,
 ) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
@@ -167,8 +167,8 @@ def fluorescent_multislice_thick_sample(
     field: ScalarField,
     fluorescence_stack: ArrayLike,
     dn_stack: ArrayLike,
-    n: NumberLike,
-    thickness_per_slice: NumberLike,
+    n: ScalarLike,
+    thickness_per_slice: ScalarLike,
     N_pad: int,
     key: PRNGKey,
     num_samples: int = 1,
@@ -287,7 +287,7 @@ def fluorescent_multislice_thick_sample(
 
 
 # depolarised wave
-def PTFT(k: ArrayLike, km: NumberLike) -> Array:
+def PTFT(k: ArrayLike, km: ScalarLike) -> Array:
     Q = jnp.zeros((3, 3, *k.shape[1:]))
 
     # Setting diagonal
@@ -317,7 +317,7 @@ def bmatvec(a, b):
 
 
 def thick_sample_vector(
-    field: VectorField, scatter_potential: ArrayLike, dz: NumberLike, n: NumberLike
+    field: VectorField, scatter_potential: ArrayLike, dz: ScalarLike, n: ScalarLike
 ) -> VectorField:
     def P_op(u: Array) -> Array:
         phase_factor = jnp.exp(1j * kz * dz)

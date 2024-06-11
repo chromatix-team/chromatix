@@ -2,5 +2,5 @@ from jax import Array
 from numpy import ndarray
 
 ArrayLike = Array | ndarray
-NumberLike = ArrayLike | float | int
-ComplexNumberLike = ArrayLike | float | int | complex
+ScalarLike = ArrayLike | float | int
+ComplexScalarLike = ArrayLike | float | int | complex

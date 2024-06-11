@@ -5,7 +5,7 @@ from chex import PRNGKey
 from jax import Array
 
 from chromatix.elements.utils import register
-from chromatix.typing import NumberLike
+from chromatix.typing import ScalarLike
 
 from .. import functional as cf
 from ..field import Field
@@ -31,9 +31,9 @@ class ThinLens(nn.Module):
             to the incoming ``Field``.
     """
 
-    f: NumberLike | Callable[[PRNGKey], Array]
-    n: NumberLike | Callable[[PRNGKey], Array]
-    NA: NumberLike | Callable[[PRNGKey], Array] | None = None
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -62,9 +62,9 @@ class FFLens(nn.Module):
         inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
-    f: NumberLike | Callable[[PRNGKey], Array]
-    n: NumberLike | Callable[[PRNGKey], Array]
-    NA: NumberLike | Callable[[PRNGKey], Array] | None = None
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
     inverse: bool = False
 
     @nn.compact
@@ -95,10 +95,10 @@ class DFLens(nn.Module):
         inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
-    d: NumberLike | Callable[[PRNGKey], Array]
-    f: NumberLike | Callable[[PRNGKey], Array]
-    n: NumberLike | Callable[[PRNGKey], Array]
-    NA: NumberLike | Callable[[PRNGKey], Array] | None = None
+    d: ScalarLike | Callable[[PRNGKey], Array]
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
     inverse: bool = False
 
     @nn.compact

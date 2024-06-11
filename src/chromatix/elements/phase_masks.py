@@ -10,7 +10,7 @@ from chromatix.elements.utils import register
 from chromatix.field import Field
 from chromatix.functional import phase_change, wrap_phase
 from chromatix.ops import quantize
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
@@ -52,9 +52,9 @@ class PhaseMask(nn.Module):
     """
 
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
-    f: NumberLike | None = None
-    n: NumberLike | None = None
-    NA: NumberLike | None = None
+    f: ScalarLike | None = None
+    n: ScalarLike | None = None
+    NA: ScalarLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -125,13 +125,13 @@ class SpatialLightModulator(nn.Module):
 
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
     shape: tuple[int, int]
-    spacing: NumberLike
+    spacing: ScalarLike
     phase_range: ArrayLike
     num_bits: int | None = None
     interpolation_order: int = 0
-    f: NumberLike | None = None
-    n: NumberLike | None = None
-    NA: NumberLike | None = None
+    f: ScalarLike | None = None
+    n: ScalarLike | None = None
+    NA: ScalarLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -190,11 +190,11 @@ class SeidelAberrations(nn.Module):
     """
 
     coefficients: ArrayLike | Callable[[PRNGKey], Array]
-    f: NumberLike
-    n: NumberLike
-    NA: NumberLike
-    u: NumberLike
-    v: NumberLike
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike
+    u: ScalarLike
+    v: ScalarLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

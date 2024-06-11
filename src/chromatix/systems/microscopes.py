@@ -7,7 +7,7 @@ from chex import PRNGKey
 from flax import linen as nn
 from jax import Array
 
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import sigmoid_taper
 
 from ..elements import FFLens, ObjectivePointSource, PhaseMask
@@ -75,11 +75,11 @@ class Microscope(nn.Module):
 
     system_psf: Callable[[Microscope], ScalarField | VectorField | Array]
     sensor: nn.Module
-    f: NumberLike
-    n: NumberLike
-    NA: NumberLike
-    spectrum: NumberLike
-    spectral_density: NumberLike
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
     padding_ratio: float = 0
     taper_width: float = 0
     fast_fft_shape: bool = True
@@ -193,7 +193,7 @@ class Optical4FSystemPSF(nn.Module):
     """
 
     shape: tuple[int, int]
-    spacing: NumberLike
+    spacing: ScalarLike
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
 
     @nn.compact
@@ -228,9 +228,9 @@ class Optical4FSystemPSF(nn.Module):
     @staticmethod
     def compute_required_spacing(
         height: int,
-        output_spacing: NumberLike,
-        f: NumberLike,
-        n: NumberLike,
-        spectrum: NumberLike,
-    ) -> NumberLike:
+        output_spacing: ScalarLike,
+        f: ScalarLike,
+        n: ScalarLike,
+        spectrum: ScalarLike,
+    ) -> ScalarLike:
         return f * spectrum / (n * height * output_spacing)

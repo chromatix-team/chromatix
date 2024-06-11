@@ -1,12 +1,12 @@
 import jax.numpy as jnp
 
 from chromatix.field import Field
-from chromatix.typing import NumberLike
+from chromatix.typing import ScalarLike
 from chromatix.utils import _squeeze_grid_to_2d
 from chromatix.utils.fft import fft
 
 
-def optical_fft(field: Field, z: NumberLike, n: NumberLike) -> Field:
+def optical_fft(field: Field, z: ScalarLike, n: ScalarLike) -> Field:
     """
     Computes the optical ``fft`` or ``ifft`` on an incoming ``Field`` propagated
     by ``z``, depending on the sign of ``z`` (which is a scalar value that may

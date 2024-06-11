@@ -4,7 +4,7 @@ import flax.linen as nn
 import jax.numpy as jnp
 from jax import Array, vmap
 
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 
 from ..field import Field, ScalarField, VectorField
 from ..functional import basic_sensor
@@ -52,7 +52,7 @@ class BasicSensor(nn.Module):
     def __call__(
         self,
         sensor_input: Array | Field,
-        input_spacing: NumberLike | None = None,
+        input_spacing: ScalarLike | None = None,
         resample: bool = True,
     ) -> Array:
         """
@@ -94,7 +94,7 @@ class BasicSensor(nn.Module):
             noise_key=noise_key,
         )
 
-    def resample(self, resample_input: Array, input_spacing: NumberLike) -> Array:
+    def resample(self, resample_input: Array, input_spacing: ScalarLike) -> Array:
         """
         Resample the given ``resample_input`` to the pixels of the sensor.
 

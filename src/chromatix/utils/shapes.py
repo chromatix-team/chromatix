@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from einops import rearrange
 from jax import Array
 
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 
 __all__ = [
     "_broadcast_1d_to_channels",
@@ -15,19 +15,19 @@ __all__ = [
 ]
 
 
-def _broadcast_1d_to_channels(x: NumberLike, ndim: int) -> Array:
+def _broadcast_1d_to_channels(x: ScalarLike, ndim: int) -> Array:
     """Broadcast 1D array of size `C` to `(B... H W C [1 | 3])`."""
     shape_spec = "c -> " + ("1 " * (ndim - 2)) + "c 1"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_polarization(x: NumberLike, ndim: int) -> Array:
+def _broadcast_1d_to_polarization(x: ScalarLike, ndim: int) -> Array:
     """Broadcast 1D array of size `P` to `(B... H W C [1 | 3])`."""
     shape_spec = "p -> " + ("1 " * (ndim - 1)) + "p"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_innermost_batch(x: NumberLike, ndim: int) -> Array:
+def _broadcast_1d_to_innermost_batch(x: ScalarLike, ndim: int) -> Array:
     """Broadcast 1D array of size `B` to left of `(H W)` in `(B... H W C [1 | 3])`."""
     shape_spec = "b ->" + " 1" * (ndim - 5) + " b 1 1 1 1"
     return rearrange(jnp.atleast_1d(x), shape_spec)

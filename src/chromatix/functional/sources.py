@@ -5,7 +5,7 @@ import numpy as np
 from chex import assert_axis_dimension, assert_equal_shape
 
 from chromatix import Field, ScalarField, VectorField
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 
 from ..utils import l2_sq_norm
 from ..utils.shapes import (
@@ -29,13 +29,13 @@ FieldPupil = Callable[[Field], Field]
 
 def point_source(
     shape: tuple[int, int],
-    dx: NumberLike,
-    spectrum: NumberLike,
-    spectral_density: NumberLike,
-    z: NumberLike,
-    n: NumberLike,
-    power: NumberLike = 1.0,
-    amplitude: NumberLike = 1.0,
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    z: ScalarLike,
+    n: ScalarLike,
+    power: ScalarLike = 1.0,
+    amplitude: ScalarLike = 1.0,
     pupil: FieldPupil | None = None,
     scalar: bool = True,
     epsilon: float = float(np.finfo(np.float32).eps),
@@ -85,15 +85,15 @@ def point_source(
 
 def objective_point_source(
     shape: tuple[int, int],
-    dx: NumberLike,
-    spectrum: NumberLike,
-    spectral_density: NumberLike,
-    z: NumberLike,
-    f: NumberLike,
-    n: NumberLike,
-    NA: NumberLike,
-    power: NumberLike = 1.0,
-    amplitude: NumberLike = 1.0,
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    z: ScalarLike,
+    f: ScalarLike,
+    n: ScalarLike,
+    NA: ScalarLike,
+    power: ScalarLike = 1.0,
+    amplitude: ScalarLike = 1.0,
     scalar: bool = True,
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> ScalarField | VectorField:
@@ -146,11 +146,11 @@ def objective_point_source(
 
 def plane_wave(
     shape: tuple[int, int],
-    dx: NumberLike,
-    spectrum: NumberLike,
-    spectral_density: NumberLike,
-    power: NumberLike = 1.0,
-    amplitude: NumberLike = 1.0,
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    power: ScalarLike = 1.0,
+    amplitude: ScalarLike = 1.0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     pupil: FieldPupil | None = None,
     scalar: bool = True,
@@ -198,12 +198,12 @@ def plane_wave(
 
 
 def generic_field(
-    dx: NumberLike,
-    spectrum: NumberLike,
-    spectral_density: NumberLike,
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
     amplitude: ArrayLike,
     phase: ArrayLike,
-    power: NumberLike = 1.0,
+    power: ScalarLike = 1.0,
     pupil: FieldPupil | None = None,
     scalar: bool = True,
 ) -> ScalarField | VectorField:

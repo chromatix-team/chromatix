@@ -7,7 +7,7 @@ from einops import rearrange
 from jax import Array
 from scipy.ndimage import distance_transform_edt
 
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 
 from .shapes import _broadcast_2d_to_spatial
 
@@ -82,7 +82,7 @@ def sigmoid_taper(shape: tuple[int, int], width: float, ndim: int = 5) -> Array:
     return _broadcast_2d_to_spatial(taper, ndim)
 
 
-def create_grid(shape: tuple[int, int], spacing: NumberLike) -> Array:
+def create_grid(shape: tuple[int, int], spacing: ScalarLike) -> Array:
     """
     Args:
         shape: The shape of the grid, described as a tuple of
@@ -109,7 +109,7 @@ def create_grid(shape: tuple[int, int], spacing: NumberLike) -> Array:
 
 
 def grid_spatial_to_pupil(
-    grid: Array, f: NumberLike, NA: NumberLike, n: NumberLike
+    grid: Array, f: ScalarLike, NA: ScalarLike, n: ScalarLike
 ) -> Array:
     R = f * NA / n  # pupil radius
     return grid / R

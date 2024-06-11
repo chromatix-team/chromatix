@@ -6,7 +6,7 @@ from chex import PRNGKey
 from jax import Array
 
 from chromatix.elements.utils import register
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 
 from ..field import Field, ScalarField, VectorField
 from ..functional.sources import (
@@ -50,13 +50,13 @@ class PointSource(nn.Module):
     """
 
     shape: tuple[int, int]
-    dx: NumberLike
-    spectrum: NumberLike
-    spectral_density: NumberLike
-    z: NumberLike | Callable[[PRNGKey], Array]
-    n: NumberLike | Callable[[PRNGKey], Array]
-    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
-    amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    z: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
     pupil: FieldPupil | None = None
     scalar: bool = True
     epsilon: float = float(np.finfo(np.float32).eps)
@@ -105,26 +105,26 @@ class ObjectivePointSource(nn.Module):
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
-        offset: The offset (y and x) in spatial coordinates of the point source.
-            Defaults to (0, 0) for no offset (a centered point source).
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
+        offset: The offset (y and x) in spatial coordinates of the point source.
+            Defaults to (0, 0) for no offset (a centered point source).
     """
 
     shape: tuple[int, int]
-    dx: NumberLike
-    spectrum: NumberLike
-    spectral_density: NumberLike
-    f: NumberLike | Callable[[PRNGKey], Array]
-    n: NumberLike | Callable[[PRNGKey], Array]
-    NA: NumberLike | Callable[[PRNGKey], Array]
-    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
-    amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array]
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
     scalar: bool = True
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0)
 
     @nn.compact
-    def __call__(self, z: float) -> ScalarField | VectorField:
+    def __call__(self, z: ScalarLike) -> ScalarField | VectorField:
         f = register(self, "f")
         n = register(self, "n")
         NA = register(self, "NA")
@@ -177,11 +177,11 @@ class PlaneWave(nn.Module):
     """
 
     shape: tuple[int, int]
-    dx: NumberLike
-    spectrum: NumberLike
-    spectral_density: NumberLike
-    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
-    amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
     pupil: FieldPupil | None = None
     scalar: bool = True
@@ -227,12 +227,12 @@ class GenericField(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    dx: NumberLike
-    spectrum: NumberLike
-    spectral_density: NumberLike
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
     amplitude: ArrayLike | Callable[[PRNGKey], Array]
     phase: ArrayLike | Callable[[PRNGKey], Array]
-    power: NumberLike | Callable[[PRNGKey], Array] = 1.0
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
     pupil: FieldPupil | None = None
     scalar: bool = True
 

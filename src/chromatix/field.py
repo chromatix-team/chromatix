@@ -10,7 +10,7 @@ from flax import struct
 from jax import Array
 from typing_extensions import Self
 
-from chromatix.typing import ArrayLike, NumberLike
+from chromatix.typing import ArrayLike, ScalarLike
 
 from .utils.shapes import (
     _broadcast_1d_to_channels,
@@ -229,7 +229,7 @@ class BaseField(struct.PyTreeNode):
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
-    def __add__(self, other: NumberLike | ArrayLike | Field) -> Self:
+    def __add__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
         elif isinstance(other, (ScalarField, VectorField)):
@@ -240,7 +240,7 @@ class BaseField(struct.PyTreeNode):
     def __radd__(self, other: Any) -> Self:
         return self + other
 
-    def __sub__(self, other: NumberLike | ArrayLike | Field) -> Self:
+    def __sub__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u - other)
         elif isinstance(other, (ScalarField, VectorField)):
@@ -251,7 +251,7 @@ class BaseField(struct.PyTreeNode):
     def __rsub__(self, other: Any) -> Self:
         return (-1 * self) + other
 
-    def __mul__(self, other: NumberLike | ArrayLike | Field) -> Self:
+    def __mul__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u * other)
         elif isinstance(other, (ScalarField, VectorField)):
@@ -268,7 +268,7 @@ class BaseField(struct.PyTreeNode):
     def __rmatmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
-    def __truediv__(self, other: NumberLike | ArrayLike | Field) -> Self:
+    def __truediv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u / other)
         elif isinstance(other, (ScalarField, VectorField)):
@@ -279,7 +279,7 @@ class BaseField(struct.PyTreeNode):
     def __rtruediv__(self, other: Any) -> Self:
         return self.replace(u=other / self.u)
 
-    def __floordiv__(self, other: NumberLike | ArrayLike | Field) -> Self:
+    def __floordiv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u // other)
         elif isinstance(other, (ScalarField, VectorField)):
@@ -290,7 +290,7 @@ class BaseField(struct.PyTreeNode):
     def __rfloordiv__(self, other: Any) -> Self:
         return self.replace(u=other // self.u)
 
-    def __mod__(self, other: NumberLike | ArrayLike | Field) -> Self:
+    def __mod__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u % other)
         elif isinstance(other, (ScalarField, VectorField)):
@@ -306,9 +306,9 @@ class ScalarField(BaseField):
     @classmethod
     def create(
         cls,
-        dx: NumberLike,
-        spectrum: NumberLike,
-        spectral_density: NumberLike,
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
         u: Array | None = None,
         shape: tuple[int, int] | None = None,
     ) -> Self:
@@ -373,9 +373,9 @@ class VectorField(BaseField):
     @classmethod
     def create(
         cls,
-        dx: NumberLike,
-        spectrum: NumberLike,
-        spectral_density: NumberLike,
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
         u: ArrayLike | None = None,
         shape: tuple[int, int] | None = None,
     ) -> Self:
