@@ -4,7 +4,7 @@ from numbers import Number
 from typing import Any, TypeVar
 
 import jax.numpy as jnp
-from chex import assert_equal_shape, assert_rank
+from chex import assert_axis_dimension, assert_equal_shape, assert_rank
 from einops import rearrange
 from flax import struct
 from jax import Array
@@ -369,16 +369,22 @@ class ScalarField(BaseField):
         return cls(_u, _dx, _spectrum, _spectral_density)
 
 
-class VectorField(BaseField):
+class VectorField(struct.PyTreeNode):
+    # B = batch, H = height, W = Width, C = Wavelength
+    u: Array  # [B H W C 3]
+    dx: Array  # [B 1 1 C 2]
+    spectrum: Array  # [B 1 1 C]
+    spectral_density: Array  # [B 1 1 C]
+
     @classmethod
     def create(
         cls,
-        dx: ScalarLike,
-        spectrum: ScalarLike,
-        spectral_density: ScalarLike,
-        u: ArrayLike | None = None,
+        dx: ArrayLike,
+        spectrum: ArrayLike,
+        spectral_density: ArrayLike,
+        u: Array | None = None,
         shape: tuple[int, int] | None = None,
-    ) -> Self:
+    ) -> VectorField:
         """
         Create a vectorial ``Field`` object in a convenient way.
 
@@ -390,8 +396,8 @@ class VectorField(BaseField):
         Args:
             dx: The spacing of the samples in ``u`` discretizing a continuous
                 field. Can either be a 1D array with the same size as the
-                number of wavelengths in the spectrum of shape (C), specifying
-                a square spacing per wavelength, or a 2D array of shape (2 C)
+                number of wavelengths in the spectrum of shape [C], specifying
+                a square spacing per wavelength, or a 2D array of shape [C 2]
                 specifying the spacing in the y and x directions respectively
                 for non-square pixels. A float can also be specified to use the
                 same square spacing for all wavelengths. Spacing will be the
@@ -403,45 +409,266 @@ class VectorField(BaseField):
                 Will be scaled to sum to 1.0 over all wavelengths. Should be a
                 1D array containing the weight of each wavelength, or a float
                 for a single wavelength.
-            u: The vectorial field of shape `(B... H W C 3)`. If not given,
+            u: The vectorial field of shape `[B H W C 3]`. If not given,
                 the ``Field`` is allocated with uninitialized values of the
-                given ``shape`` as `(1 H W C 3)`.
+                given ``shape`` as `[1 H W C 3]`.
             shape: A tuple defining the shape of only the spatial
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
 
-        # Parsing dx
-        _dx = jnp.atleast_1d(dx)
-        if _dx.ndim == 1:
-            _dx = jnp.stack([_dx, _dx])
-        assert_rank(_dx, 2)  # dx should have shape (2, C) here
-
-        # Parsing spectrum and density
-        _spectrum = jnp.atleast_1d(spectrum)
-        _spectral_density = jnp.atleast_1d(spectral_density)
-        assert_equal_shape([_spectrum, _spectral_density])
-        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
+        # Parsing spectrum
+        spectrum = jnp.atleast_1d(spectrum)
+        spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([spectrum, spectral_density])
+        spectral_density = spectral_density / jnp.sum(spectral_density)  # normalising
 
         # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            _u = jnp.empty((1, *shape, _spectrum.size, 3), dtype=jnp.complex64)
+            u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
+
+        assert_rank(u, 5)  # should have rank 5
+        assert_axis_dimension(u, -1, 3)  # last dimension should be 3
+
+        # Parse dx
+        dx = jnp.atleast_1d(dx)
+        match (dx.ndim, dx.size):
+            case (1, 1):
+                dx = rearrange(dx, "d -> 1 1 1 1 (d 2)")
+            case (1, 2):
+                dx = rearrange(dx, "d -> 1 1 1 1 d")
+            case (5, _):
+                assert_axis_dimension(dx, -1, 2)  # dx should be at the end
+                assert_axis_dimension(dx, -3, 1)  # width should be 1
+                assert_axis_dimension(dx, -4, 1)  # height should be 1
+            case _:
+                raise NotImplementedError
+
+        return cls(u, dx, spectrum, spectral_density)
+
+    def grid(self) -> Array:
+        """
+        The grid for each spatial dimension as an array of shape `[B H W
+        C 2)`. The 2 entries along the last dimension represent the x and y
+        grids, respectively. This grid assumes that the center of the ``Field``
+        is the origin and that the elements are sampling from the center, not
+        the corner.
+        """
+        # We must use meshgrid instead of mgrid here in order to be jittable
+        N_y, N_x = self.spatial_shape
+        grid = jnp.meshgrid(
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(N_y // 2, -N_y // 2 - 1, num=N_y) + 0.5,
+            indexing="xy",
+        )
+        return self.dx * rearrange(grid, "d h w -> 1 h w 1 d")
+
+    def k_grid(self, n: float = 1.0, centered: bool = True) -> Array:
+        """
+        The frequency grid for each spatial dimension as an array of shape `(
+        (B 1 1 C 2)`. The 2 entries along the first dimension represent the
+        y and x grids, respectively. This grid assumes that the center of the
+        ``Field`` is the origin and that the elements are sampling from the
+        center, not the corner.
+        """
+        N_y, N_x = self.spatial_shape
+        grid = jnp.meshgrid(
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(N_y // 2, -N_y // 2 - 1, num=N_y) + 0.5,
+            indexing="xy",
+        )
+        k = self.dk * rearrange(grid, "d h w -> 1 h w 1 d")
+
+        if not centered:
+            k = jnp.fft.ifftshift(k, axes=(-4, -3))
+
+        kz = jnp.sqrt(self.wave_number(n) ** 2 - jnp.sum(k**2, axis=-1, keepdims=True))
+        return jnp.concatenate([k, kz], axis=-1)
+
+    def wave_number(self, n: float = 1.0) -> Array:
+        return 2 * jnp.pi * n / self.spectrum
+
+    def phase(self, unwrapped: bool = False) -> Array:
+        """Phase of the complex field, shape `(B H W C 3)`."""
+        if unwrapped:
+            raise NotImplementedError
+        return jnp.angle(self.u)
+
+    def amplitude(self, per_component: bool = True, keepdims: bool = True) -> Array:
+        """Amplitude of the complex field, shape `(B H W C 3)`.
+        This is actually what is called the "magnitude"."""
+        amplitude = jnp.abs(self.u)
+        if per_component:
+            return amplitude
         else:
-            _u = jnp.array(u)
-        ndim = len(_u.shape)
-        assert ndim >= 5, "Field must be Array with at least 5 dimensions: (B H W C 3)."
-        assert _u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
+            return jnp.linalg.norm(amplitude, axis=-1, keepdims=keepdims)
 
-        return cls(_u, _dx, _spectrum, _spectral_density)
-
-    @property
     def jones_vector(self) -> Array:
         """Return Jones vector of field."""
         norm = jnp.linalg.norm(self.u, axis=-1, keepdims=True)
         norm = jnp.where(norm == 0, 1, norm)  # set to 1 to avoid division by zero
         return self.u / norm
+
+    def intensity(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
+        """Intensity of the complex field, shape `[B H W]`."""
+        intensity_per_wavelength = self.spectral_density * jnp.sum(
+            self.amplitude() ** 2, axis=-1, keepdims=keepdims
+        )
+        if per_wavelength:
+            return intensity_per_wavelength
+        else:
+            return jnp.sum(intensity_per_wavelength, axis=-1, keepdims=keepdims)
+
+    def power(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
+        """Power of the complex field, shape `[B]`."""
+        area = jnp.prod(self.dx, axis=-1)
+        dpower_per_wavelength = area * self.intensity(
+            per_wavelength=True, keepdims=True
+        )
+        if per_wavelength:
+            return jnp.sum(dpower_per_wavelength, axis=(-3, -2), keepdims=keepdims)
+        else:
+            return jnp.sum(dpower_per_wavelength, axis=(-3, -2, -1), keepdims=keepdims)
+
+    @property
+    def dk(self) -> Array:
+        """
+        The frequency spacing of the samples in the frequency space of ``u``.
+        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the
+        spacing in the y and x directions respectively (can be the same for y
+        and x for the common case of square pixels). Spacing is the same per
+        wavelength for all entries in a batch.
+        """
+        # NOTE: This is a property cause so is dx.
+        shape = jnp.array(self.spatial_shape)
+        return 1 / (self.dx * shape)
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the complex field."""
+        return self.u.shape
+
+    @property
+    def spatial_shape(self) -> tuple[int, int]:
+        """Only the height and width of the complex field."""
+        return self.u.shape[-4], self.u.shape[-3]
+
+    @property
+    def ndim(self) -> int:
+        """Number of dimensions (the rank) of the complex field."""
+        return self.u.ndim
+
+    @property
+    def conj(self) -> VectorField:
+        """conjugate of the complex field, as a field of the same shape."""
+        return self.replace(u=jnp.conj(self.u))
+
+    def __add__(self, other: Number | Array | VectorField) -> VectorField:
+        match other:
+            case Number():
+                return self.replace(u=self.u + other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u + other)
+            case VectorField():
+                return self.replace(u=self.u + other.u)
+            case _:
+                return NotImplemented
+
+    def __radd__(self, other: Any) -> VectorField:
+        return self + other
+
+    def __sub__(self, other: Number | Array | VectorField) -> VectorField:
+        match other:
+            case Number():
+                return self.replace(u=self.u - other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u - other)
+            case VectorField():
+                return self.replace(u=self.u - other.u)
+            case _:
+                return NotImplemented
+
+    def __rsub__(self, other: Number | Array | VectorField) -> VectorField:
+        return self - other
+
+    def __mul__(self, other: Number | Array | VectorField) -> VectorField:
+        match other:
+            case Number():
+                return self.replace(u=self.u * other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u * other)
+            case VectorField():
+                return self.replace(u=self.u * other.u)
+            case _:
+                return NotImplemented
+
+    def __rmul__(self, other: Number | Array | VectorField) -> VectorField:
+        return self * other
+
+    # NOTE: Not sure these are correct so commenting out.
+    """
+    def __matmul__(self, other: Array) -> VectorField:
+        return self.replace(u=jnp.matmul(self.u, other))
+
+    def __rmatmul__(self, other: Array) -> VectorField:
+        return self.replace(u=jnp.matmul(other, self.u.squeeze()))
+    """
+
+    def __truediv__(self, other: Number | Array | VectorField) -> VectorField:
+        match other:
+            case Number():
+                return self.replace(u=self.u / other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u / other)
+            case VectorField():
+                return self.replace(u=self.u / other.u)
+            case _:
+                return NotImplemented
+
+    def __rtruediv__(self, other: Number | Array | VectorField) -> VectorField:
+        return self.replace(u=other / self.u)
+
+    def __floordiv__(self, other: Number | Array | VectorField) -> VectorField:
+        match other:
+            case Number():
+                return self.replace(u=self.u // other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u // other)
+            case VectorField():
+                return self.replace(u=self.u // other.u)
+            case _:
+                return NotImplemented
+
+    def __rfloordiv__(self, other: Number | Array | VectorField) -> VectorField:
+        return self.replace(u=other // self.u)
+
+    def __mod__(self, other: Number | Array | VectorField) -> VectorField:
+        match other:
+            case Number():
+                return self.replace(u=self.u % other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u % other)
+            case VectorField():
+                return self.replace(u=self.u % other.u)
+            case _:
+                return NotImplemented
+
+    def __rmod__(self, other: Number | Array | VectorField) -> VectorField:
+        return self.replace(u=other % self.u)
 
 
 Field = TypeVar("Field", ScalarField, VectorField)
