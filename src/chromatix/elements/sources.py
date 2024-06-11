@@ -121,6 +121,7 @@ class ObjectivePointSource(nn.Module):
     power: NumberLike | Callable[[PRNGKey], Array] = 1.0
     amplitude: NumberLike | Callable[[PRNGKey], Array] = 1.0
     scalar: bool = True
+    offset: ArrayLike | tuple[float, float] = (0.0, 0.0)
 
     @nn.compact
     def __call__(self, z: float) -> ScalarField | VectorField:
@@ -142,6 +143,7 @@ class ObjectivePointSource(nn.Module):
             NA,
             power,
             amplitude,
+            offset,
             self.scalar,
             offset,
         )

@@ -5,7 +5,9 @@ from chex import PRNGKey
 from flax import linen as nn
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
-
+from chromatix.functional import wrap_phase, phase_change
+from chromatix.utils import seidel_aberrations, zernike_aberrations
+from chromatix.ops import quantize
 from chromatix.elements.utils import register
 from chromatix.field import Field
 from chromatix.functional import phase_change, wrap_phase
@@ -127,6 +129,7 @@ class SpatialLightModulator(nn.Module):
     shape: tuple[int, int]
     spacing: NumberLike
     phase_range: ArrayLike
+    num_bits: int | None = None
     interpolation_order: int = 0
     f: NumberLike | None = None
     n: NumberLike | None = None
