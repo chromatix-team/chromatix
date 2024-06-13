@@ -6,13 +6,13 @@ from chex import assert_axis_dimension, assert_equal_shape
 
 from chromatix import Field, ScalarField, VectorField
 from chromatix.typing import ArrayLike, ScalarLike
-
-from ..utils import l2_sq_norm
-from ..utils.shapes import (
+from chromatix.utils import l2_sq_norm
+from chromatix.utils.shapes import (
     _broadcast_1d_to_grid,
     _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_polarization,
 )
+
 from .pupils import circular_pupil
 
 __all__ = [
@@ -94,8 +94,8 @@ def objective_point_source(
     NA: ScalarLike,
     power: ScalarLike = 1.0,
     amplitude: ScalarLike = 1.0,
-    scalar: bool = True,
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    scalar: bool = True,
 ) -> ScalarField | VectorField:
     """
     Generates field due to a point source defocused by an amount ``z`` away from

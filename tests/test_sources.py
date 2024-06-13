@@ -1,5 +1,7 @@
 from functools import partial
 
+from jax import Array
+
 import chromatix.functional as cf
 import jax.numpy as jnp
 import pytest

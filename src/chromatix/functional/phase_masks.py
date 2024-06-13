@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 from chex import assert_rank
 from jax import Array
@@ -31,9 +32,7 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
     return field * jnp.exp(1j * phase)
 
 
-# TODO: Move these two below to utils?
-
-
+@jax.custom_jvp
 def wrap_phase(
     phase: ArrayLike, limits: ArrayLike | tuple[float, float] = (-jnp.pi, jnp.pi)
 ) -> Array:
@@ -57,6 +56,11 @@ def wrap_phase(
         phase,
     )
     return phase
+
+
+@wrap_phase.defjvp
+def wrap_phase_jvp(primals: tuple, tangents: tuple) -> tuple:
+    return wrap_phase(*primals), tangents[0]
 
 
 def spectrally_modulate_phase(phase: Array, field: ScalarField | VectorField) -> Array:

@@ -122,7 +122,6 @@ class SpatialLightModulator(nn.Module):
         n: Refractive index of the system's objective. Defaults to None.
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
-
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
     shape: tuple[int, int]
     spacing: ScalarLike

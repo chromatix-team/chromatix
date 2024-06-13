@@ -6,15 +6,14 @@ from chex import PRNGKey
 from jax import Array
 
 from chromatix.elements.utils import register
-from chromatix.typing import ArrayLike, ScalarLike
-
-from ..field import Field, ScalarField, VectorField
-from ..functional.sources import (
+from chromatix.field import Field, ScalarField, VectorField
+from chromatix.functional.sources import (
     generic_field,
     objective_point_source,
     plane_wave,
     point_source,
 )
+from chromatix.typing import ArrayLike, ScalarLike
 
 __all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
 
@@ -109,10 +108,7 @@ class ObjectivePointSource(nn.Module):
             Defaults to (0, 0) for no offset (a centered point source).
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
-        offset: The offset (y and x) in spatial coordinates of the point source.
-            Defaults to (0, 0) for no offset (a centered point source).
     """
-
     shape: tuple[int, int]
     dx: ScalarLike
     spectrum: ScalarLike
@@ -122,8 +118,8 @@ class ObjectivePointSource(nn.Module):
     NA: ScalarLike | Callable[[PRNGKey], Array]
     power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
     amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
-    scalar: bool = True
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0)
+    scalar: bool = True
 
     @nn.compact
     def __call__(self, z: ScalarLike) -> ScalarField | VectorField:
@@ -145,8 +141,8 @@ class ObjectivePointSource(nn.Module):
             NA,
             power,
             amplitude,
-            self.scalar,
             offset,
+            self.scalar,
         )
 
 

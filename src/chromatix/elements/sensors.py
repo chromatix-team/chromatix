@@ -75,7 +75,6 @@ class BasicSensor(nn.Module):
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
         elif input_spacing is not None:
             input_spacing = jnp.atleast_1d(input_spacing)
-
         if resample and self.resampling_method is not None:
             resample_fn = self.resample_fn
         else:
