@@ -1,14 +1,18 @@
 from functools import partial
 
 import jax.numpy as jnp
-from chex import Array
-from jax import lax
+from jax import Array, lax
 
+from chromatix.typing import ArrayLike
 from chromatix.utils import next_order
 
 
 def fourier_convolution(
-    image: Array, kernel: Array, *, axes=(0, 1), fast_fft_shape: bool = True
+    image: ArrayLike,
+    kernel: ArrayLike,
+    *,
+    axes: tuple[int, int] = (0, 1),
+    fast_fft_shape: bool = True,
 ) -> Array:
     """
     Fourier convolution in 2D over the specified axes of an ``Array``.

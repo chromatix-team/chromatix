@@ -1,15 +1,16 @@
-from typing import Literal, Tuple, Union
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from chex import Array
+from jax import Array
 
 from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils.fft import fft, ifft
 
-from ..field import Field
+from ..field import Field, ScalarField, VectorField
 from ..utils import _broadcast_1d_to_grid, _broadcast_1d_to_innermost_batch, l2_sq_norm
 
 __all__ = [
@@ -31,9 +32,9 @@ __all__ = [
 
 def transform_propagate(
     field: Field,
-    z: float,
-    n: float,
-    N_pad: Union[int, Tuple[int, int]],
+    z: ScalarLike,
+    n: ScalarLike,
+    N_pad: int | tuple[int, int],
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -81,10 +82,10 @@ def transform_propagate(
 
 
 def compute_sas_precompensation(
-    field: Field,
-    z: float,
-    n: float,
-) -> Field:
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+) -> Array:
     sz = np.array(field.spatial_shape)
     kz = 2 * z * jnp.pi * n / field.spectrum
     s = field.spectrum * field.k_grid / n
@@ -105,8 +106,8 @@ def compute_sas_precompensation(
 
 def transform_propagate_sas(
     field: Field,
-    z: float,
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -141,10 +142,10 @@ def transform_propagate_sas(
     # Don't change this pad_factor, only 2 is supported
     pad_factor = 2
     sz = np.array(field.spatial_shape)
-    N_pad = sz // pad_factor
+    N_pad = tuple(sz // pad_factor)
     field = pad(field, N_pad, cval=cval)
 
-    def _forward(field: Field, z) -> Tuple[Array, Array]:
+    def _forward(field: Field, z) -> tuple[Array, Array]:
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
         field = transform_propagate(
@@ -152,7 +153,7 @@ def transform_propagate_sas(
         )
         return field.u, field._dx
 
-    def _inverse(field: Field, z) -> Tuple[Array, Array]:
+    def _inverse(field: Field, z) -> tuple[Array, Array]:
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
@@ -167,11 +168,11 @@ def transform_propagate_sas(
 
 def transfer_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -206,11 +207,11 @@ def transfer_propagate(
 
 def exact_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -246,13 +247,13 @@ def exact_propagate(
 
 def asm_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
-    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -292,7 +293,7 @@ def asm_propagate(
     return field
 
 
-def kernel_propagate(field: Field, propagator: Array) -> Field:
+def kernel_propagate(field: Field, propagator: ArrayLike) -> Field:
     """
     Propagate an incoming ``Field`` by the given propagation kernel
     (``propagator``). This amounts to performing a Fourier convolution of the
@@ -304,10 +305,10 @@ def kernel_propagate(field: Field, propagator: Array) -> Field:
 
 
 def compute_transfer_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for Fresnel propagation.
@@ -328,10 +329,10 @@ def compute_transfer_propagator(
 
 
 def compute_exact_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -358,12 +359,12 @@ def compute_exact_propagator(
 
 
 def compute_asm_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
-    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.

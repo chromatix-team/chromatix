@@ -1,10 +1,12 @@
 import math
-from typing import Sequence, Tuple
+from typing import Sequence
 
 import jax.numpy as jnp
-from chex import Array
 from einops import rearrange
+from jax import Array
 from scipy.special import comb  # type: ignore
+
+from chromatix.typing import ScalarLike
 
 from .utils import create_grid, grid_spatial_to_pupil
 
@@ -17,7 +19,7 @@ __all__ = [
 ]
 
 
-def flat_phase(shape: Tuple[int, int], *args, value: float = 0.0) -> Array:
+def flat_phase(shape: tuple[int, int], *args, value: ScalarLike = 0.0) -> Array:
     """
     Computes a flat mask (one with constant value).
 
@@ -30,14 +32,14 @@ def flat_phase(shape: Tuple[int, int], *args, value: float = 0.0) -> Array:
 
 
 def potato_chip(
-    shape: Tuple[int, ...],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
-    d: float = 50.0,
-    C0: float = -146.7,
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n: ScalarLike,
+    f: ScalarLike,
+    NA: ScalarLike,
+    d: ScalarLike = 50.0,
+    C0: ScalarLike = -146.7,
 ) -> Array:
     """
     Computes the "potato chip" phase mask described by [1].
@@ -77,15 +79,15 @@ def potato_chip(
 
 
 def seidel_aberrations(
-    shape: Tuple[int, int],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n: ScalarLike,
+    f: ScalarLike,
+    NA: ScalarLike,
     coefficients: Sequence[float],
-    u: float = 0,
-    v: float = 0,
+    u: ScalarLike = 0,
+    v: ScalarLike = 0,
 ) -> Array:
     """
     Computes the Seidel phase polynomial described by [1]. Accounts for spatially
@@ -137,12 +139,12 @@ def seidel_aberrations(
 
 
 def zernike_aberrations(
-    shape: Tuple[int, int],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n: ScalarLike,
+    f: ScalarLike,
+    NA: ScalarLike,
     ansi_indices: Sequence[int],
     coefficients: Sequence[float],
     normalization: bool = True,
@@ -234,12 +236,12 @@ def zernike_aberrations(
 
 
 def defocused_ramps(
-    shape: Tuple[int, int],
-    spacing: float,
-    wavelength: float,
-    n: float,
-    f: float,
-    NA: float,
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n: ScalarLike,
+    f: ScalarLike,
+    NA: ScalarLike,
     num_ramps: int = 6,
     delta: Sequence[float] = [2374.0] * 6,
     defocus: Sequence[float] = [-50.0, 150.0, -100.0, 50.0, -150.0, 100.0],
@@ -308,7 +310,7 @@ def defocused_ramps(
             grid[0] - jnp.sin(center) * defocus_center
         ) ** 2
         phase += ramp_mask * (ramp_defocus * ramp_quadratic)
-        phase -= ramp_mask * jnp.where(ramp_mask > 0, phase, 0).mean()
+        phase -= ramp_mask * jnp.where(ramp_mask > 0, phase, 0).mean()  # type: ignore
         return phase
 
     for ramp_idx in range(num_ramps):

@@ -1,5 +1,3 @@
-from typing import Optional, Tuple, Union
-
 import numpy as np
 
 try:
@@ -9,10 +7,12 @@ try:
 except ModuleNotFoundError:
     USE_CV2 = False
 
+from chromatix.typing import ArrayLike
+
 
 def sqr_dist_to_line(
-    z: np.ndarray, y: np.ndarray, x: np.ndarray, start: np.ndarray, n: np.ndarray
-) -> np.ndarray:
+    z: ArrayLike, y: ArrayLike, x: ArrayLike, start: ArrayLike, n: ArrayLike
+) -> ArrayLike:
     """
     Returns an array with each pixel being assigned to the square distance to
     that line and an array with the distance along the line.
@@ -66,9 +66,9 @@ def draw_line(
 
 
 def filaments_3d(
-    sz: Tuple[int, int, int],
+    sz: tuple[int, int, int],
     intensity: float = 1.0,
-    radius: Union[float, Tuple[float, float, float]] = 0.8,
+    radius: float | tuple[float, float, float] = 0.8,
     rand_offset: float = 0.05,
     rel_theta: float = 1.0,
     num_filaments: int = 50,
@@ -142,7 +142,7 @@ def filaments_3d(
 
 
 def pollen_3d(
-    sz: Tuple[int, int, int],
+    sz: tuple[int, int, int],
     intensity: float = 1.0,
     radius: float = 0.8,
     dphi: float = 0.0,
@@ -213,7 +213,7 @@ def pollen_3d(
 
 
 def siemens_star(
-    num_pixels: int = 512, num_spokes: int = 32, radius: Optional[int] = None
+    num_pixels: int = 512, num_spokes: int = 32, radius: int | None = None
 ) -> np.ndarray:
     """
     Generates a 2D Siemens star image of shape ``num_pixels``. A single input
@@ -253,7 +253,7 @@ def siemens_star(
 if USE_CV2:
 
     def draw_disks(
-        shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
+        shape: tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
     ) -> np.ndarray:
         """
         Create a grayscale image with disks drawn at each provided coordinate.
@@ -277,7 +277,7 @@ if USE_CV2:
 else:
 
     def draw_disks(
-        shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
+        shape: tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
     ) -> np.ndarray:
         """
         Create a grayscale image with disks drawn at each provided coordinate.
@@ -311,8 +311,8 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
         N: int,
         num_points: int,
         radius: int,
-        shape: Tuple[int, int],
-        z_range: Tuple[int, int],
+        shape: tuple[int, int],
+        z_range: tuple[int, int],
     ):
         """
         Create a dataset of random 3D coordinates and their associated image.
@@ -419,7 +419,7 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
             ]  # TODO add weight
             return coords, image
 
-    def __call__(self) -> Tuple[np.ndarray, np.ndarray]:
+    def __call__(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get a new sample. Automatically iterates through samples of coordinates
         with every call. Will cause the random coordinates to be regenerated

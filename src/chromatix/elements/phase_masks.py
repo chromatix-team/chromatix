@@ -1,19 +1,23 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Sequence
+
 import jax.numpy as jnp
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 from jax.scipy.ndimage import map_coordinates
-from chromatix.field import Field
-from chromatix.functional import wrap_phase, phase_change
-from chromatix.utils import seidel_aberrations, zernike_aberrations
-from chromatix.ops import quantize
+
 from chromatix.elements.utils import register
+from chromatix.field import Field
+from chromatix.functional import phase_change, wrap_phase
+from chromatix.ops import quantize
+from chromatix.typing import ArrayLike, ScalarLike
+from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
-    "PhaseMask",
-    "SpatialLightModulator",
     "SeidelAberrations",
     "ZernikeAberrations",
+    "PhaseMask",
+    "SpatialLightModulator",
 ]
 
 
@@ -47,10 +51,10 @@ class PhaseMask(nn.Module):
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    f: ScalarLike | None = None
+    n: ScalarLike | None = None
+    NA: ScalarLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -118,16 +122,15 @@ class SpatialLightModulator(nn.Module):
         n: Refractive index of the system's objective. Defaults to None.
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
-
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    shape: Tuple[int, int]
-    spacing: float
-    phase_range: Tuple[float, float]
-    num_bits: Optional[Union[int, float]] = None
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    shape: tuple[int, int]
+    spacing: ScalarLike
+    phase_range: ArrayLike
+    num_bits: int | None = None
     interpolation_order: int = 0
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    f: ScalarLike | None = None
+    n: ScalarLike | None = None
+    NA: ScalarLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -185,12 +188,12 @@ class SeidelAberrations(nn.Module):
         v: The vertical position of the object field point
     """
 
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
-    u: float
-    v: float
+    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike
+    u: ScalarLike
+    v: ScalarLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -233,11 +236,11 @@ class ZernikeAberrations(nn.Module):
             have same length as coefficients.
     """
 
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
-    ansi_indices: Array
+    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    f: ArrayLike
+    n: ArrayLike
+    NA: ArrayLike
+    ansi_indices: Sequence[int]
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

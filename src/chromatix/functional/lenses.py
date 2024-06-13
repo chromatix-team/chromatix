@@ -1,17 +1,18 @@
-from typing import Optional
-
 import jax.numpy as jnp
 
+from chromatix import Field
 from chromatix.functional.convenience import optical_fft
+from chromatix.typing import ScalarLike
 
-from ..field import Field
 from ..utils import l2_sq_norm
 from .pupils import circular_pupil
 
 __all__ = ["thin_lens", "ff_lens", "df_lens"]
 
 
-def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
+def thin_lens(
+    field: Field, f: ScalarLike, n: ScalarLike, NA: ScalarLike | None = None
+) -> Field:
     """
     Applies a thin lens placed directly after the incoming ``Field``.
 
@@ -37,9 +38,9 @@ def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> F
 
 def ff_lens(
     field: Field,
-    f: float,
-    n: float,
-    NA: Optional[float] = None,
+    f: ScalarLike,
+    n: ScalarLike,
+    NA: ScalarLike | None = None,
     inverse: bool = False,
 ) -> Field:
     """
@@ -67,10 +68,10 @@ def ff_lens(
 
 def df_lens(
     field: Field,
-    d: float,
-    f: float,
-    n: float,
-    NA: Optional[float] = None,
+    d: ScalarLike,
+    f: ScalarLike,
+    n: ScalarLike,
+    NA: ScalarLike | None = None,
     inverse: bool = False,
 ) -> Field:
     """

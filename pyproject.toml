@@ -9,11 +9,11 @@ description = "Differentiable wave optics library using JAX"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-dependencies = ["jax >= 0.4.1", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.5", "optax >=0.1.4", "scipy >= 1.10.0"]
+dependencies = ["jax >= 0.4.6", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.86", "optax >=0.1.4", "scipy >= 1.10.0", "typing-extensions >=4.12"]
 version = "0.3.0"
 
 [project.optional-dependencies]
-dev = ["mypy>= 0.991", "pytest>=7.2.0", "ruff >= 0.4.8"]
+dev = ["pyright>=1.1.366", "pytest>=7.2.0", "ruff >= 0.4.8"]
 docs = ["mkdocs >= 1.4.2", "mkdocs-material >= 9.0.6", "mkdocstrings-python >= 0.8.3", "mkdocs-jupyter"]
 
 [tool.ruff]
@@ -25,3 +25,8 @@ extend-select = ["I"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
+
+
+[tool.pyright]
+include = ["src/"]
+ignore = ["src/chromatix/data"]
