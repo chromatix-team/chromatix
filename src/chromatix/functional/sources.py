@@ -1,5 +1,6 @@
 from typing import Callable
 
+from einops import einsum
 import jax.numpy as jnp
 import numpy as np
 from chex import assert_axis_dimension, assert_equal_shape
@@ -151,7 +152,7 @@ def plane_wave(
     spectral_density: ScalarLike,
     power: ScalarLike = 1.0,
     amplitude: ScalarLike = 1.0,
-    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    kxky: ArrayLike | tuple[float, float] = (0.0, 0.0),
     pupil: FieldPupil | None = None,
     scalar: bool = True,
 ) -> ScalarField | VectorField:
@@ -178,23 +179,30 @@ def plane_wave(
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
-    create = ScalarField.create if scalar else VectorField.create
+    # Parsing inputs - k needs to be a column vector
+    kxky = jnp.array(kxky)[:, None]
+    amplitude = jnp.array(amplitude)
+    power = jnp.array(power)
 
     # If scalar, last axis should 1, else 3.
-    amplitude = jnp.atleast_1d(amplitude)
     if scalar:
         assert_axis_dimension(amplitude, -1, 1)
+        create = ScalarField.create
     else:
         assert_axis_dimension(amplitude, -1, 3)
+        create = VectorField.create
 
+    # Create empty field
     field = create(dx, spectrum, spectral_density, shape=shape)
-    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
-    field = field.replace(u=u)
+
+    # Add in field
+    field = field.replace(u=amplitude * jnp.exp(1j * jnp.dot(field.grid(), kxky)))
+
+    # Apply pupil and set power
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+
+    return field * jnp.sqrt(power / field.power())
 
 
 def generic_field(

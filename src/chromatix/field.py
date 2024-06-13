@@ -423,6 +423,14 @@ class VectorField(struct.PyTreeNode):
         spectral_density = jnp.atleast_1d(spectral_density)
         assert_equal_shape([spectrum, spectral_density])
         spectral_density = spectral_density / jnp.sum(spectral_density)  # normalising
+        match spectrum.ndim:
+            case 1:
+                spectrum = rearrange(spectrum, "c -> 1 1 1 c")
+                spectral_density = rearrange(spectral_density, "c -> 1 1 1 c")
+            case 4:
+                pass
+            case _:
+                raise NotImplementedError
 
         # Parsing u
         if u is None:
@@ -436,7 +444,8 @@ class VectorField(struct.PyTreeNode):
         dx = jnp.atleast_1d(dx)
         match (dx.ndim, dx.size):
             case (1, 1):
-                dx = rearrange(dx, "d -> 1 1 1 1 (d 2)")
+                dx = jnp.repeat(dx, 2, 0)
+                dx = rearrange(dx, "d -> 1 1 1 1 d")
             case (1, 2):
                 dx = rearrange(dx, "d -> 1 1 1 1 d")
             case (5, _):
@@ -524,9 +533,7 @@ class VectorField(struct.PyTreeNode):
     def power(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
         """Power of the complex field, shape `[B]`."""
         area = jnp.prod(self.dx, axis=-1)
-        dpower_per_wavelength = area * self.intensity(
-            per_wavelength=True, keepdims=True
-        )
+        dpower_per_wavelength = area * self.intensity(per_wavelength=True)
         if per_wavelength:
             return jnp.sum(dpower_per_wavelength, axis=(-3, -2), keepdims=keepdims)
         else:

@@ -8,12 +8,12 @@ from chex import assert_axis_dimension
 
 
 def test_inits():
-    assert jnp.allclose(cf.linear(0), jnp.array([0, 0, 1], dtype=jnp.complex64))
+    assert jnp.allclose(cf.linear(0), jnp.array([1, 0, 0], dtype=jnp.complex64))
     assert jnp.allclose(
         cf.linear(jnp.pi / 2), jnp.array([0, 1, 0], dtype=jnp.complex64), atol=1e-7
     )
-    assert jnp.allclose(cf.left_circular(), jnp.array([0, 1j, 1]) / jnp.sqrt(2))
-    assert jnp.allclose(cf.right_circular(), jnp.array([0, -1j, 1]) / jnp.sqrt(2))
+    assert jnp.allclose(cf.left_circular(), jnp.array([1, 1j, 0]) / jnp.sqrt(2))
+    assert jnp.allclose(cf.right_circular(), jnp.array([1, -1j, 0]) / jnp.sqrt(2))
 
 
 @pytest.mark.parametrize(
@@ -38,12 +38,11 @@ def test_linear_polarizer(E0, angle, power):
         scalar=False,
     )
     field = cf.linear_polarizer(field, angle=angle)
-
     # check shape
     assert_axis_dimension(field.u, -1, 3)
 
     # check power - malus law
-    assert jnp.allclose(field.power.squeeze(), power)
+    assert jnp.allclose(field.power().squeeze(), power)
 
 
 def test_left_circular_polarizer():
@@ -61,7 +60,7 @@ def test_left_circular_polarizer():
     )
     field = cf.left_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
-    assert np.allclose(field.power, 0.0)
+    assert np.allclose(field.power(), 0.0)
 
     # Right circular light through right ciruclar
     # polariser should return right circular light
@@ -95,7 +94,7 @@ def test_right_circular_polarizer():
     )
     field = cf.right_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
-    assert np.allclose(field.power, 0.0)
+    assert np.allclose(field.power(), 0.0)
 
     # Right circular light through right ciruclar
     # polariser should return right circular light
@@ -128,5 +127,5 @@ def test_quarter_waveplate():
     # Linear with quarterwave at pi/4 yields right circular.
     field = cf.quarterwave_plate(field, jnp.pi / 4)
     assert jnp.allclose(
-        field.jones_vector[0, 256, 256, 0], cf.right_circular(), atol=1e-7
+        field.jones_vector()[0, 256, 256, 0], cf.right_circular(), atol=1e-7
     )
