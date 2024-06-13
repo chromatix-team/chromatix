@@ -63,7 +63,6 @@ class PhaseMask(nn.Module):
             pupil_args = (self.n, self.f, self.NA)
         else:
             pupil_args = ()
-
         phase = register(
             self,
             "phase",
@@ -72,7 +71,6 @@ class PhaseMask(nn.Module):
             field.spectrum[..., 0, 0].squeeze(),
             *pupil_args,
         )
-
         return phase_change(field, phase)
 
 
@@ -160,7 +158,6 @@ class SpatialLightModulator(nn.Module):
             indexing="ij",
         )
         phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
-
         return phase_change(field, phase)
 
 
@@ -210,7 +207,6 @@ class SeidelAberrations(nn.Module):
             self.u,
             self.v,
         )
-
         return phase_change(field, phase)
 
 
@@ -232,8 +228,10 @@ class ZernikeAberrations(nn.Module):
         f: The focal length.
         n: The refractive index.
         NA: The numerical aperture. The applied phase will be 0 outside NA.
-        ansi_indices: Indices of Zernike polynomials (ANSI indexing). Should
-            have same length as coefficients.
+        ansi_indices: Linear Zernike indices according to ANSI numbering.
+        coefficients: Weight coefficients for the Zernike polynomials.
+        normalize: Whether to normalize the Zernike coefficients. Defaults to
+            ``True``.
     """
 
     coefficients: ArrayLike | Callable[[PRNGKey], Array]
@@ -241,12 +239,12 @@ class ZernikeAberrations(nn.Module):
     n: ArrayLike
     NA: ArrayLike
     ansi_indices: Sequence[int]
+    normalize: bool = True
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
-
         phase = zernike_aberrations(
             field.spatial_shape,
             field.dx[..., 0, 0].squeeze(),
@@ -256,6 +254,6 @@ class ZernikeAberrations(nn.Module):
             self.NA,
             self.ansi_indices,
             coefficients,
+            self.normalize
         )
-
         return phase_change(field, phase)

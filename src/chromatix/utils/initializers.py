@@ -147,10 +147,11 @@ def zernike_aberrations(
     NA: ScalarLike,
     ansi_indices: Sequence[int],
     coefficients: Sequence[float],
-    normalization: bool = True,
+    normalize: bool = True,
 ) -> Array:
     """
-    Computes Zernike aberrations
+    Computes Zernike aberrations given indices of Zernike modes and their
+    corresponding weights.
 
     Args:
         shape: The shape of the phase mask, described as a tuple of
@@ -160,8 +161,10 @@ def zernike_aberrations(
         n: Refractive index.
         f: The focal distance (should be in same units as ``wavelength``).
         NA: The numerical aperture. Phase will be 0 outside of this NA.
-        ansi_indices: linear Zernike indices according to ANSI numbering
-        coefficients: weight coefficients for the Zernike polynomials
+        ansi_indices: Linear Zernike indices according to ANSI numbering.
+        coefficients: Weight coefficients for the Zernike polynomials.
+        normalize: Whether to normalize the Zernike coefficients. Defaults to
+            ``True``.
     """
 
     def convert_ansi_to_zernike_indices(indices):
@@ -219,7 +222,7 @@ def zernike_aberrations(
 
         Z = Z * mask
 
-        if normalization:
+        if normalize:
             if m == 0:
                 Z = Z * jnp.sqrt(n + 1)
             else:
