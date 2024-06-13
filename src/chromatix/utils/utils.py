@@ -115,22 +115,22 @@ def grid_spatial_to_pupil(
     return grid / R
 
 
-def l2_sq_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def l2_sq_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Sum of squares, i.e. `x**2 + y**2`."""
     return jnp.sum(a**2, axis=axis)
 
 
-def l2_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def l2_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Square root of ``l2_sq_norm``, i.e. `sqrt(x**2 + y**2)`."""
     return jnp.sqrt(jnp.sum(a**2, axis=axis))
 
 
-def l1_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def l1_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Sum absolute value, i.e. `|x| + |y|`."""
     return jnp.sum(jnp.abs(a), axis=axis)
 
 
-def linf_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def linf_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Max absolute value, i.e. `max(|x|, |y|)`."""
     return jnp.max(jnp.abs(a), axis=axis)
 

@@ -1,19 +1,14 @@
 from typing import Callable
 
-from einops import einsum
 import jax.numpy as jnp
 import numpy as np
-from chex import assert_axis_dimension, assert_equal_shape
+from chex import assert_equal_shape
+from einops import rearrange
 
 from chromatix import Field, ScalarField, VectorField
 from chromatix.typing import ArrayLike, ScalarLike
 
 from ..utils import l2_sq_norm
-from ..utils.shapes import (
-    _broadcast_1d_to_grid,
-    _broadcast_1d_to_innermost_batch,
-    _broadcast_1d_to_polarization,
-)
 from .pupils import circular_pupil
 
 __all__ = [
@@ -33,12 +28,11 @@ def point_source(
     dx: ScalarLike,
     spectrum: ScalarLike,
     spectral_density: ScalarLike,
-    z: ScalarLike,
+    z: ScalarLike | ArrayLike,
     n: ScalarLike,
     power: ScalarLike = 1.0,
     amplitude: ScalarLike = 1.0,
     pupil: FieldPupil | None = None,
-    scalar: bool = True,
     epsilon: float = float(np.finfo(np.float32).eps),
 ) -> ScalarField | VectorField:
     """
@@ -64,24 +58,27 @@ def point_source(
             ``VectorField`` (if False). Defaults to True.
         epsilon: Value added to denominators for numerical stability.
     """
-    create = ScalarField.create if scalar else VectorField.create
-    # If scalar, last axis should 1, else 3.
+    # Parsing inputs
     amplitude = jnp.atleast_1d(amplitude)
-    if scalar:
-        assert_axis_dimension(amplitude, -1, 1)
-    else:
-        assert_axis_dimension(amplitude, -1, 3)
+    power = jnp.atleast_1d(power)
+    z = jnp.atleast_1d(z)
+    z = rearrange(z, "b -> b 1 1 1")
 
-    field = create(dx, spectrum, spectral_density, shape=shape)
-    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))
-    phase = jnp.pi * l2_sq_norm(field.grid) / (L**2 + epsilon)
-    u = amplitude * -1j / (L**2 + epsilon) * jnp.exp(1j * phase)
-    field = field.replace(u=u)
+    # Create empty field
+    match amplitude.shape[-1]:
+        case 1:
+            field = ScalarField.create(dx, spectrum, spectral_density, shape=shape)
+        case 3:
+            field = VectorField.create(dx, spectrum, spectral_density, shape=shape)
+        case _:
+            raise NotImplementedError
+
+    L_sq = (field.spectrum * z / n) + epsilon  # epsilon to deal with z=0
+    phase = jnp.pi * l2_sq_norm(field.grid()) / L_sq
+    field = field.replace(u=amplitude * -1j / L_sq * jnp.exp(1j * phase))
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    return field * jnp.sqrt(power / field.power())
 
 
 def objective_point_source(
@@ -89,13 +86,12 @@ def objective_point_source(
     dx: ScalarLike,
     spectrum: ScalarLike,
     spectral_density: ScalarLike,
-    z: ScalarLike,
+    z: ScalarLike | ArrayLike,
     f: ScalarLike,
     n: ScalarLike,
     NA: ScalarLike,
     power: ScalarLike = 1.0,
     amplitude: ScalarLike = 1.0,
-    scalar: bool = True,
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> ScalarField | VectorField:
     """
@@ -123,26 +119,30 @@ def objective_point_source(
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
-    create = ScalarField.create if scalar else VectorField.create
 
-    # If scalar, last axis should 1, else 3.
+    # Parsing inputs
     amplitude = jnp.atleast_1d(amplitude)
-    if scalar:
-        assert_axis_dimension(amplitude, -1, 1)
-    else:
-        assert_axis_dimension(amplitude, -1, 3)
+    power = jnp.array(power)
+    z = jnp.atleast_1d(z)
+    z = rearrange(z, "b -> b 1 1 1 1")
 
-    field = create(dx, spectrum, spectral_density, shape=shape)
-    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    offset = _broadcast_1d_to_grid(offset, field.ndim)
-    L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2
-    u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
-    field = field.replace(u=u)
-    D = 2 * f * NA / n
-    field = circular_pupil(field, D)  # type: ignore
-    return field * jnp.sqrt(power / field.power)
+    # Create empty field
+    match amplitude.shape[-1]:
+        case 1:
+            field = ScalarField.create(dx, spectrum, spectral_density, shape=shape)
+        case 3:
+            field = VectorField.create(dx, spectrum, spectral_density, shape=shape)
+        case _:
+            raise NotImplementedError
+
+    # Making field
+    L_sq = field.spectrum * f / n
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid() - offset) / L_sq
+    field = field.replace(u=amplitude * -1j / L_sq * jnp.exp(1j * phase))
+
+    # Making pupil
+    field = circular_pupil(field, w=2 * f * NA / n)  # type: ignore
+    return field * jnp.sqrt(power / field.power())
 
 
 def plane_wave(
@@ -151,10 +151,9 @@ def plane_wave(
     spectrum: ScalarLike,
     spectral_density: ScalarLike,
     power: ScalarLike = 1.0,
-    amplitude: ScalarLike = 1.0,
+    amplitude: ScalarLike | ArrayLike = 1.0,
     kxky: ArrayLike | tuple[float, float] = (0.0, 0.0),
     pupil: FieldPupil | None = None,
-    scalar: bool = True,
 ) -> ScalarField | VectorField:
     """
     Generates plane wave of given ``power``.
@@ -181,19 +180,17 @@ def plane_wave(
     """
     # Parsing inputs - k needs to be a column vector
     kxky = jnp.array(kxky)[:, None]
-    amplitude = jnp.array(amplitude)
-    power = jnp.array(power)
-
-    # If scalar, last axis should 1, else 3.
-    if scalar:
-        assert_axis_dimension(amplitude, -1, 1)
-        create = ScalarField.create
-    else:
-        assert_axis_dimension(amplitude, -1, 3)
-        create = VectorField.create
+    amplitude = jnp.atleast_1d(amplitude)
+    power = jnp.atleast_1d(power)
 
     # Create empty field
-    field = create(dx, spectrum, spectral_density, shape=shape)
+    match amplitude.shape[-1]:
+        case 1:
+            field = ScalarField.create(dx, spectrum, spectral_density, shape=shape)
+        case 3:
+            field = VectorField.create(dx, spectrum, spectral_density, shape=shape)
+        case _:
+            raise NotImplementedError
 
     # Add in field
     field = field.replace(u=amplitude * jnp.exp(1j * jnp.dot(field.grid(), kxky)))
@@ -201,7 +198,6 @@ def plane_wave(
     # Apply pupil and set power
     if pupil is not None:
         field = pupil(field)
-
     return field * jnp.sqrt(power / field.power())
 
 
@@ -213,7 +209,6 @@ def generic_field(
     phase: ArrayLike,
     power: ScalarLike = 1.0,
     pupil: FieldPupil | None = None,
-    scalar: bool = True,
 ) -> ScalarField | VectorField:
     """
     Generates field with arbitrary ``phase`` and ``amplitude``.
@@ -233,19 +228,35 @@ def generic_field(
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
-    create = ScalarField.create if scalar else VectorField.create
-    assert (
-        amplitude.ndim >= 5
-    ), "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
-    assert (
-        phase.ndim >= 5
-    ), "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
-    vectorial_dimension = 1 if scalar else 3
-    assert_axis_dimension(amplitude, -1, vectorial_dimension)
-    assert_axis_dimension(phase, -1, vectorial_dimension)
+    # Parsing inputs
+    power = jnp.atleast_1d(power)
+    amplitude = jnp.array(amplitude)
+    phase = jnp.array(phase)
     assert_equal_shape([amplitude, phase])
-    u = jnp.array(amplitude) * jnp.exp(1j * phase)
-    field = create(dx, spectrum, spectral_density, u=u)
+
+    match amplitude.ndim:
+        case 2:
+            amplitude = rearrange(amplitude, "h w -> 1 h w 1 1")
+            phase = rearrange(phase, "h w -> 1 h w 1 1")
+        case 5:
+            pass
+        case _:
+            raise NotImplementedError
+
+    # Make field
+    u = amplitude * jnp.exp(1j * phase)
+
+    # Create empty field
+    match amplitude.shape[-1]:
+        case 1:
+            field = ScalarField.create(dx, spectrum, spectral_density, u=u)
+        case 3:
+            field = VectorField.create(dx, spectrum, spectral_density, u=u)
+        case _:
+            raise NotImplementedError
+
+    # Add pupil
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+
+    return field * jnp.sqrt(power / field.power())

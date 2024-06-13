@@ -10,13 +10,7 @@ from flax import struct
 from jax import Array
 from typing_extensions import Self
 
-from chromatix.typing import ArrayLike, ScalarLike
-
-from .utils.shapes import (
-    _broadcast_1d_to_channels,
-    _broadcast_1d_to_grid,
-    _broadcast_2d_to_grid,
-)
+from chromatix.typing import ScalarLike
 
 
 class BaseField(struct.PyTreeNode):
@@ -84,16 +78,15 @@ class BaseField(struct.PyTreeNode):
             ``Field``. Instead, use the ``spectral_density`` property.
     """
 
-    u: Array  # (B... H W C [1 | 3])
-    _dx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
-    _spectrum: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
-    _spectral_density: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
+    u: Array  # [B H W C 3]
+    dx: Array  # [B 1 1 C 2]
+    spectrum: Array  # [B 1 1 C]
+    spectral_density: Array  # [B 1 1 C]
 
-    @property
     def grid(self) -> Array:
         """
-        The grid for each spatial dimension as an array of shape `(2 B... H W
-        C 1)`. The 2 entries along the first dimension represent the y and x
+        The grid for each spatial dimension as an array of shape `[B H W
+        C 2)`. The 2 entries along the last dimension represent the x and y
         grids, respectively. This grid assumes that the center of the ``Field``
         is the origin and that the elements are sampling from the center, not
         the corner.
@@ -101,108 +94,61 @@ class BaseField(struct.PyTreeNode):
         # We must use meshgrid instead of mgrid here in order to be jittable
         N_y, N_x = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
             jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
-            indexing="ij",
+            jnp.linspace(N_y // 2, -N_y // 2 - 1, num=N_y) + 0.5,
+            indexing="xy",
         )
-        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
-        return self.dx * grid
+        return self.dx * rearrange(grid, "d h w -> 1 h w 1 d")
 
-    @property
-    def k_grid(self) -> Array:
-        """
-        The frequency grid for each spatial dimension as an array of shape `(2
-        B... H W C 1)`. The 2 entries along the first dimension represent the
-        y and x grids, respectively. This grid assumes that the center of the
-        ``Field`` is the origin and that the elements are sampling from the
-        center, not the corner.
-        """
-        N_y, N_x = self.spatial_shape
-        grid = jnp.meshgrid(
-            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
-            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
-            indexing="ij",
+    def wave_number(self, n: float = 1.0) -> Array:
+        return 2 * jnp.pi * n / self.spectrum
+
+    def phase(self, unwrapped: bool = False) -> Array:
+        """Phase of the complex field, shape `(B H W C 3)`."""
+        if unwrapped:
+            raise NotImplementedError
+        return jnp.angle(self.u)
+
+    def amplitude(self, per_component: bool = True, keepdims: bool = True) -> Array:
+        """Amplitude of the complex field, shape `(B H W C 3)`.
+        This is actually what is called the "magnitude"."""
+        amplitude = jnp.abs(self.u)
+        if per_component:
+            return amplitude
+        else:
+            return jnp.linalg.norm(amplitude, axis=-1, keepdims=keepdims)
+
+    def intensity(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
+        """Intensity of the complex field, shape `[B H W]`."""
+        intensity_per_wavelength = self.spectral_density * jnp.sum(
+            self.amplitude() ** 2, axis=-1, keepdims=keepdims
         )
-        grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
-        return self.dk * grid
+        if per_wavelength:
+            return intensity_per_wavelength
+        else:
+            return jnp.sum(intensity_per_wavelength, axis=-1, keepdims=keepdims)
 
-    @property
-    def dx(self) -> Array:
-        """
-        The spacing of the samples in ``u`` discretizing a continuous field.
-        Defined as an array of shape ``(2 1... 1 1 C 1)`` specifying the spacing
-        in the y and x directions respectively (can be the same for y and x for
-        the common case of square pixels). Spacing is the same per wavelength
-        for all entries in a batch.
-        """
-        return _broadcast_2d_to_grid(self._dx, self.ndim)
+    def power(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
+        """Power of the complex field, shape `[B]`."""
+        area = jnp.prod(self.dx, axis=-1)
+        dpower_per_wavelength = area * self.intensity(per_wavelength=True)
+        if per_wavelength:
+            return jnp.sum(dpower_per_wavelength, axis=(-3, -2), keepdims=keepdims)
+        else:
+            return jnp.sum(dpower_per_wavelength, axis=(-3, -2, -1), keepdims=keepdims)
 
     @property
     def dk(self) -> Array:
         """
         The frequency spacing of the samples in the frequency space of ``u``.
-        Defined as an array of shape ``(2 1... 1 1 C 1)`` specifying the spacing
-        in the y and x directions respectively (can be the same for y and x for
-        the common case of square pixels). Spacing is the same per wavelength
-        for all entries in a batch.
+        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the
+        spacing in the y and x directions respectively (can be the same for y
+        and x for the common case of square pixels). Spacing is the same per
+        wavelength for all entries in a batch.
         """
+        # NOTE: This is a property cause so is dx.
         shape = jnp.array(self.spatial_shape)
-        shape = _broadcast_1d_to_grid(shape, self.ndim)
         return 1 / (self.dx * shape)
-
-    @property
-    def surface_area(self) -> Array:
-        """
-        The surface area of the field in microns. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
-        dimensions respectively.
-        """
-        shape = jnp.array(self.spatial_shape)
-        shape = _broadcast_1d_to_grid(shape, self.ndim)
-        return self.dx * shape
-
-    @property
-    def spectrum(self) -> Array:
-        """
-        Wavelengths sampled by the complex field, shape ``(1... 1 1 C 1)``.
-        """
-        return _broadcast_1d_to_channels(self._spectrum, self.ndim)
-
-    @property
-    def spectral_density(self) -> Array:
-        """
-        Weights of wavelengths sampled by the complex field, shape ``(1... 1 1
-        C 1)``.
-        """
-        return _broadcast_1d_to_channels(self._spectral_density, self.ndim)
-
-    @property
-    def phase(self) -> Array:
-        """
-        Phase of the complex field, shape `(B... H W C [1 | 3])`.
-        """
-        return jnp.angle(self.u)
-
-    @property
-    def amplitude(self) -> Array:
-        """
-        Amplitude of the complex field, shape `(B... H W C [1 | 3])`. This is
-        actually what is called the "magnitude".
-        """
-        return jnp.abs(self.u)
-
-    @property
-    def intensity(self) -> Array:
-        """Intensity of the complex field, shape `(B... H W 1 1)`."""
-        return jnp.sum(
-            self.spectral_density * jnp.abs(self.u) ** 2, axis=(-2, -1), keepdims=True
-        )
-
-    @property
-    def power(self) -> Array:
-        """Power of the complex field, shape `(B... 1 1 1)`."""
-        area = jnp.prod(self.dx, axis=0, keepdims=False)
-        return jnp.sum(self.intensity, axis=(-4, -3), keepdims=True) * area
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -212,94 +158,12 @@ class BaseField(struct.PyTreeNode):
     @property
     def spatial_shape(self) -> tuple[int, int]:
         """Only the height and width of the complex field."""
-        return (self.u.shape[self.spatial_dims[0]], self.u.shape[self.spatial_dims[1]])
-
-    @property
-    def spatial_dims(self) -> tuple[int, int]:
-        """Dimensions representing the height and width of the complex field."""
-        return (-4, -3)
+        return self.u.shape[-4], self.u.shape[-3]
 
     @property
     def ndim(self) -> int:
         """Number of dimensions (the rank) of the complex field."""
         return self.u.ndim
-
-    @property
-    def conj(self) -> Self:
-        """conjugate of the complex field, as a field of the same shape."""
-        return self.replace(u=jnp.conj(self.u))
-
-    def __add__(self, other: ScalarLike | ArrayLike | Field) -> Self:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
-            return self.replace(u=self.u + other)
-        elif isinstance(other, (ScalarField, VectorField)):
-            return self.replace(u=self.u + other.u)
-        else:
-            return NotImplemented
-
-    def __radd__(self, other: Any) -> Self:
-        return self + other
-
-    def __sub__(self, other: ScalarLike | ArrayLike | Field) -> Self:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
-            return self.replace(u=self.u - other)
-        elif isinstance(other, (ScalarField, VectorField)):
-            return self.replace(u=self.u - other.u)
-        else:
-            return NotImplemented
-
-    def __rsub__(self, other: Any) -> Self:
-        return (-1 * self) + other
-
-    def __mul__(self, other: ScalarLike | ArrayLike | Field) -> Self:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
-            return self.replace(u=self.u * other)
-        elif isinstance(other, (ScalarField, VectorField)):
-            return self.replace(u=self.u * other.u)
-        else:
-            return NotImplemented
-
-    def __rmul__(self, other: Any) -> Self:
-        return self * other
-
-    def __matmul__(self, other: ArrayLike) -> Self:
-        return self.replace(u=jnp.matmul(self.u, other))
-
-    def __rmatmul__(self, other: ArrayLike) -> Self:
-        return self.replace(u=jnp.matmul(other, self.u.squeeze()))
-
-    def __truediv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
-            return self.replace(u=self.u / other)
-        elif isinstance(other, (ScalarField, VectorField)):
-            return self.replace(u=self.u / other.u)
-        else:
-            return NotImplemented
-
-    def __rtruediv__(self, other: Any) -> Self:
-        return self.replace(u=other / self.u)
-
-    def __floordiv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
-            return self.replace(u=self.u // other)
-        elif isinstance(other, (ScalarField, VectorField)):
-            return self.replace(u=self.u // other.u)
-        else:
-            return NotImplemented
-
-    def __rfloordiv__(self, other: Any) -> Self:
-        return self.replace(u=other // self.u)
-
-    def __mod__(self, other: ScalarLike | ArrayLike | Field) -> Self:
-        if isinstance(other, jnp.ndarray) or isinstance(other, Number):
-            return self.replace(u=self.u % other)
-        elif isinstance(other, (ScalarField, VectorField)):
-            return self.replace(u=self.u % other.u)
-        else:
-            return NotImplemented
-
-    def __rmod__(self, other: Any) -> Self:
-        return self.replace(u=other % self.u)
 
 
 class ScalarField(BaseField):
@@ -344,32 +208,178 @@ class ScalarField(BaseField):
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
-        # Parsing dx
-        _dx = jnp.atleast_1d(dx)
-        if _dx.ndim == 1:
-            _dx = jnp.stack([_dx, _dx])
-        assert_rank(_dx, 2)  # dx should have shape (2, C) here
-
-        # Parsing spectrum and density
-        _spectrum = jnp.atleast_1d(spectrum)
-        _spectral_density = jnp.atleast_1d(spectral_density)
-        assert_equal_shape([_spectrum, _spectral_density])
-        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
+        # Parsing spectrum
+        spectrum = jnp.atleast_1d(spectrum)
+        spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([spectrum, spectral_density])
+        spectral_density = spectral_density / jnp.sum(spectral_density)  # normalising
+        match spectrum.ndim:
+            case 1:
+                spectrum = rearrange(spectrum, "c -> 1 1 1 c")
+                spectral_density = rearrange(spectral_density, "c -> 1 1 1 c")
+            case 4:
+                pass
+            case _:
+                raise NotImplementedError
 
         # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            _u = jnp.empty((1, *shape, _spectrum.size, 1), dtype=jnp.complex64)
-        else:
-            _u = jnp.array(u)
-        ndim = len(_u.shape)
-        assert ndim >= 5, "Field must be Array with at least 5 dimensions: (B H W C 3)."
-        assert _u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
+            u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
 
-        return cls(_u, _dx, _spectrum, _spectral_density)
+        assert_rank(u, 5)  # should have rank 5
+        assert_axis_dimension(u, -1, 1)  # last dimension should be 1
+
+        # Parse dx
+        dx = jnp.atleast_1d(dx)
+        match (dx.ndim, dx.size):
+            case (1, 1):
+                dx = jnp.repeat(dx, 2, 0)
+                dx = rearrange(dx, "d -> 1 1 1 1 d")
+            case (1, 2):
+                dx = rearrange(dx, "d -> 1 1 1 1 d")
+            case (5, _):
+                assert_axis_dimension(dx, -1, 2)  # dx should be at the end
+                assert_axis_dimension(dx, -3, 1)  # width should be 1
+                assert_axis_dimension(dx, -4, 1)  # height should be 1
+            case _:
+                raise NotImplementedError
+
+        return cls(u, dx, spectrum, spectral_density)
+
+    def k_grid(self, centered: bool = True) -> Array:
+        """
+        The frequency grid for each spatial dimension as an array of shape `(
+        (B 1 1 C 2)`. The 2 entries along the first dimension represent the
+        y and x grids, respectively. This grid assumes that the center of the
+        ``Field`` is the origin and that the elements are sampling from the
+        center, not the corner.
+        """
+        N_y, N_x = self.spatial_shape
+        grid = jnp.meshgrid(
+            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(N_y // 2, -N_y // 2 - 1, num=N_y) + 0.5,
+            indexing="xy",
+        )
+        k = self.dk * rearrange(grid, "d h w -> 1 h w 1 d")
+
+        if not centered:
+            k = jnp.fft.ifftshift(k, axes=(-4, -3))
+
+        return k
+
+    @property
+    def conj(self) -> ScalarField:
+        """conjugate of the complex field, as a field of the same shape."""
+        return self.replace(u=jnp.conj(self.u))
+
+    def __add__(self, other: Number | Array | ScalarField) -> ScalarField:
+        match other:
+            case Number():
+                return self.replace(u=self.u + other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u + other)
+            case ScalarField():
+                return self.replace(u=self.u + other.u)
+            case _:
+                return NotImplemented
+
+    def __radd__(self, other: Any) -> ScalarField:
+        return self + other
+
+    def __sub__(self, other: Number | Array | ScalarField) -> ScalarField:
+        match other:
+            case Number():
+                return self.replace(u=self.u - other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u - other)
+            case ScalarField():
+                return self.replace(u=self.u - other.u)
+            case _:
+                return NotImplemented
+
+    def __rsub__(self, other: Number | Array | ScalarField) -> ScalarField:
+        return self - other
+
+    def __mul__(self, other: Number | Array | ScalarField) -> ScalarField:
+        match other:
+            case Number():
+                return self.replace(u=self.u * other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u * other)
+            case ScalarField():
+                return self.replace(u=self.u * other.u)
+            case _:
+                return NotImplemented
+
+    def __rmul__(self, other: Number | Array | ScalarField) -> ScalarField:
+        return self * other
+
+    # NOTE: Not sure these are correct so commenting out.
+    """
+    def __matmul__(self, other: Array) -> ScalarField:
+        return self.replace(u=jnp.matmul(self.u, other))
+
+    def __rmatmul__(self, other: Array) -> ScalarField:
+        return self.replace(u=jnp.matmul(other, self.u.squeeze()))
+    """
+
+    def __truediv__(self, other: Number | Array | ScalarField) -> ScalarField:
+        match other:
+            case Number():
+                return self.replace(u=self.u / other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u / other)
+            case ScalarField():
+                return self.replace(u=self.u / other.u)
+            case _:
+                return NotImplemented
+
+    def __rtruediv__(self, other: Number | Array | ScalarField) -> ScalarField:
+        return self.replace(u=other / self.u)
+
+    def __floordiv__(self, other: Number | Array | ScalarField) -> ScalarField:
+        match other:
+            case Number():
+                return self.replace(u=self.u // other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u // other)
+            case ScalarField():
+                return self.replace(u=self.u // other.u)
+            case _:
+                return NotImplemented
+
+    def __rfloordiv__(self, other: Number | Array | ScalarField) -> ScalarField:
+        return self.replace(u=other // self.u)
+
+    def __mod__(self, other: Number | Array | ScalarField) -> ScalarField:
+        match other:
+            case Number():
+                return self.replace(u=self.u % other)
+            case Array():
+                if other.ndim == 2:
+                    other = other[..., None, None]
+                return self.replace(u=self.u % other)
+            case ScalarField():
+                return self.replace(u=self.u % other.u)
+            case _:
+                return NotImplemented
+
+    def __rmod__(self, other: Number | Array | ScalarField) -> ScalarField:
+        return self.replace(u=other % self.u)
 
 
-class VectorField(struct.PyTreeNode):
+class VectorField(BaseField):
     # B = batch, H = height, W = Width, C = Wavelength
     u: Array  # [B H W C 3]
     dx: Array  # [B 1 1 C 2]
@@ -379,9 +389,9 @@ class VectorField(struct.PyTreeNode):
     @classmethod
     def create(
         cls,
-        dx: ArrayLike,
-        spectrum: ArrayLike,
-        spectral_density: ArrayLike,
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
         u: Array | None = None,
         shape: tuple[int, int] | None = None,
     ) -> VectorField:
@@ -457,23 +467,6 @@ class VectorField(struct.PyTreeNode):
 
         return cls(u, dx, spectrum, spectral_density)
 
-    def grid(self) -> Array:
-        """
-        The grid for each spatial dimension as an array of shape `[B H W
-        C 2)`. The 2 entries along the last dimension represent the x and y
-        grids, respectively. This grid assumes that the center of the ``Field``
-        is the origin and that the elements are sampling from the center, not
-        the corner.
-        """
-        # We must use meshgrid instead of mgrid here in order to be jittable
-        N_y, N_x = self.spatial_shape
-        grid = jnp.meshgrid(
-            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
-            jnp.linspace(N_y // 2, -N_y // 2 - 1, num=N_y) + 0.5,
-            indexing="xy",
-        )
-        return self.dx * rearrange(grid, "d h w -> 1 h w 1 d")
-
     def k_grid(self, n: float = 1.0, centered: bool = True) -> Array:
         """
         The frequency grid for each spatial dimension as an array of shape `(
@@ -496,81 +489,16 @@ class VectorField(struct.PyTreeNode):
         kz = jnp.sqrt(self.wave_number(n) ** 2 - jnp.sum(k**2, axis=-1, keepdims=True))
         return jnp.concatenate([k, kz], axis=-1)
 
-    def wave_number(self, n: float = 1.0) -> Array:
-        return 2 * jnp.pi * n / self.spectrum
-
-    def phase(self, unwrapped: bool = False) -> Array:
-        """Phase of the complex field, shape `(B H W C 3)`."""
-        if unwrapped:
-            raise NotImplementedError
-        return jnp.angle(self.u)
-
-    def amplitude(self, per_component: bool = True, keepdims: bool = True) -> Array:
-        """Amplitude of the complex field, shape `(B H W C 3)`.
-        This is actually what is called the "magnitude"."""
-        amplitude = jnp.abs(self.u)
-        if per_component:
-            return amplitude
-        else:
-            return jnp.linalg.norm(amplitude, axis=-1, keepdims=keepdims)
+    @property
+    def conj(self) -> VectorField:
+        """conjugate of the complex field, as a field of the same shape."""
+        return self.replace(u=jnp.conj(self.u))
 
     def jones_vector(self) -> Array:
         """Return Jones vector of field."""
         norm = jnp.linalg.norm(self.u, axis=-1, keepdims=True)
         norm = jnp.where(norm == 0, 1, norm)  # set to 1 to avoid division by zero
         return self.u / norm
-
-    def intensity(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
-        """Intensity of the complex field, shape `[B H W]`."""
-        intensity_per_wavelength = self.spectral_density * jnp.sum(
-            self.amplitude() ** 2, axis=-1, keepdims=keepdims
-        )
-        if per_wavelength:
-            return intensity_per_wavelength
-        else:
-            return jnp.sum(intensity_per_wavelength, axis=-1, keepdims=keepdims)
-
-    def power(self, per_wavelength: bool = False, keepdims: bool = False) -> Array:
-        """Power of the complex field, shape `[B]`."""
-        area = jnp.prod(self.dx, axis=-1)
-        dpower_per_wavelength = area * self.intensity(per_wavelength=True)
-        if per_wavelength:
-            return jnp.sum(dpower_per_wavelength, axis=(-3, -2), keepdims=keepdims)
-        else:
-            return jnp.sum(dpower_per_wavelength, axis=(-3, -2, -1), keepdims=keepdims)
-
-    @property
-    def dk(self) -> Array:
-        """
-        The frequency spacing of the samples in the frequency space of ``u``.
-        Defined as an array of shape ``(2 1... 1 1 C 1 1)`` specifying the
-        spacing in the y and x directions respectively (can be the same for y
-        and x for the common case of square pixels). Spacing is the same per
-        wavelength for all entries in a batch.
-        """
-        # NOTE: This is a property cause so is dx.
-        shape = jnp.array(self.spatial_shape)
-        return 1 / (self.dx * shape)
-
-    @property
-    def shape(self) -> tuple[int, ...]:
-        """Shape of the complex field."""
-        return self.u.shape
-
-    @property
-    def spatial_shape(self) -> tuple[int, int]:
-        """Only the height and width of the complex field."""
-        return self.u.shape[-4], self.u.shape[-3]
-
-    @property
-    def ndim(self) -> int:
-        """Number of dimensions (the rank) of the complex field."""
-        return self.u.ndim
-
-    @property
-    def conj(self) -> VectorField:
-        """conjugate of the complex field, as a field of the same shape."""
-        return self.replace(u=jnp.conj(self.u))
 
     def __add__(self, other: Number | Array | VectorField) -> VectorField:
         match other:
