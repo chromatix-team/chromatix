@@ -85,7 +85,6 @@ def init_plane_resample(
             _in_shape, _out_shape = jnp.array(x.shape[:-2]), jnp.array(out_shape)
             scale = in_spacing / out_spacing
             translation = -0.5 * (_in_shape * scale - _out_shape)
-            total = x.sum(axis=(0, 1))
             # NOTE(dd): Because scale_and_translate expects shape to have same
             # number of dimensions as input, we have to extend the shape with
             # any channel/ vectorial dimensions here
@@ -93,7 +92,7 @@ def init_plane_resample(
             x = scale_and_translate(
                 x, extended_shape, (0, 1), scale, translation, method=resampling_method
             )
-            x = x * (total / x.sum(axis=(0, 1)))
+            x = x / jnp.prod(scale)
             return x
 
     return op
