@@ -311,7 +311,7 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
         N: int,
         num_points: int,
         radius: int,
-        shape: tuple[int, int],
+        shape: tuple[int, int, int],
         z_range: tuple[int, int],
     ):
         """
@@ -406,7 +406,6 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
                     self.radius,
                     color=255,
                 )  # TODO add weight
-                print(self.z_values[idx, i])
                 self.z[idx, self.z_indices[idx] == i] = self.z_values[idx, i]
             return (
                 np.array([self.x[idx], self.y[idx], self.z[idx]]).T,
