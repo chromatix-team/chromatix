@@ -408,12 +408,12 @@ def compute_asm_propagator(
             -1 / 2
         ) / field.spectrum
         k0 = (1 / 2) * (
-            jnp.sign(shift_yx + field.surface_area) * k_limit_p
-            + jnp.sign(shift_yx - field.surface_area) * k_limit_n
+            jnp.sign(shift_yx + field.extent) * k_limit_p
+            + jnp.sign(shift_yx - field.extent) * k_limit_n
         )
         k_width = (
-            jnp.sign(shift_yx + field.surface_area) * k_limit_p
-            - jnp.sign(shift_yx - field.surface_area) * k_limit_n
+            jnp.sign(shift_yx + field.extent) * k_limit_p
+            - jnp.sign(shift_yx - field.extent) * k_limit_n
         )
         k_max = k_width / 2
         # obtain rect filter to bandlimit (Eq. 23)

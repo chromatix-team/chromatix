@@ -151,11 +151,11 @@ class BaseField(struct.PyTreeNode):
         return 1 / (self.dx * shape)
 
     @property
-    def surface_area(self) -> Array:
+    def extent(self) -> Array:
         """
-        The surface area of the field in microns. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
-        dimensions respectively.
+        The extent (lengths in height and width per wavelength) of the field
+        in units of distance. Defined as an array of shape ``(2 1... 1 1 C 1)``
+        specifying the surface area in the y and x dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
         shape = _broadcast_1d_to_grid(shape, self.ndim)
