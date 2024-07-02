@@ -109,6 +109,7 @@ class ObjectivePointSource(nn.Module):
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
+
     shape: tuple[int, int]
     dx: ScalarLike
     spectrum: ScalarLike

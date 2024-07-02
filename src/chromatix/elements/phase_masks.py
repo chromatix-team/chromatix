@@ -120,6 +120,7 @@ class SpatialLightModulator(nn.Module):
         n: Refractive index of the system's objective. Defaults to None.
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
+
     phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
     shape: tuple[int, int]
     spacing: ScalarLike
@@ -254,6 +255,6 @@ class ZernikeAberrations(nn.Module):
             self.NA,
             self.ansi_indices,
             coefficients,
-            self.normalize
+            self.normalize,
         )
         return phase_change(field, phase)
