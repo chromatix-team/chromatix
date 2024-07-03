@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Callable, Literal
 
 import jax
 import jax.numpy as jnp
@@ -7,6 +7,7 @@ from jax import Array
 
 from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
+from chromatix.functional.pupils import tukey_pupil, super_gaussian_pupil
 from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils.fft import fft, ifft
 
@@ -172,6 +173,8 @@ def transfer_propagate(
     n: ScalarLike,
     N_pad: int,
     cval: float = 0,
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
@@ -191,6 +194,16 @@ def transfer_propagate(
                 ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
         mode: Either "full" or "same". If "same", the shape of the output
@@ -199,7 +212,9 @@ def transfer_propagate(
     """
     field = pad(field, N_pad, cval=cval)
     propagator = compute_transfer_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator)
+    field = kernel_propagate(
+        field, propagator, absorbing_boundary, absorbing_boundary_width
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
@@ -211,6 +226,8 @@ def exact_propagate(
     n: ScalarLike,
     N_pad: int,
     cval: float = 0,
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     mode: Literal["full", "same"] = "full",
 ) -> Field:
@@ -231,6 +248,16 @@ def exact_propagate(
                 ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
         mode: Either "full" or "same". If "same", the shape of the output
@@ -239,7 +266,9 @@ def exact_propagate(
     """
     field = pad(field, N_pad, cval=cval)
     propagator = compute_exact_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator)
+    field = kernel_propagate(
+        field, propagator, absorbing_boundary, absorbing_boundary_width
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
@@ -251,6 +280,8 @@ def asm_propagate(
     n: ScalarLike,
     N_pad: int,
     cval: float = 0,
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
     shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
@@ -273,6 +304,16 @@ def asm_propagate(
                 ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format `[ky, kx]`.
         bandlimit: If ``True``, bandlimited the kernel according to "Band-
@@ -287,21 +328,51 @@ def asm_propagate(
     """
     field = pad(field, N_pad, cval=cval)
     propagator = compute_asm_propagator(field, z, n, kykx, bandlimit, shift_yx)
-    field = kernel_propagate(field, propagator)
+    field = kernel_propagate(
+        field, propagator, absorbing_boundary, absorbing_boundary_width
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
 
 
-def kernel_propagate(field: Field, propagator: ArrayLike) -> Field:
+def kernel_propagate(
+    field: Field,
+    propagator: ArrayLike,
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
+) -> Field:
     """
     Propagate an incoming ``Field`` by the given propagation kernel
     (``propagator``). This amounts to performing a Fourier convolution of the
-    ``field`` and the ``propagator``.
+    ``field`` and the ``propagator``. Can optionally apply an absorbing boundary
+    (a tapered pupil function) to the field after propagation.
+
+    Args:
+        field: ``Field`` to be propagated.
+        propagator: The propagation kernel.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
     """
+    _boundaries = {"tukey": tukey_pupil, "super_gaussian": super_gaussian_pupil}
+    assert (
+        absorbing_boundary is None or absorbing_boundary in _boundaries
+    ), f"The absorbing_boundary must be None or in {_boundaries.keys()}."
     axes = field.spatial_dims
     u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
-    return field.replace(u=u)
+    field = field.replace(u=u)
+    if absorbing_boundary is not None:
+        pupil = _boundaries[absorbing_boundary]
+        field = pupil(field, absorbing_boundary_width)
+    return field
 
 
 def compute_transfer_propagator(
