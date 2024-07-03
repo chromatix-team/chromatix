@@ -145,7 +145,7 @@ def transform_propagate_sas(
     N_pad = tuple(sz // pad_factor)
     field = pad(field, N_pad, cval=cval)
 
-    def _forward(field: Field, z) -> tuple[Array, Array]:
+    def _forward(field: Field, z: ScalarLike) -> tuple[Array, Array]:
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
         field = transform_propagate(
@@ -153,7 +153,7 @@ def transform_propagate_sas(
         )
         return field.u, field._dx
 
-    def _inverse(field: Field, z) -> tuple[Array, Array]:
+    def _inverse(field: Field, z: ScalarLike) -> tuple[Array, Array]:
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
