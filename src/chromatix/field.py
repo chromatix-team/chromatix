@@ -301,6 +301,12 @@ class BaseField(struct.PyTreeNode):
     def __rmod__(self, other: Any) -> Self:
         return self.replace(u=other % self.u)
 
+    def __pow__(self, other: Any) -> Self:
+        return self.replace(u=self.u**other)
+
+    def __rpow__(self, other: Any) -> Self:
+        return self.replace(u=other**self.u)
+
 
 class ScalarField(BaseField):
     @classmethod
