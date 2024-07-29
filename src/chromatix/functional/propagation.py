@@ -372,7 +372,7 @@ def kernel_propagate(
     if absorbing_boundary is not None:
         pupil = _boundaries[absorbing_boundary]
         field = pupil(field, absorbing_boundary_width)
-    return field
+    return field  # type: ignore
 
 
 def compute_transfer_propagator(
