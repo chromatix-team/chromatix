@@ -1,7 +1,7 @@
 from functools import partial
 
 import jax.numpy as jnp
-from jax import Array, lax
+from jax import Array
 
 from chromatix.typing import ArrayLike
 from chromatix.utils import next_order
@@ -13,12 +13,15 @@ def fourier_convolution(
     *,
     axes: tuple[int, int] = (0, 1),
     fast_fft_shape: bool = True,
+    mode: str = "same",
 ) -> Array:
     """
-    Fourier convolution in 2D over the specified axes of an ``Array``.
+    Fourier convolution in n dimensions over the specified axes of an ``Array``.
 
-    The default axes to perform 2D convolution over are (0, 1), or the first
-    two axes of the input.
+    The convolution dimensions are determined by the `axes` argument. For
+    example, the default axes to perform convolution over are (0, 1), or the
+    first two axes of the input, which will perform a 2D convolution. The
+    ``kernel`` and ``image`` should have the same number of dimensions.
 
     This function computes the convolution ``kernel * image`` by employing the
     Fourier convolution theorem. The inputs are padded appropriately to avoid
@@ -35,13 +38,20 @@ def fourier_convolution(
         kernel: The convolution kernel.
         fast_fft_shape: Determines whether inputs should be further padded for
             increased FFT performance. Defaults to ``True``.
+        mode: A string that determines whether to crop the result of the
+            convolution to the same shape as ``image``. Should be either
+            ``"same"`` or ``"full"``. Defaults to ``"same"``.
     """
-    assert axes[1] == (axes[0] + 1), "Axes to convolve over must be contiguous"
+    for i in range(len(axes) - 1):
+        assert axes[i + 1] == (axes[i] + 1), "Axes to convolve over must be contiguous"
+    assert (
+        image.ndim == kernel.ndim
+    ), f"Input ({image.ndim}D) and kernel ({kernel.ndim}D) must have same number of dimensions"
     # Get padded shape to prevent circular convolution
     padded_shape = [
         k1 + k2 - 1
         for k1, k2 in zip(
-            image.shape[axes[0] : axes[1] + 1], kernel.shape[axes[0] : axes[1] + 1]
+            image.shape[axes[0]:axes[-1] + 1], kernel.shape[axes[0]:axes[-1] + 1]
         )
     ]
     if fast_fft_shape:
@@ -50,27 +60,18 @@ def fourier_convolution(
         fast_shape = padded_shape
     # Save memory with rfft if inputs are not complex
     is_complex = (image.dtype.kind == "c") or (kernel.dtype.kind == "c")
+    # output_shape = image.shape[axes[0]:axes[-1] + 1] if mode == "same" else fast_shape
     if is_complex:
-        fft = partial(jnp.fft.fft2, s=fast_shape, axes=axes)
-        ifft = partial(jnp.fft.ifft2, s=fast_shape, axes=axes)
+        fft = partial(jnp.fft.fftn, s=fast_shape, axes=axes)
+        ifft = partial(jnp.fft.ifftn, s=fast_shape, axes=axes)
+        # ifft = partial(jnp.fft.ifftn, s=output_shape, axes=axes)
     else:
-        fft = partial(jnp.fft.rfft2, s=fast_shape, axes=axes)
-        ifft = partial(jnp.fft.irfft2, s=fast_shape, axes=axes)
+        fft = partial(jnp.fft.rfftn, s=fast_shape, axes=axes)
+        ifft = partial(jnp.fft.irfftn, s=fast_shape, axes=axes)
+        # ifft = partial(jnp.fft.irfftn, s=output_shape, axes=axes)
     conv = ifft(fft(image) * fft(kernel))
     # Remove padding
-    full_padded_shape = list(image.shape)
-    for i, a in enumerate(axes):
-        full_padded_shape[a] = padded_shape[i]
-    conv = conv[tuple([slice(sz) for sz in full_padded_shape])]
-    # Remove extra padding if any
-    start_idx = [
-        (k1 - k2) // 2 if idx in axes else 0
-        for idx, (k1, k2) in enumerate(zip(conv.shape, image.shape))
-    ]
-    stop_idx = [
-        k1 + k2 if idx in axes else k2
-        for idx, (k1, k2) in enumerate(zip(start_idx, image.shape))
-    ]
-    conv_image = lax.slice(conv, start_idx, stop_idx)
-
-    return conv_image
+    if mode == "same":
+        fast_shape = [fast_shape[axes.index(a)] if a in axes else s for a, s in enumerate(image.shape)]
+        conv = conv[tuple([slice((f - i) // 2, (f - i) // 2 + i) if f > i else slice(i) for i, f in zip(image.shape, fast_shape)])]
+    return conv
