@@ -152,7 +152,7 @@ class SpatialLightModulator(nn.Module):
         ), "Provided phase shape should match provided SLM shape"
         phase = wrap_phase(phase, self.phase_range)
         if self.num_bits is not None:
-            phase = quantize(phase, 2.0**self.num_bits, range=self.phase_range)
+            phase = quantize(phase, self.num_bits, range=self.phase_range)
         field_pixel_grid = jnp.meshgrid(
             jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
             jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,
