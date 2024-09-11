@@ -84,12 +84,17 @@ def sigmoid_taper(shape: tuple[int, int], width: float, ndim: int = 5) -> Array:
 
 def create_grid(shape: tuple[int, int], spacing: ScalarLike) -> Array:
     """
+    Creates a 2D grid of vertical and horizontal coordinates with the specified
+    ``shape`` and ``spacing``, with the origin in the center of the grid.
+
     Args:
         shape: The shape of the grid, described as a tuple of
-            integers of the form (H W).
+            integers of the form ``(H W)``.
         spacing: The spacing of each pixel in the grid, either a single float
             for square pixels or an array of shape `(2 1)` for non-square
             pixels.
+    Returns:
+        The grid as an array of shape ``(2 H W)``.
     """
     half_size = jnp.array(shape) / 2
     spacing = jnp.atleast_1d(spacing)
@@ -105,6 +110,21 @@ def create_grid(shape: tuple[int, int], spacing: ScalarLike) -> Array:
         indexing="ij",
     )
     grid = spacing * jnp.array(grid)
+    return grid
+
+
+def rotate_grid(grid: Array, rotation: ScalarLike) -> Array:
+    """
+    Rotates a 2D grid (an array of shape ``(2 H W)``) by ``rotation`` radians.
+    Positive rotations are assumed to be in the counter-clockwise direction.
+    """
+    rotation = jnp.array(
+        [
+            [jnp.cos(rotation), -jnp.sin(rotation)],
+            [jnp.sin(rotation), jnp.cos(rotation)],
+        ]
+    )
+    grid = jnp.einsum("ij, ihw -> jhw", rotation, grid)
     return grid
 
 
