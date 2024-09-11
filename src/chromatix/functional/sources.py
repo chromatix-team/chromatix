@@ -74,9 +74,10 @@ def point_source(
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))
-    phase = jnp.pi * l2_sq_norm(field.grid) / (L**2 + epsilon)
-    u = amplitude * -1j / (L**2 + epsilon) * jnp.exp(1j * phase)
+    L = jnp.sqrt(field.spectrum * jnp.abs(z) / n)
+    L_sq = jnp.sign(z) * jnp.fmax(L**2, epsilon)
+    phase = jnp.pi * l2_sq_norm(field.grid) / L_sq
+    u = amplitude * -1j / L_sq * jnp.exp(1j * phase)
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)

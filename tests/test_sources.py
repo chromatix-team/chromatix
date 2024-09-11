@@ -186,3 +186,9 @@ class TestPointSource:
                 power=1.0,
                 pupil=None,
             )
+
+    def test_negative_z(self):
+        positive = cf.point_source((512, 512), 0.1, 0.532, 1.0, 1.0, 1.0)
+        negative = cf.point_source((512, 512), 0.1, 0.532, 1.0, -1.0, 1.0)
+        assert jnp.allclose(positive.u.real, negative.u.real)
+        assert jnp.allclose(positive.u.imag, -negative.u.imag)
