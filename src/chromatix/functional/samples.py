@@ -332,7 +332,7 @@ def thick_sample_vector(
         return ifft(bmatvec(Q, phase_factor * fft(u)))
 
     # Calculating k vector and PTFT
-    # We shift k to align in k-space so we dont need shift just like Q
+    # We shift k to align in k-space so we don't need shift just like Q
     km = 2 * jnp.pi * n / field.spectrum
     k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
     kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
