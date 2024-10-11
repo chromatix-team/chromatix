@@ -2,6 +2,8 @@ from jax import Array
 from jax import numpy as jnp
 from jax.typing import ArrayLike
 
+eps = jnp.finfo(jnp.float32).eps
+
 
 def outer(x: ArrayLike, y: ArrayLike, in_axis: int = -1) -> Array:
     """Calculates batched outer product (Numpy flattens input matrices)
@@ -13,9 +15,7 @@ def outer(x: ArrayLike, y: ArrayLike, in_axis: int = -1) -> Array:
     return _x[..., None, :] * _y[..., :, None]
 
 
-def PTFT(
-    k_grid: ArrayLike, km: ArrayLike, eps: float = jnp.finfo(jnp.float32).eps
-) -> Array:
+def PTFT(k_grid: ArrayLike, km: ArrayLike, eps: float = eps) -> Array:
     """
     Calculates Polarisation Transfer Function Tensor (PTFT) as per eq. 7
     in Multislice computational model for birefringent scattering. Returns
