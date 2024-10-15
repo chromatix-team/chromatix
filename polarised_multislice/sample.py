@@ -1,7 +1,8 @@
+from re import A
 import jax.numpy as jnp
 from jax import Array
 from jax.typing import ArrayLike
-import numpy as np
+from einops import reduce
 
 def Rx(theta: ArrayLike) -> Array:
     """
@@ -60,6 +61,7 @@ def single_bead_sample(
     shape: tuple,
     spacing: float,
     k0: float,
+    antialiasing: int = 1 
 ) -> Array:
     """
     Generate a single bead sample in a background medium.
@@ -98,8 +100,8 @@ def single_bead_sample(
 
     """
     # Making grid and mask
-    size = jnp.asarray(shape) // spacing
-    grid = jnp.mgrid[: size[0], : size[1], : size[2]]
+    spacing = spacing / antialiasing
+    grid = jnp.mgrid[: antialiasing * (shape[0] + 1), : antialiasing * (shape[1] +1) , : antialiasing * (shape[2] + 1)]
     grid = grid - jnp.mean(grid, axis=(1, 2, 3), keepdims=True)
     mask = jnp.sum(grid[..., None, None] ** 2, axis=0) < (radius / spacing) ** 2
 
@@ -108,9 +110,12 @@ def single_bead_sample(
     background_permitivitty = jnp.eye(3) * n_background**2
 
     # Making sample
-    return k0**2 * jnp.where(
+    permitivitty = k0**2 * jnp.where(
         mask, background_permitivitty - bead_permitivitty, jnp.zeros((3, 3))
     )
+
+    return reduce(permitivitty, "(z nz) (y ny) (x nx) ni no -> z y x ni no", nz=antialiasing, ny=antialiasing, nx=antialiasing, reduction="mean")
+
 
 
 def paper_sample() -> Array:
@@ -122,10 +127,11 @@ def paper_sample() -> Array:
         bead_radius = 1.5
         spacing = 0.065  # mum
         k0 = 2 * jnp.pi / 0.405  # mum
-        shape = (4.55, 11.7 / 2, 11.7 / 2)  # z y x # / 2 as we have only 1 bead
+        shape = (4.55 // spacing, (11.7 / 2) // spacing, (11.7 / 2) // spacing)  # z y x # / 2 as we have only 1 bead
+        antialiasing = 5
 
         return single_bead_sample(
-            n_m, n_bead, orientation, bead_radius, shape, spacing, k0
+            n_m, n_bead, orientation, bead_radius, shape, spacing, k0, antialiasing
         )
 
     sample = jnp.concat(
