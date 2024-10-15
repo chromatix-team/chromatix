@@ -54,8 +54,7 @@ def thick_polarised_sample(field: cf.VectorField, potential: ArrayLike, nm: Arra
         """Vectorial free space operator"""
         # NOTE: Really need to check if we deal correctly with evanescent waves
         prefactor = jnp.where(kz > 0,  jnp.exp(1j * kz * dz), 0)
-
-        # NOTE: Are we not overlapping stuff by not not padding?
+        
         return ifft(matvec(Q, prefactor * fft(u)))
 
     def propagate_slice(u: Array, potential_slice: Array) -> tuple[Array, None]:
