@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from jax import Array
 from jax.typing import ArrayLike
-
+import numpy as np
 
 def Rx(theta: ArrayLike) -> Array:
     """
@@ -133,17 +133,17 @@ def paper_sample() -> Array:
             jnp.concat(
                 [
                     bead(jnp.array([0, 0, jnp.pi / 2])),
-                    bead(jnp.array([jnp.pi / 2, 0, 0])),
+                    bead(jnp.array([jnp.pi / 4, jnp.pi / 4, jnp.pi / 4])),
                 ],
                 axis=2,
             ),
             jnp.concat(
                 [
                     bead(jnp.array([0, jnp.pi / 2, 0])),
-                    bead(jnp.array([jnp.pi / 4, jnp.pi / 4, jnp.pi / 4])),
+                    bead(jnp.array([0, 0, 0])),
                 ],
                 axis=2,
-            ),
+            )
         ],
         axis=1,
     )
