@@ -49,9 +49,9 @@ def fourier_convolution(
     ), f"Input ({image.ndim}D) and kernel ({kernel.ndim}D) must have same number of dimensions"
     # Get padded shape to prevent circular convolution
     padded_shape = [
-        k1 + k2 - 1
+        k1 + k2
         for k1, k2 in zip(
-            image.shape[axes[0]:axes[-1] + 1], kernel.shape[axes[0]:axes[-1] + 1]
+            image.shape[axes[0] : axes[-1] + 1], kernel.shape[axes[0] : axes[-1] + 1]
         )
     ]
     if fast_fft_shape:
@@ -72,6 +72,12 @@ def fourier_convolution(
     conv = ifft(fft(image) * fft(kernel))
     # Remove padding
     if mode == "same":
-        fast_shape = [fast_shape[axes.index(a)] if a in axes else s for a, s in enumerate(image.shape)]
-        conv = conv[tuple([slice((f - i) // 2, (f - i) // 2 + i) if f > i else slice(i) for i, f in zip(image.shape, fast_shape)])]
+        conv = conv[
+            tuple(
+                [
+                    slice((k - 1) // 2, (k - 1) // 2 + i) if idx in axes else slice(i)
+                    for idx, (i, k) in enumerate(zip(image.shape, kernel.shape))
+                ]
+            )
+        ]
     return conv
