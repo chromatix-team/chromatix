@@ -139,7 +139,7 @@ def paper_sample() -> Array:
             jnp.concat(
                 [
                     bead(jnp.array([0, 0, jnp.pi / 2])),
-                    bead(jnp.array([0, jnp.pi / 2, jnp.pi / 2])),
+                    bead(jnp.array([0, jnp.pi / 4, jnp.pi / 4])),
                 ],
                 axis=2,
             ),
