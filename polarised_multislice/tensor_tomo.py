@@ -46,15 +46,15 @@ def thick_polarised_sample(field: cf.VectorField, potential: ArrayLike, nm: Arra
         # correct
         """Vectorial scattering operator"""
         prefactor = -1j * dz / 2 * jnp.exp(1j * kz * dz) / kz
-        prefactor = jnp.where(kz > 0, prefactor, 0)
+        #prefactor = jnp.where(kz > 0, prefactor, 0)
         return ifft(matvec(Q, prefactor * fft(u)))
     
     def P_op(u: Array) -> Array:
         # correct
         """Vectorial free space operator"""
         # NOTE: Really need to check if we deal correctly with evanescent waves
-        prefactor = jnp.where(kz > 0,  jnp.exp(1j * kz * dz), 0)
-        
+        #prefactor = jnp.where(kz > 0,  jnp.exp(1j * kz * dz), 0)
+        prefactor = jnp.exp(1j * kz * dz)
         return ifft(matvec(Q, prefactor * fft(u)))
 
     def propagate_slice(u: Array, potential_slice: Array) -> tuple[Array, None]:
@@ -70,7 +70,7 @@ def thick_polarised_sample(field: cf.VectorField, potential: ArrayLike, nm: Arra
     # NOTE: understand why we need nm here
     km = 2 * jnp.pi * nm / field.spectrum
     k_grid = 2 * jnp.pi * k_grid
-    kz = jnp.sqrt(jnp.maximum(0.0, km**2 - jnp.sum(k_grid**2, axis=0))) 
+    kz = jnp.sqrt(km**2 - jnp.sum(k_grid**2, axis=0, dtype=jnp.complex64))
     k_grid =  jnp.concatenate([kz[None, ...], k_grid], axis=0)
 
     # Calculating PTFT
