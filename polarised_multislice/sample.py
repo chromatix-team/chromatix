@@ -125,7 +125,7 @@ def paper_sample() -> Array:
         n_m = 1.33
         n_bead = jnp.array([1.44, 1.40, 1.37])  # z y x
         bead_radius = 1.5
-        spacing = 0.065  # mum
+        spacing = 0.065 # mum
         k0 = 2 * jnp.pi / 0.405  # mum
         shape = (4.55 // spacing, (11.7 / 2) // spacing, (11.7 / 2) // spacing)  # z y x # / 2 as we have only 1 bead
         antialiasing = 5
@@ -139,7 +139,7 @@ def paper_sample() -> Array:
             jnp.concat(
                 [
                     bead(jnp.array([0, 0, jnp.pi / 2])),
-                    bead(jnp.array([0, jnp.pi / 4, jnp.pi / 4])),
+                    bead(jnp.array([jnp.pi/4, jnp.pi / 4, jnp.pi / 4])),
                 ],
                 axis=2,
             ),
