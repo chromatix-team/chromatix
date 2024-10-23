@@ -12,8 +12,8 @@ def Rx(theta: ArrayLike) -> Array:
     """
     return jnp.array(
         [
-            [jnp.cos(theta), -jnp.sin(theta), 0],
-            [jnp.sin(theta), jnp.cos(theta), 0],
+            [jnp.cos(theta), jnp.sin(theta), 0],
+            [-jnp.sin(theta), jnp.cos(theta), 0],
             [0, 0, 1],
         ]
     )
@@ -27,9 +27,9 @@ def Ry(theta: ArrayLike) -> Array:
     """
     return jnp.array(
         [
-            [jnp.cos(theta), 0, jnp.sin(theta)],
+            [jnp.cos(theta), 0, -jnp.sin(theta)],
             [0, 1, 0],
-            [-jnp.sin(theta), 0, jnp.cos(theta)],
+            [jnp.sin(theta), 0, jnp.cos(theta)],
         ]
     )
 
@@ -43,8 +43,8 @@ def Rz(theta: ArrayLike) -> Array:
     return jnp.array(
         [
             [1, 0, 0],
-            [0, jnp.cos(theta), -jnp.sin(theta)],
-            [0, jnp.sin(theta), jnp.cos(theta)],
+            [0, jnp.cos(theta), jnp.sin(theta)],
+            [0, -jnp.sin(theta), jnp.cos(theta)],
         ]
     )
 
