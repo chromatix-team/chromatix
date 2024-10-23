@@ -1,8 +1,9 @@
-from re import A
 import jax.numpy as jnp
+import numpy as np
+from einops import reduce
 from jax import Array
 from jax.typing import ArrayLike
-from einops import reduce
+
 
 def Rx(theta: ArrayLike) -> Array:
     """
@@ -119,38 +120,49 @@ def single_bead_sample(
 
 
 def paper_sample() -> Array:
-    """Returns bead sample from paper."""
+    # Simulation settings
+    size = (4.55, 11.7, 11.7) # from paper
+    spacing = 0.065 # [mum], from paper
+    wavelength = 0.405 # [mum], from paper
+    n_background = 1.33
+    n_bead = jnp.array([1.44, 1.40, 1.37])  # z y x
+    k0 = 2 * jnp.pi / wavelength
+    bead_radius = 1.5 # [mum]
 
-    def bead(orientation: Array) -> Array:
-        n_m = 1.33
-        n_bead = jnp.array([1.44, 1.40, 1.37])  # z y x
-        bead_radius = 1.5
-        spacing = 0.065 # mum
-        k0 = 2 * jnp.pi / 0.405  # mum
-        shape = (4.55 // spacing, (11.7 / 2) // spacing, (11.7 / 2) // spacing)  # z y x # / 2 as we have only 1 bead
-        antialiasing = 5
+    # Calculating shape
+    shape = np.around((np.array(size) / spacing)).astype(int) # without around becomes 1 less!
 
-        return single_bead_sample(
-            n_m, n_bead, orientation, bead_radius, shape, spacing, k0, antialiasing
-        )
+    # center of pixel is our coordinate
+    z = jnp.linspace(1/2*spacing, size[0] - 1/2 * spacing, shape[0])
+    y = jnp.linspace(size[1] - 1/2 * spacing, 1/2 * spacing, shape[1])
+    x = jnp.linspace(1/2*spacing, size[2] - 1/2 * spacing, shape[2])
+    grid = jnp.stack(jnp.meshgrid(z, y, x, indexing="ij"), axis=-1) 
 
-    sample = jnp.concat(
-        [
-            jnp.concat(
-                [
-                    bead(jnp.array([0, 0, jnp.pi / 2])),
-                    bead(jnp.array([jnp.pi/4, jnp.pi / 4, jnp.pi / 4])),
-                ],
-                axis=2,
-            ),
-            jnp.concat(
-                [
-                    bead(jnp.array([0, jnp.pi / 2, 0])),
-                    bead(jnp.array([0, 0, 0])),
-                ],
-                axis=2,
-            )
-        ],
-        axis=1,
-    )
-    return sample
+    # Position of each bead, with radius 
+    bead_pos = jnp.array([[size[0] / 2, 8.85, 2.85],
+                      [size[0] / 2, 8.85, 8.85],
+                      [size[0] / 2, 2.85, 2.85],
+                      [size[0] / 2, 2.85, 8.85]])
+    rotation = jnp.array([[0.0, jnp.pi/2, 0.0], 
+                      [0.0, 0.0,0.0],
+                      [0.0, 0.0, jnp.pi/2], 
+                      [jnp.pi/4, jnp.pi/4, jnp.pi/4]])
+
+
+    potential = jnp.zeros((*shape, 1, 3, 3))
+
+    # Adding each bead
+    for pos, orientation in zip(bead_pos, rotation):
+        # Making bead and background
+        bead_permitivitty = R(*orientation, inv=True).T @ jnp.diag(n_bead**2) @ R(*orientation, inv=True)
+        background_permitivitty = jnp.eye(3) * n_background**2
+
+        # Mask
+        mask = jnp.sum((grid - pos)**2, axis=-1) < bead_radius ** 2
+
+        # Making sample
+        potential += (k0**2 * jnp.where(
+            mask[..., None, None, None], background_permitivitty - bead_permitivitty, jnp.zeros((3, 3))
+        ))
+
+    return potential
