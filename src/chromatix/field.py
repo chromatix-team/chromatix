@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import Any, Optional, Tuple, Union
+from typing import Any, TypeVar
 
 import jax.numpy as jnp
-from chex import Array, assert_equal_shape, assert_rank
+from chex import assert_equal_shape, assert_rank
 from einops import rearrange
 from flax import struct
+from jax import Array
+from typing_extensions import Self
+
+from chromatix.typing import ArrayLike, ScalarLike
 
 from .utils.shapes import (
     _broadcast_1d_to_channels,
@@ -15,7 +19,7 @@ from .utils.shapes import (
 )
 
 
-class Field(struct.PyTreeNode):
+class BaseField(struct.PyTreeNode):
     """
     A container that describes the chromatic light field at a 2D plane.
 
@@ -147,11 +151,11 @@ class Field(struct.PyTreeNode):
         return 1 / (self.dx * shape)
 
     @property
-    def surface_area(self) -> Array:
+    def extent(self) -> Array:
         """
-        The surface area of the field in microns. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
-        dimensions respectively.
+        The extent (lengths in height and width per wavelength) of the field
+        in units of distance. Defined as an array of shape ``(2 1... 1 1 C 1)``
+        specifying the surface area in the y and x dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
         shape = _broadcast_1d_to_grid(shape, self.ndim)
@@ -201,17 +205,17 @@ class Field(struct.PyTreeNode):
         return jnp.sum(self.intensity, axis=(-4, -3), keepdims=True) * area
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """Shape of the complex field."""
         return self.u.shape
 
     @property
-    def spatial_shape(self) -> Tuple[int, int]:
+    def spatial_shape(self) -> tuple[int, int]:
         """Only the height and width of the complex field."""
-        return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
+        return (self.u.shape[self.spatial_dims[0]], self.u.shape[self.spatial_dims[1]])
 
     @property
-    def spatial_dims(self) -> Tuple[int, int]:
+    def spatial_dims(self) -> tuple[int, int]:
         """Dimensions representing the height and width of the complex field."""
         return (-4, -3)
 
@@ -221,93 +225,99 @@ class Field(struct.PyTreeNode):
         return self.u.ndim
 
     @property
-    def conj(self) -> Array:
+    def conj(self) -> Self:
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
-    def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __add__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u + other.u)
         else:
             return NotImplemented
 
-    def __radd__(self, other: Any) -> Field:
+    def __radd__(self, other: Any) -> Self:
         return self + other
 
-    def __sub__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __sub__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u - other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u - other.u)
         else:
             return NotImplemented
 
-    def __rsub__(self, other: Any) -> Field:
+    def __rsub__(self, other: Any) -> Self:
         return (-1 * self) + other
 
-    def __mul__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __mul__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u * other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u * other.u)
         else:
             return NotImplemented
 
-    def __rmul__(self, other: Any) -> Field:
+    def __rmul__(self, other: Any) -> Self:
         return self * other
 
-    def __matmul__(self, other: jnp.array) -> Field:
+    def __matmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(self.u, other))
 
-    def __rmatmul__(self, other: jnp.array) -> Field:
+    def __rmatmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
-    def __truediv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __truediv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u / other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u / other.u)
         else:
             return NotImplemented
 
-    def __rtruediv__(self, other: Any) -> Field:
+    def __rtruediv__(self, other: Any) -> Self:
         return self.replace(u=other / self.u)
 
-    def __floordiv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __floordiv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u // other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u // other.u)
         else:
             return NotImplemented
 
-    def __rfloordiv__(self, other: Any) -> Field:
+    def __rfloordiv__(self, other: Any) -> Self:
         return self.replace(u=other // self.u)
 
-    def __mod__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __mod__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u % other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u % other.u)
         else:
             return NotImplemented
 
-    def __rmod__(self, other: Any) -> Field:
+    def __rmod__(self, other: Any) -> Self:
         return self.replace(u=other % self.u)
 
+    def __pow__(self, other: Any) -> Self:
+        return self.replace(u=self.u**other)
 
-class ScalarField(Field):
+    def __rpow__(self, other: Any) -> Self:
+        return self.replace(u=other**self.u)
+
+
+class ScalarField(BaseField):
     @classmethod
     def create(
         cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
-    ) -> Field:
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
+        u: Array | None = None,
+        shape: tuple[int, int] | None = None,
+    ) -> Self:
         """
         Create a scalar approximation ``Field`` object in a convenient way.
 
@@ -340,35 +350,41 @@ class ScalarField(Field):
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
-        dx: Array = jnp.atleast_1d(dx)
-        spectrum: Array = jnp.atleast_1d(spectrum)
-        spectral_density: Array = jnp.atleast_1d(spectral_density)
+        # Parsing dx
+        _dx = jnp.atleast_1d(dx)
+        if _dx.ndim == 1:
+            _dx = jnp.stack([_dx, _dx])
+        assert_rank(_dx, 2)  # dx should have shape (2, C) here
+
+        # Parsing spectrum and density
+        _spectrum = jnp.atleast_1d(spectrum)
+        _spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([_spectrum, _spectral_density])
+        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
+
+        # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
-        ndim = len(u.shape)
-        assert (
-            ndim >= 5
-        ), "Field must be Array with at least 5 dimensions: (B... H W C 1)."
-        assert u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+            _u = jnp.empty((1, *shape, _spectrum.size, 1), dtype=jnp.complex64)
+        else:
+            _u = jnp.array(u)
+        ndim = len(_u.shape)
+        assert ndim >= 5, "Field must be Array with at least 5 dimensions: (B H W C 3)."
+        assert _u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
+
+        return cls(_u, _dx, _spectrum, _spectral_density)
 
 
-class VectorField(Field):
+class VectorField(BaseField):
     @classmethod
     def create(
         cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
-    ) -> Field:
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
+        u: ArrayLike | None = None,
+        shape: tuple[int, int] | None = None,
+    ) -> Self:
         """
         Create a vectorial ``Field`` object in a convenient way.
 
@@ -401,23 +417,30 @@ class VectorField(Field):
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
         """
-        dx: Array = jnp.atleast_1d(dx)
-        spectrum: Array = jnp.atleast_1d(spectrum)
-        spectral_density: Array = jnp.atleast_1d(spectral_density)
+
+        # Parsing dx
+        _dx = jnp.atleast_1d(dx)
+        if _dx.ndim == 1:
+            _dx = jnp.stack([_dx, _dx])
+        assert_rank(_dx, 2)  # dx should have shape (2, C) here
+
+        # Parsing spectrum and density
+        _spectrum = jnp.atleast_1d(spectrum)
+        _spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([_spectrum, _spectral_density])
+        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
+
+        # Parsing u
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
-            u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
-        ndim = len(u.shape)
-        assert (
-            ndim >= 5
-        ), "Field must be Array with at least 5 dimensions: (B... H W C 3)."
-        assert u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+            _u = jnp.empty((1, *shape, _spectrum.size, 3), dtype=jnp.complex64)
+        else:
+            _u = jnp.array(u)
+        ndim = len(_u.shape)
+        assert ndim >= 5, "Field must be Array with at least 5 dimensions: (B H W C 3)."
+        assert _u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
+
+        return cls(_u, _dx, _spectrum, _spectral_density)
 
     @property
     def jones_vector(self) -> Array:
@@ -427,7 +450,10 @@ class VectorField(Field):
         return self.u / norm
 
 
-def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -> Field:
+Field = TypeVar("Field", ScalarField, VectorField)
+
+
+def pad(field: Field, pad_width: int | tuple[int, int], cval: float = 0) -> Field:
     """
     Pad the `field` with zeros in one or two dimensions.
     Args:
@@ -445,7 +471,7 @@ def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -
     return field.replace(u=u)
 
 
-def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
+def crop(field: Field, crop_width: int | tuple[int, int]) -> Field:
     """
     Crop the `field` by removing pixels from the edges.
     Args:
@@ -461,7 +487,7 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
     return field.replace(u=field.u[tuple(crop)])
 
 
-def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
+def shift(field: Field, shiftby: int | tuple[int, int]) -> Field:
     """
     Shift the `field` by an integer number of pixels in one or two dimensions.
     Args:

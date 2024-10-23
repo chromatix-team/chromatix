@@ -1,11 +1,12 @@
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal
 
 import flax.linen as nn
 import jax.numpy as jnp
-from chex import Array
-from jax import vmap
+from jax import Array, vmap
 
-from ..field import Field
+from chromatix.typing import ArrayLike, ScalarLike
+
+from ..field import Field, ScalarField, VectorField
 from ..functional import basic_sensor
 from ..ops import init_plane_resample
 
@@ -35,12 +36,12 @@ class BasicSensor(nn.Module):
             name.
     """
 
-    shape: Tuple[int, int]
-    spacing: Union[float, Array]
-    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None
-    resampling_method: Optional[str] = "linear"
-    reduce_axis: Optional[int] = None
-    reduce_parallel_axis_name: Optional[str] = None
+    shape: tuple[int, int]
+    spacing: ArrayLike
+    shot_noise_mode: Literal["approximate", "poisson"] | None = None
+    resampling_method: str | None = "linear"
+    reduce_axis: int | None = None
+    reduce_parallel_axis_name: str | None = None
 
     def setup(self):
         if self.resampling_method is not None:
@@ -50,8 +51,8 @@ class BasicSensor(nn.Module):
 
     def __call__(
         self,
-        sensor_input: Union[Field, Array],
-        input_spacing: Optional[Union[float, Array]] = None,
+        sensor_input: Array | Field,
+        input_spacing: ScalarLike | None = None,
         resample: bool = True,
     ) -> Array:
         """
@@ -65,11 +66,15 @@ class BasicSensor(nn.Module):
             resample: Whether to perform resampling or not. Only matters if
                 ``resampling_method`` is ``None``. Defaults to ``True``.
         """
-        if isinstance(sensor_input, Field):
+
+        if (input_spacing is not None) and isinstance(
+            sensor_input, (ScalarField, VectorField)
+        ):
             # WARNING(dd): @copypaste(Microscope) Assumes that field has same
             # spacing at all wavelengths when calculating intensity!
             input_spacing = sensor_input.dx[..., 0, 0].squeeze()
-        input_spacing = jnp.atleast_1d(input_spacing)
+        elif input_spacing is not None:
+            input_spacing = jnp.atleast_1d(input_spacing)
         if resample and self.resampling_method is not None:
             resample_fn = self.resample_fn
         else:
@@ -88,7 +93,7 @@ class BasicSensor(nn.Module):
             noise_key=noise_key,
         )
 
-    def resample(self, resample_input: Array, input_spacing: float) -> Array:
+    def resample(self, resample_input: Array, input_spacing: ScalarLike) -> Array:
         """
         Resample the given ``resample_input`` to the pixels of the sensor.
 

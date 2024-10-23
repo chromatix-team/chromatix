@@ -1,24 +1,26 @@
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Literal
 
 import jax.numpy as jnp
-from chex import Array, PRNGKey
-from jax import vmap
+from chex import PRNGKey
+from jax import Array, vmap
 from jax.lax import psum
 
-from ..field import Field
+from chromatix import ScalarField, VectorField
+from chromatix.typing import ScalarLike
+
 from ..ops import approximate_shot_noise, shot_noise
 
 __all__ = ["basic_sensor"]
 
 
 def basic_sensor(
-    sensor_input: Union[Field, Array],
-    shot_noise_mode: Optional[Literal["approximate", "poisson"]] = None,
-    resample_fn: Optional[Callable[[Array, float], Array]] = None,
-    reduce_axis: Optional[int] = None,
-    reduce_parallel_axis_name: Optional[str] = None,
-    input_spacing: Optional[Union[float, Array]] = None,
-    noise_key: Optional[PRNGKey] = None,
+    sensor_input: ScalarField | VectorField | Array,
+    shot_noise_mode: Literal["approximate", "poisson"] | None = None,
+    resample_fn: Callable[[Array, ScalarLike], Array] | None = None,
+    reduce_axis: int | None = None,
+    reduce_parallel_axis_name: str | None = None,
+    input_spacing: ScalarLike | None = None,
+    noise_key: PRNGKey | None = None,
 ) -> Array:
     """
     Produces an intensity image from an incoming ``Field`` or intensity
@@ -41,16 +43,17 @@ def basic_sensor(
             spacing of the input to be used for resampling by the sensor.
         noise_key: If provided, will be used to generate the shot noise.
     """
-    if isinstance(sensor_input, Field):
+    if isinstance(sensor_input, (ScalarField, VectorField)):
         intensity = sensor_input.intensity
         # WARNING(dd): @copypaste(Microscope) Assumes that field has same
         # spacing at all wavelengths when calculating intensity!
         input_spacing = sensor_input.dx[..., 0, 0].squeeze()
     else:
         intensity = sensor_input
+
     if resample_fn is not None:
         assert input_spacing is not None, "Must provide input_spacing for intensity"
-    if resample_fn is not None:
+    if (resample_fn is not None) and (input_spacing is not None):
         for i in range(sensor_input.ndim - 4):
             resample_fn = vmap(resample_fn, in_axes=(0, None))
         image = resample_fn(intensity, input_spacing)

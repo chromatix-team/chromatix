@@ -1,14 +1,18 @@
-from typing import Callable, Optional, Tuple, Union
-import numpy as np
+from typing import Callable
+
 import jax.numpy as jnp
-from chex import Array, assert_axis_dimension, assert_equal_shape
-from chromatix.field import Field, ScalarField, VectorField
+import numpy as np
+from chex import assert_axis_dimension, assert_equal_shape
+
+from chromatix import Field, ScalarField, VectorField
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import l2_sq_norm
 from chromatix.utils.shapes import (
     _broadcast_1d_to_grid,
     _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_polarization,
 )
+
 from .pupils import circular_pupil
 
 __all__ = [
@@ -19,19 +23,23 @@ __all__ = [
 ]
 
 
+# We need this alias for typing to pass
+FieldPupil = Callable[[Field], Field]
+
+
 def point_source(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    z: float,
-    n: float,
-    power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
-    pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
+    shape: tuple[int, int],
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    z: ScalarLike,
+    n: ScalarLike,
+    power: ScalarLike = 1.0,
+    amplitude: ScalarLike = 1.0,
+    pupil: FieldPupil | None = None,
     scalar: bool = True,
-    epsilon: float = np.finfo(np.float32).eps,
-) -> Field:
+    epsilon: float = float(np.finfo(np.float32).eps),
+) -> ScalarField | VectorField:
     """
     Generates field due to point source a distance ``z`` away.
 
@@ -56,12 +64,20 @@ def point_source(
         epsilon: Value added to denominators for numerical stability.
     """
     create = ScalarField.create if scalar else VectorField.create
+    # If scalar, last axis should 1, else 3.
+    amplitude = jnp.atleast_1d(amplitude)
+    if scalar:
+        assert_axis_dimension(amplitude, -1, 1)
+    else:
+        assert_axis_dimension(amplitude, -1, 3)
+
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    L = jnp.sqrt(jnp.complex64(field.spectrum * z / n))
-    phase = jnp.pi * l2_sq_norm(field.grid) / (L**2 + epsilon)
-    u = amplitude * -1j / (L**2 + epsilon) * jnp.exp(1j * phase)
+    L = jnp.sqrt(field.spectrum * jnp.abs(z) / n)
+    L_sq = jnp.sign(z) * jnp.fmax(L**2, epsilon)
+    phase = jnp.pi * l2_sq_norm(field.grid) / L_sq
+    u = amplitude * -1j / L_sq * jnp.exp(1j * phase)
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
@@ -69,19 +85,19 @@ def point_source(
 
 
 def objective_point_source(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    z: float,
-    f: float,
-    n: float,
-    NA: float,
-    power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
-    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shape: tuple[int, int],
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    z: ScalarLike,
+    f: ScalarLike,
+    n: ScalarLike,
+    NA: ScalarLike,
+    power: ScalarLike = 1.0,
+    amplitude: ScalarLike = 1.0,
+    offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates field due to a point source defocused by an amount ``z`` away from
     the focal plane, just after passing through a lens with focal length ``f``
@@ -108,6 +124,14 @@ def objective_point_source(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
+
+    # If scalar, last axis should 1, else 3.
+    amplitude = jnp.atleast_1d(amplitude)
+    if scalar:
+        assert_axis_dimension(amplitude, -1, 1)
+    else:
+        assert_axis_dimension(amplitude, -1, 3)
+
     field = create(dx, spectrum, spectral_density, shape=shape)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
@@ -117,21 +141,21 @@ def objective_point_source(
     u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
     field = field.replace(u=u)
     D = 2 * f * NA / n
-    field = circular_pupil(field, D)
+    field = circular_pupil(field, D)  # type: ignore
     return field * jnp.sqrt(power / field.power)
 
 
 def plane_wave(
-    shape: Tuple[int, int],
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-    pupil: Optional[Callable[[Field], Field]] = None,
+    shape: tuple[int, int],
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    power: ScalarLike = 1.0,
+    amplitude: ScalarLike = 1.0,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    pupil: FieldPupil | None = None,
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates plane wave of given ``power``.
 
@@ -156,6 +180,14 @@ def plane_wave(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
+
+    # If scalar, last axis should 1, else 3.
+    amplitude = jnp.atleast_1d(amplitude)
+    if scalar:
+        assert_axis_dimension(amplitude, -1, 1)
+    else:
+        assert_axis_dimension(amplitude, -1, 3)
+
     field = create(dx, spectrum, spectral_density, shape=shape)
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
@@ -167,15 +199,15 @@ def plane_wave(
 
 
 def generic_field(
-    dx: Union[float, Array],
-    spectrum: Union[float, Array],
-    spectral_density: Union[float, Array],
-    amplitude: Array,
-    phase: Array,
-    power: Optional[float] = 1.0,
-    pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
+    dx: ScalarLike,
+    spectrum: ScalarLike,
+    spectral_density: ScalarLike,
+    amplitude: ArrayLike,
+    phase: ArrayLike,
+    power: ScalarLike = 1.0,
+    pupil: FieldPupil | None = None,
     scalar: bool = True,
-) -> Field:
+) -> ScalarField | VectorField:
     """
     Generates field with arbitrary ``phase`` and ``amplitude``.
 
@@ -205,7 +237,7 @@ def generic_field(
     assert_axis_dimension(amplitude, -1, vectorial_dimension)
     assert_axis_dimension(phase, -1, vectorial_dimension)
     assert_equal_shape([amplitude, phase])
-    u = amplitude * jnp.exp(1j * phase)
+    u = jnp.array(amplitude) * jnp.exp(1j * phase)
     field = create(dx, spectrum, spectral_density, u=u)
     if pupil is not None:
         field = pupil(field)
