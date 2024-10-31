@@ -97,8 +97,8 @@ class Field(struct.PyTreeNode):
         # We must use meshgrid instead of mgrid here in order to be jittable
         N_y, N_x = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
-            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.linspace(0, (N_y - 1), N_y) - N_y / 2,
+            jnp.linspace(0, (N_x - 1), N_x) - N_x / 2,
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
@@ -115,12 +115,12 @@ class Field(struct.PyTreeNode):
         """
         N_y, N_x = self.spatial_shape
         grid = jnp.meshgrid(
-            jnp.linspace(-N_y // 2, N_y // 2 - 1, num=N_y) + 0.5,
-            jnp.linspace(-N_x // 2, N_x // 2 - 1, num=N_x) + 0.5,
+            jnp.fft.fftshift(jnp.fft.fftfreq(N_y)),
+            jnp.fft.fftshift(jnp.fft.fftfreq(N_x)),
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
-        return self.dk * grid
+        return grid / self.dx
 
     @property
     def dx(self) -> Array:
