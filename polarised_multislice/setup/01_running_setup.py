@@ -62,14 +62,14 @@ class PolScope(PyTreeNode):
             dx=self.spacing,
             spectrum=self.wavelength,
             amplitude=cf.linear(0.0),
-            pupil=lambda field: cf.tukey_pupil(field, 20),
+            pupil=cf.tukey(20),
         )
         field = cf.universal_compensator(field, *uc_mode)
         field = cf.thin_lens(
             field, self.condenser_f, self.condenser_n, self.condenser_NA
         )
-        field = cf.exact_propagate(
-            field, self.condenser_f - z_sample / 2, self.condenser_n, 512, mode="same"
+        field = cf.transfer_propagate(
+            field, self.condenser_f - z_sample / 2, self.condenser_n, 128, mode="same"
         )
         return field
         # sample

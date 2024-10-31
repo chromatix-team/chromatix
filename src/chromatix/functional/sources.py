@@ -149,12 +149,11 @@ def plane_wave(
     shape: tuple[int, int],
     dx: ScalarLike,
     spectrum: ScalarLike,
-    spectral_density: ScalarLike,
-    power: ScalarLike = 1.0,
+    spectral_density: ScalarLike | None = None,
+    power: ScalarLike | None = None,
     amplitude: ScalarLike = 1.0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     pupil: FieldPupil | None = None,
-    scalar: bool = True,
 ) -> ScalarField | VectorField:
     """
     Generates plane wave of given ``power``.
@@ -179,23 +178,38 @@ def plane_wave(
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
-    create = ScalarField.create if scalar else VectorField.create
 
-    # If scalar, last axis should 1, else 3.
+    spectrum = jnp.atleast_1d(spectrum)
     amplitude = jnp.atleast_1d(amplitude)
-    if scalar:
-        assert_axis_dimension(amplitude, -1, 1)
-    else:
-        assert_axis_dimension(amplitude, -1, 3)
 
-    field = create(dx, spectrum, spectral_density, shape=shape)
+    # Equal spectral density if not given
+    # NOTE: Should we add this to create?
+    if spectral_density is None:
+        spectral_density = jnp.full((spectrum.size,), 1 / spectrum.size)
+
+    match amplitude.size:
+        case 1:
+            field = ScalarField.create(dx, spectrum, spectral_density, shape=shape)
+        case 3:
+            field = VectorField.create(dx, spectrum, spectral_density, shape=shape)
+        case _:
+            raise AssertionError("Amplitude needs to have 1 or 3 components.")
+
+    # Setting field
+    # NOTE: Setting grid and amplitude to the final dim would get rid of this
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
     u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
     field = field.replace(u=u)
+
+    # Adding pupil and power, if necessaary
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+
+    return field
 
 
 def generic_field(

@@ -3,8 +3,16 @@ import jax.numpy as jnp
 from chromatix.field import Field
 from chromatix.typing import ScalarLike
 from chromatix.utils import l2_norm, l2_sq_norm, linf_norm
+from functools import partial
 
-__all__ = ["circular_pupil", "square_pupil", "rectangular_pupil", "super_gaussian_pupil", "tukey_pupil"]
+__all__ = [
+    "circular_pupil",
+    "square_pupil",
+    "rectangular_pupil",
+    "super_gaussian_pupil",
+    "tukey_pupil",
+    "tukey",
+]
 
 
 def circular_pupil(field: Field, w: ScalarLike) -> Field:
@@ -45,3 +53,7 @@ def tukey_pupil(field: Field, w: ScalarLike) -> Field:
         0.5 * (1 + jnp.cos((2 * jnp.pi / jnp.array(1 - alpha)) * (grid - alpha / 2))),
     )
     return field * mask
+
+
+def tukey(w: ScalarLike):
+    return partial(tukey_pupil, w=w)
