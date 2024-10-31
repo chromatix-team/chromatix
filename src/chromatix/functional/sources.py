@@ -88,15 +88,14 @@ def objective_point_source(
     shape: tuple[int, int],
     dx: ScalarLike,
     spectrum: ScalarLike,
-    spectral_density: ScalarLike,
     z: ScalarLike,
     f: ScalarLike,
     n: ScalarLike,
     NA: ScalarLike,
-    power: ScalarLike = 1.0,
+    spectral_density: ScalarLike | None = None,
+    power: ScalarLike | None = None,
     amplitude: ScalarLike = 1.0,
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
-    scalar: bool = True,
 ) -> ScalarField | VectorField:
     """
     Generates field due to a point source defocused by an amount ``z`` away from
@@ -123,26 +122,36 @@ def objective_point_source(
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
-    create = ScalarField.create if scalar else VectorField.create
-
-    # If scalar, last axis should 1, else 3.
+    spectrum = jnp.atleast_1d(spectrum)
     amplitude = jnp.atleast_1d(amplitude)
-    if scalar:
-        assert_axis_dimension(amplitude, -1, 1)
-    else:
-        assert_axis_dimension(amplitude, -1, 3)
 
-    field = create(dx, spectrum, spectral_density, shape=shape)
+    # Equal spectral density if not given
+    # NOTE: Should we add this to create?
+    if spectral_density is None:
+        spectral_density = jnp.full((spectrum.size,), 1 / spectrum.size)
+
+    match amplitude.size:
+        case 1:
+            field = ScalarField.create(dx, spectrum, spectral_density, shape=shape)
+        case 3:
+            field = VectorField.create(dx, spectrum, spectral_density, shape=shape)
+        case _:
+            raise AssertionError("Amplitude needs to have 1 or 3 components.")
+
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
     offset = _broadcast_1d_to_grid(offset, field.ndim)
-    L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2
-    u = amplitude * -1j / L**2 * jnp.exp(1j * phase)
+
+    L_sq = field.spectrum * f / n
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L_sq
+    u = amplitude * -1j / L_sq * jnp.exp(1j * phase)
     field = field.replace(u=u)
     D = 2 * f * NA / n
     field = circular_pupil(field, D)  # type: ignore
-    return field * jnp.sqrt(power / field.power)
+
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+
+    return field
 
 
 def plane_wave(

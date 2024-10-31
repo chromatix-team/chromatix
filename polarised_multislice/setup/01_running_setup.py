@@ -56,28 +56,25 @@ class PolScope(PyTreeNode):
         # Preliminaries
         z_sample = potential.shape[0] * self.spacing
 
+        # Input polarisation
+        polarisation = cf.linear(0.0)  # TODO: Change this to right mode
+
         # Illumination
-        field = cf.plane_wave(
-            shape=self.shape,
+        field = cf.objective_point_source(
+            self.shape,
             dx=self.spacing,
             spectrum=self.wavelength,
-            amplitude=cf.linear(0.0),
-            pupil=cf.tukey(20),
+            z=self.condenser_f - z_sample / 2,
+            f=self.condenser_f,
+            n=self.condenser_n,
+            NA=self.condenser_NA,
+            amplitude=polarisation,
         )
-        field = cf.universal_compensator(field, *uc_mode)
-        field = cf.thin_lens(
-            field, self.condenser_f, self.condenser_n, self.condenser_NA
-        )
-        field = cf.transfer_propagate(
-            field, self.condenser_f - z_sample / 2, self.condenser_n, 128, mode="same"
-        )
-        return field
-        # sample
+
+        # sample - we have some power gain, we should probably renormalise?
         field = thick_polarised_sample(
             field, potential, 1.33, self.spacing, NA=self.objective_NA
         )
-
-        # We have some power gain, we should probably renormalise?
 
         # propagation over - half / sample as imaging is focused in center of sample
         field = cf.transfer_propagate(
@@ -85,9 +82,9 @@ class PolScope(PyTreeNode):
         )
 
         # Imaging
+        # ff lens resamples badly!
         field = cf.ff_lens(field, self.objective_f, self.objective_n, self.objective_NA)
         field = cf.right_circular_polarizer(field)
-
         field = field.replace(_dx=field._dx * self.objective_magn)
 
         # MLA and imaging
