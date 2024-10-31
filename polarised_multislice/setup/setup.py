@@ -5,30 +5,26 @@ from chromatix.ops import init_plane_resample
 
 class Setup:
     # General
-    n: float 
+    n: float = 1.0 # or 1.52 cause oil immersion?
 
     # Initial field
     shape: tuple[int, int] = (1024, 1024)
-    spacing: float
-    wavelength: float
-    init_angle: float
+    spacing: float = 0.546 / 4
+    wavelength: float = 0.546
 
     # Universal compensator
-    retA: float
-    retB: float
+    retA: float # see function
+    retB: float # see function
 
     # 1st ff lens
-    ff1_f: float
-    ff1_NA: float
+    ff_f: float = 200 / 60
+    ff_NA: float = 1.4 
+    ff_n: float = 1.52
 
     # Sample background
     n_background: float
     sample_NA: float
 
-    # 2nd ff lens
-    ff2_f: float
-    ff2_NA: float
-    
     # MLA array
     mla_fs: Array
     mla_centers: Array
@@ -44,7 +40,7 @@ def tensor_tomography(setup: Setup, potential, dz: float) -> Array:
     # Polarised plane wave as an input
     field = cf.plane_wave(shape=setup.shape, dx = setup.spacing, spectrum=setup.wavelength, spectral_density=1.0, scalar=False, amplitude=cf.linear(setup.init_angle))
     field = cf.universal_compensator(field, setup.retA, setup.retB)
-    field = cf.ff_lens(field, setup.ff1_f, setup.n, setup.ff1_NA) 
+    field = cf.ff_lens(field, setup.ff_f, setup.n, setup.ff_NA) 
 
     # We reverse propagate half a sample width, as the ff lens
     # is focused on the centre of the sample
@@ -55,7 +51,7 @@ def tensor_tomography(setup: Setup, potential, dz: float) -> Array:
 
     # ff lens, microarray and camera 
     # # Camera - should we add noise?
-    field = cf.ff_lens(field, setup.ff2_f, setup.n, setup.ff2_NA) 
+    field = cf.ff_lens(field, setup.ff_f, setup.n, setup.ff_NA) 
     field = cf.microlens_array(field, setup.n, setup.mla_fs, setup.mla_centers, setup.mla_radii, block_between=True)
     resample_fn = init_plane_resample(setup.camera_shape, setup.camera_pitch)
     return resample_fn(field.intensity.squeeze(), field.dx.squeeze())
