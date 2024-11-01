@@ -32,9 +32,14 @@ class PolScope(PyTreeNode):
 
     # objective lens
     objective_f: float = 3333  # [mum]
-    objective_n: float = 1.52  # oil immersion
+    objective_n: float = 1.0  # oil immersion
     objective_NA: float = 1.4  # oil immersion
     objective_magn: int = 60
+
+    # tube lens
+    tube_f: float = 200_000
+    tube_n: float = 1.0
+    tube_NA: float = 1.0
 
     # MLA
     mla_n: float = 1.0
@@ -82,10 +87,10 @@ class PolScope(PyTreeNode):
         )
 
         # Imaging
-        # ff lens resamples badly!
+        # Objective lens - polariser - tube lens
         field = cf.ff_lens(field, self.objective_f, self.objective_n, self.objective_NA)
         field = cf.right_circular_polarizer(field)
-        field = field.replace(_dx=field._dx * self.objective_magn)
+        field = cf.ff_lens(field, self.tube_f, self.tube_n, self.tube_NA)
 
         # MLA and imaging
         field = cf.rectangular_microlens_array(
@@ -98,12 +103,13 @@ class PolScope(PyTreeNode):
             separation=self.mla_separation,
             block_between=True,
         )
+        
         field = cf.transfer_propagate(field, self.mla_f, self.mla_n, 512, mode="same")
 
         camera = init_plane_resample(self.camera_shape, self.camera_pitch)(
             field.intensity.squeeze(0), field.dx.squeeze()
         )
-        return camera.squeeze()
+        return field, camera.squeeze()
 
     def universal_compensator_modes(self, swing: float) -> Array:
         swing_rad = swing * 2 * jnp.pi
@@ -124,14 +130,16 @@ scope = PolScope()
 potential = single_bead_sample(
     1.33,
     jnp.array([1.44, 1.40, 1.37]),
-    jnp.zeros((3,)),
-    radius=4.0,
-    shape=(70, 256, 256),
+    jnp.array([1 / 4 * jnp.pi, 1 / 4 * jnp.pi, 1 / 4 * jnp.pi]),
+    radius=14.0,
+    shape=(35, 256, 256),
     spacing=0.546 / 4,
     k0=2 * jnp.pi / 0.546,
 )[:-1, :-1, :-1, None]
 
-field = scope.forward(scope.universal_compensator_modes(scope.swing)[1], potential)
+field, image = scope.forward(
+    scope.universal_compensator_modes(scope.swing)[1], potential
+)
 
 # %% Plotting
 plt.figure(figsize=(20, 8))
@@ -159,7 +167,7 @@ plt.imshow(field.amplitude[0, :, :, 0, 0].squeeze())
 plt.colorbar(fraction=0.046, pad=0.04)
 
 # %%
-images = scope(potential)
+_, images = scope(potential)
 
 # %%
 plt.figure(figsize=(15, 10), layout="tight")
