@@ -18,8 +18,8 @@ from tensor_tomo import thick_polarised_sample
 # %%
 class PolScope(PyTreeNode):
     # Initial field & sample
-    shape: tuple[int, int] = (512, 512)
-    spacing: float = 0.546 / 4  # [mum], 4 nodes / wavelength
+    shape: tuple[int, int] = (256, 256)
+    spacing: float = 0.546 / 2  # [mum], 4 nodes / wavelength
     wavelength: float = 0.546  # [mum]
 
     # universal compensator
@@ -129,12 +129,12 @@ class PolScope(PyTreeNode):
 scope = PolScope()
 
 potential = single_bead_sample(
-    1.33,
-    jnp.array([1.44, 1.40, 1.37]),
-    jnp.array([0, 1 / 2 * jnp.pi, 0]),
-    radius=14.0,
-    shape=(256, 512, 512),
-    spacing=0.546 / 4,
+    1.52,
+    jnp.array([1.44, 1.44, 1.37]),
+    jnp.array([0, 0, 0]),
+    radius=10.0,
+    shape=(256, 256, 256),
+    spacing=0.546 / 2,
     k0=2 * jnp.pi / 0.546,
 )[:-1, :-1, :-1, None]
 
