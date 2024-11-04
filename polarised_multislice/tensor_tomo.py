@@ -50,6 +50,8 @@ def thick_polarised_sample(
     def propagate_slice(u: Array, potential_slice: Array) -> tuple[Array, Array]:
         scatter_field = matvec(potential_slice, Q_op(u))
         new_field = P_op(u) + H_op(scatter_field)
+
+        new_field /= jnp.sqrt(jnp.sum(jnp.abs(new_field)**2, axis=-1, keepdims=True))
         return new_field, new_field
 
     def pad(u):
