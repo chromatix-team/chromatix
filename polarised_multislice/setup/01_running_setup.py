@@ -18,12 +18,12 @@ from tensor_tomo import thick_polarised_sample
 # %%
 class PolScope(PyTreeNode):
     # Initial field & sample
-    shape: tuple[int, int] = (256, 256)
+    shape: tuple[int, int] = (512, 512)
     spacing: float = 0.546 / 4  # [mum], 4 nodes / wavelength
     wavelength: float = 0.546  # [mum]
 
     # universal compensator
-    swing: float = 0.03
+    swing: float = 2* jnp.pi * 0.03
 
     # Condensor
     condenser_f: float = 3333
@@ -34,7 +34,6 @@ class PolScope(PyTreeNode):
     objective_f: float = 3333  # [mum]
     objective_n: float = 1.0  # oil immersion
     objective_NA: float = 1.4  # oil immersion
-    objective_magn: int = 60
 
     # tube lens
     tube_f: float = 200_000
@@ -61,9 +60,6 @@ class PolScope(PyTreeNode):
         # Preliminaries
         z_sample = potential.shape[0] * self.spacing
 
-        # Input polarisation
-        polarisation = cf.linear(0.0)  # TODO: Change this to right mode
-
         # Illumination
         field = cf.objective_point_source(
             self.shape,
@@ -73,7 +69,7 @@ class PolScope(PyTreeNode):
             f=self.condenser_f,
             n=self.condenser_n,
             NA=self.condenser_NA,
-            amplitude=polarisation,
+            amplitude=uc_mode,
         )
 
         # sample - we have some power gain, we should probably renormalise?
@@ -112,16 +108,21 @@ class PolScope(PyTreeNode):
         return field, camera.squeeze()
 
     def universal_compensator_modes(self, swing: float) -> Array:
-        swing_rad = swing * 2 * jnp.pi
-        return jnp.array(
+        uc_modes = jnp.array(
             [
                 [jnp.pi / 2, jnp.pi],
-                [jnp.pi / 2 + swing_rad, jnp.pi],
-                [jnp.pi / 2, jnp.pi + swing_rad],
-                [jnp.pi / 2, jnp.pi - swing_rad],
-                [jnp.pi / 2 - swing_rad, jnp.pi],
+                [jnp.pi / 2 + swing, jnp.pi],
+                [jnp.pi / 2, jnp.pi + swing],
+                [jnp.pi / 2, jnp.pi - swing],
+                [jnp.pi / 2 - swing, jnp.pi],
             ]
         )
+        # Universal compensator works on fields, so we use a dummy field.
+        field = cf.plane_wave((1, 1), 1, 1, amplitude=cf.linear(0.0))
+        field = jax.vmap(cf.universal_compensator, in_axes=(None, 0, 0))(field, uc_modes[:, 0], uc_modes[:, 1])
+        amplitudes = field.u.squeeze()
+
+        return amplitudes
 
 
 # %% Running
@@ -130,12 +131,13 @@ scope = PolScope()
 potential = single_bead_sample(
     1.33,
     jnp.array([1.44, 1.40, 1.37]),
-    jnp.array([1 / 4 * jnp.pi, 1 / 4 * jnp.pi, 1 / 4 * jnp.pi]),
+    jnp.array([0, 1 / 2 * jnp.pi, 0]),
     radius=14.0,
-    shape=(35, 256, 256),
+    shape=(256, 512, 512),
     spacing=0.546 / 4,
     k0=2 * jnp.pi / 0.546,
 )[:-1, :-1, :-1, None]
+
 
 field, image = scope.forward(
     scope.universal_compensator_modes(scope.swing)[1], potential
