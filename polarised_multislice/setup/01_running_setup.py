@@ -13,7 +13,7 @@ import sys
 sys.path.append("../")
 from sample import single_bead_sample
 from tensor_tomo import thick_polarised_sample
-
+from chromatix.utils.initializers import rectangular_microlens_array_amplitude_and_phase
 
 # %%
 class PolScope(PyTreeNode):
@@ -130,8 +130,8 @@ scope = PolScope()
 
 potential = single_bead_sample(
     1.52,
-    jnp.array([1.44, 1.44, 1.37]),
-    jnp.array([0, 0, 0]),
+    jnp.array([1.37, 1.44, 1.44]),
+    jnp.array([0, 1/4 * jnp.pi, 0]),
     radius=10.0,
     shape=(256, 256, 256),
     spacing=0.546 / 2,
@@ -234,4 +234,23 @@ plt.subplot(122)
 plt.title("Azimuth")
 plt.imshow(azim)
 plt.colorbar(fraction=0.046, pad=0.04)
+# %%
+
+
+
+# Blocking everything outside
+
+amplitude, phase = rectangular_microlens_array_amplitude_and_phase(
+        (240, 240),
+        6.5,
+        field.spectrum[..., 0, 0].squeeze(),
+        1.0,
+        1.0,
+        15,
+        15,
+        50,
+        100,
+    )
+mask = amplitude > 0.0
+
 # %%
