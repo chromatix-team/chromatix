@@ -151,8 +151,8 @@ class Sample:
         # Pads to fourier friendly shapes (powers of 2), depending
         # on periodic or absorbing BCs
         def n_pad(order, size):
-            padding = 0 if order is None else int(2 ** np.ceil(np.log2(size))) - size
-            return (0, padding)
+            padding = 0 if order is None else int(2 ** (1 + np.ceil(np.log2(size)))) - size
+            return (padding//2, padding//2)
 
         padding = [(0, 0) for _ in range(x.ndim)]
         for idx, (order, size) in enumerate(

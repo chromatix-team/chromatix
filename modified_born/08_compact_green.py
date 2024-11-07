@@ -82,7 +82,7 @@ def maxwell_solver(source: Source, sample: Sample, rtol=1e-8, max_iter: int = 10
 
 
 # %%
-field, field_full, stats = maxwell_solver(source, sample, max_iter=1000)
+field, field_full, stats = maxwell_solver(source, sample, max_iter=500)
 
 
 # %%
@@ -116,7 +116,7 @@ plt.ylabel("x")
 # plt.colorbar()
 # %%
 plt.imshow(jnp.log10(jnp.rot90(jnp.abs(field[:, 0, :, 0]) ** 2)))  # %%
-# %%
+x`# %%
 plt.imshow(jnp.rot90(jnp.abs(field[:, 0, :, 0]) ** 2), cmap="jet")  # %%
 # %%
 plt.imshow(jnp.rot90(jnp.abs(field[:, 0, :, 1]) ** 2), cmap="jet")  # %%
