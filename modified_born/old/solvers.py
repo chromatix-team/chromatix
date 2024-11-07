@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from samples import Sample
 from jax import Array
+from samples import Sample
 
 
 def helmholtz_solver(sample: Sample, rtol=1e-9, max_iter: int = 1000):

@@ -2,10 +2,9 @@
 # dataset
 # %%
 import jax.numpy as jnp
-from samples import cylinders, Sample
-from solvers import helmholtz_solver
 import matplotlib.pyplot as plt
-
+from samples import Sample, cylinders
+from solvers import helmholtz_solver
 
 # %%
 cylinder_locs = jnp.array(

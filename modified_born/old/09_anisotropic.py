@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from samples import Sample, Source, vacuum_cylinders, bio_cylinders
 import matplotlib.pyplot as plt
 from jax import Array
-from jaxopt import ScipyMinimize, LBFGS, BFGS
+from jaxopt import BFGS, LBFGS, ScipyMinimize
+from samples import Sample, Source, vacuum_cylinders
 
 # %%
 wavelength = 1.0

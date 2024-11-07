@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from functools import reduce as freduce
-from einops import reduce
 from typing import Literal
 
 import jax.numpy as jnp
 import numpy as np
 from chex import dataclass
+from einops import reduce
 from jax import Array
 from scipy.ndimage import distance_transform_edt
 from scipy.special import factorial

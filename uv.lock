@@ -245,6 +245,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "optax" },
     { name = "pytest" },
+    { name = "ruff" },
     { name = "scipy" },
     { name = "typing-extensions" },
 ]
@@ -282,6 +283,7 @@ requires-dist = [
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.366" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.2.0" },
+    { name = "ruff", specifier = ">=0.7.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.8" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "typing-extensions", specifier = ">=4.12" },

@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from samples import cylinders, Sample, sample_grid
 import matplotlib.pyplot as plt
 from jax import Array
-
+from samples import Sample, cylinders, sample_grid
 
 # %% Making sample
 cylinder_locs = jnp.array(

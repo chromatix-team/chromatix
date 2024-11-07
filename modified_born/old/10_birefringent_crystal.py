@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from samples import Sample, Source
 import matplotlib.pyplot as plt
-import chromatix.functional as cf
+from samples import Sample, Source
 from solvers import maxwell_solver
+
+import chromatix.functional as cf
 
 # %% Properties of the birefringent crystal
 n_o = 1.486  # ordinary / slow axis

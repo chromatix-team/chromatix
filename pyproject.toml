@@ -19,6 +19,7 @@ dependencies = [
     "typing-extensions >=4.12",
     "matplotlib>=3.9.2",
     "pytest>=8.3.3",
+    "ruff>=0.7.1",
 ]
 version = "0.3.0"
 
