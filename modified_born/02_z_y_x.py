@@ -126,11 +126,19 @@ alpha = alpha_real + 1j * alpha_imag
 print(f"Optimal background wavenumber: {alpha:.2f}")
 print(f"Expected propagation speed [wavelength^-1]: {2 * alpha_real / alpha_imag :2f}")
 # %% Padding shapes
-# To prevent circular convolution, we need to pad to twice the size.
-# We just pad on one side as it doesn't matter for the FFT.
-padded_shape = np.array(permittivity.shape)
-n_pad = padded_shape - np.array(permittivity.shape)
-padding = ((0, n_pad[0]), (0, n_pad[1]), (0, n_pad[2]), (0, 0)) # for 5D chromatix shapes
+# Because we have absorbing BCs, we don't need to double the size to prevent circular convolution, saving a lot of time!
+# We just pad to the next power of 2:
+def pad_fourier(x: Array) -> Array:
+    # Pads to fourier friendly shapes (powers of 2), depending
+    # on periodic or absorbing BCs
+    def n_pad(size):
+        new_size = int(2 ** (np.ceil(np.log2(size))))
+        return new_size, (0, new_size - size)
+
+    return zip(*[n_pad(shape) for shape in x.shape])
+  
+padded_shape, padding = pad_fourier(permittivity)
+print(f"Padded shape will be {padded_shape}")
 
 # %% Now making the k-grid and the greens function
 k0 = 2 * jnp.pi / wavelength
@@ -139,7 +147,6 @@ k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
 
 # Making sure the k_grid is z -y - x ordered.
 assert jnp.diff(k_grid[:, 0, 0, 0])[0] != 0.0
-#assert jnp.diff(k_grid[0, :, 0, 1])[0] != 0.0
 assert jnp.diff(k_grid[0, 0, :, 2])[0] != 0.0
 
 # %% Making the Greens function
@@ -168,13 +175,13 @@ plt.imshow(jnp.fft.fftshift(G[:, 0, :, 0, 2].real))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 # %% Making the potential
-V = (permittivity - alpha)[..., None]
-
+V = jnp.pad((permittivity - alpha)[..., None], (*padding, (0, 0)))
 
 # %% Now making a source. To prevent aliasing, we settle on a 2D tukey 
 source = jnp.zeros((*permittivity.shape, 3))
 source = source.at[250, :, :].set(jnp.array([0, 1, 1]))
 source = source * k0**2 * (jnp.mean(permittivity[roi].real) - permittivity.real)[..., None]
+source = jnp.pad(source, (*padding, (0, 0)))
 
 plt.figure(figsize=(10, 5))
 plt.subplot(121)
@@ -213,15 +220,17 @@ def cond_fn(args) -> bool:
     _, history, iteration = args
     return (history[iteration - 1] > rtol) & (iteration < max_iter)
 # %%
-rtol = 1e-8
+rtol = 1e-6
 max_iter = 1000
 
 init = update_fn((jnp.zeros_like(source), jnp.zeros(max_iter), 0))
 field, history, iteration = jax.block_until_ready(jax.lax.while_loop(cond_fn, update_fn, init))
-
+history = history[:iteration]
 # %%
+plt.title("Relative change in field")
 plt.semilogy(history)
 plt.ylabel("dE")
+plt.xlabel("Iteration")
 
 # %%
 plt.figure(figsize=(15, 5))
@@ -236,4 +245,13 @@ plt.imshow(jnp.rot90(jnp.abs(field[roi][:, 0, :, 1])))
 plt.subplot(133)
 plt.title("Ez")
 plt.imshow(jnp.rot90(jnp.abs(field[roi][:, 0, :, 0])))
+
+# %% As a check - is there any energy in the padding area?
+total_power = jnp.sum(jnp.abs(field)**2)
+no_padding_power = jnp.sum(jnp.abs(field[:1500, :, :1500])**2)
+power_in_padding = total_power - no_padding_power 
+power_in_BC = no_padding_power - jnp.sum(jnp.abs(field[roi]**2))
+
+print(f"Fraction of power in padding: {power_in_padding / total_power:.2f}")
+print(f"Fraction of power in BC: {power_in_BC / total_power:.2f}")
 # %%
