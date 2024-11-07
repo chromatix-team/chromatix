@@ -166,3 +166,129 @@ def paper_sample() -> Array:
         ))
 
     return potential
+
+
+def principal_dielectric_tensor_single(n_o: float, n_e: float) -> jnp.ndarray:
+    """
+    Returns the principal dielectric tensor for a uniaxial material.
+    :param n_o: Ordinary refractive index
+    :param n_e: Extraordinary refractive index
+    :return: 3x3 principal dielectric tensor
+    """
+    return jnp.diag(jnp.array([n_e**2, n_o**2, n_o**2]))
+
+
+def principal_dielectric_tensor(n_o: ArrayLike, n_e: ArrayLike) -> jnp.ndarray:
+    """
+    Returns the principal dielectric tensors for a uniaxial material across a 3D volume.
+    :param n_o: 3D array of ordinary refractive indices with shape (z, y, x)
+    :param n_e: 3D array of extraordinary refractive indices with shape (z, y, x)
+    :return: 5D array of shape (z, y, x, 3, 3) containing 3x3 principal dielectric tensors for each voxel.
+    """
+    # Ensure n_o and n_e are arrays
+    n_o = jnp.asarray(n_o)
+    n_e = jnp.asarray(n_e)
+    
+    # Check if the input arrays have the same shape
+    if n_o.shape != n_e.shape:
+        raise ValueError("n_o and n_e must have the same shape (z, y, x)")
+
+    # Create a 3D tensor field with shape (z, y, x, 3, 3)
+    tensors = jnp.zeros(n_o.shape + (3, 3), dtype=n_o.dtype)
+    
+    # Fill the diagonal components
+    tensors = tensors.at[..., 0, 0].set(n_e**2)  # Extraordinary index on the first component
+    tensors = tensors.at[..., 1, 1].set(n_o**2)  # Ordinary index on the second component
+    tensors = tensors.at[..., 2, 2].set(n_o**2)  # Ordinary index on the third component
+
+    return tensors
+
+
+def dielectric_tensor_global(n_o: float, n_e: float, optic_axis: ArrayLike) -> jnp.ndarray:
+    """
+    Constructs the global dielectric tensor for a uniaxial material by rotating the principal dielectric tensor.
+    :param n_o: Ordinary refractive index
+    :param n_e: Extraordinary refractive index
+    :param optic_axis: Optic axis vector [a_z, a_y, a_x]
+    :return: 3x3 dielectric tensor in global coordinates
+    """
+    # Principal dielectric tensor in the local frame
+    epsilon_prime = principal_dielectric_tensor(n_o, n_e)
+    
+    # Rotation matrix from local to global coordinates
+    rotation_matrices = rotation_matrix_to_align_axes(optic_axis)
+    
+    # # Apply rotation: ε = R^T * ε' * R
+    # epsilon_global = R_global.T @ epsilon_prime @ R_global
+
+    # Vectorized matrix multiplication: ε_global = R^T * ε' * R
+    epsilon_global = jnp.einsum(
+        '...ij,...jk,...lk->...il',
+        rotation_matrices.transpose(0, 1, 2, 4, 3),  # R^T
+        epsilon_prime,
+        rotation_matrices  # R
+    )
+    
+    return epsilon_global
+
+
+def rotation_matrix_to_align_axes_single(optic_axis: ArrayLike) -> np.ndarray:
+    """
+    Construct a rotation matrix that aligns the z-axis with the given unit vector optic_axis.
+    :param optic_axis: Unit vector [a_z, a_y, a_x] as the target z-axis.
+    :return: 3x3 rotation matrix.
+    """
+    # Ensure optic_axis is a unit vector
+    optic_axis = optic_axis / np.linalg.norm(optic_axis)
+
+    # Create a vector orthogonal to optic_axis for the new x-axis
+    if not np.isclose(optic_axis[0], 1):  # Avoid `a_z` close to ±1 to prevent numerical issues
+        x_new = np.array([-optic_axis[1], optic_axis[0], 0])
+        x_new = x_new / np.linalg.norm(x_new)
+    else:
+        # If optic_axis is very close to [1, 0, 0] or [-1, 0, 0], choose a standard orthogonal vector
+        x_new = np.array([0, 0, 1])
+    
+    # Create the new y-axis using the cross product
+    y_new = np.cross(x_new, optic_axis)
+    
+    # Normalize the new y-axis
+    y_new = y_new / np.linalg.norm(y_new)
+    
+    # Construct the rotation matrix with the axes in [z, y, x] order as columns
+    R = np.array([optic_axis, y_new, x_new]).T  # Transpose to align columns with the new basis
+
+    return R
+
+
+def rotation_matrix_to_align_axes(optic_axis: ArrayLike) -> np.ndarray:
+    """
+    Construct a rotation matrix that aligns the z-axis with the given unit vector optic_axis.
+    :param optic_axis: Unit vector [a_z, a_y, a_x] as the target z-axis.
+    :return: Array of shape (z, y, x, 3, 3) representing the rotation matrices for each voxel.
+    """
+    # Calculate the norm of the optic_axis to identify zero vectors
+    norm = jnp.linalg.norm(optic_axis, axis=0, keepdims=False)
+    is_zero_vector = jnp.isclose(norm, 0)
+    optic_axis = jnp.where(is_zero_vector, 1.0, optic_axis / norm)  # Normalize where non-zero, leave as 1 where zero
+
+    # Create a default orthogonal vector for each voxel
+    x_new = jnp.stack([-optic_axis[1], optic_axis[0], jnp.zeros_like(optic_axis[0])], axis=0)
+    x_new_norm = jnp.linalg.norm(x_new, axis=0, keepdims=True)
+    x_new = jnp.where(is_zero_vector, 1.0, x_new / x_new_norm)  # Avoid normalization issues for zero vectors
+
+    # Create the y_new vector using the cross product
+    y_new = jnp.cross(x_new, optic_axis, axisa=0, axisb=0, axisc=0)
+    y_new_norm = jnp.linalg.norm(y_new, axis=0, keepdims=True)
+    y_new = jnp.where(is_zero_vector, 1.0, y_new / y_new_norm)  # Normalize where non-zero
+
+    # Construct the rotation matrices and set identity matrices for zero vectors
+    R = jnp.stack([optic_axis, y_new, x_new], axis=-1).transpose(1, 2, 3, 0, 4)
+    identity_matrices = jnp.eye(3) #.reshape(1, 1, 1, 3, 3)  # Shape (1, 1, 1, 3, 3)
+    R = jnp.where(is_zero_vector[..., None, None], identity_matrices, R)  # Replace with identity matrix where zero
+    
+    return R
+
+
+def calc_extraordinary_refractive_index(birefringence: ArrayLike, n_o: float) -> ArrayLike:
+    return n_o + birefringence
