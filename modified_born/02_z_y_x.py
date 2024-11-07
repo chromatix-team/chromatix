@@ -10,6 +10,9 @@ from jax import Array
 from samples import vacuum_cylinders
 from scipy.ndimage import distance_transform_edt
 from scipy.special import factorial
+import numpy as np
+from jax.typing import ArrayLike
+import jax
 
 # %%
 n_sample = vacuum_cylinders()
@@ -42,7 +45,8 @@ def add_bc(permittivity: Array, width: tuple[float | None, ...], spacing: float,
     permittivity = jnp.pad(permittivity, padding, mode="constant", constant_values = jnp.mean(permittivity))
 
     # Gathering constants
-    km = 2 * jnp.pi * jnp.sqrt(jnp.mean(permittivity)) / wavelength 
+    k0 = 2 * jnp.pi / wavelength
+    km = k0 * jnp.sqrt(jnp.mean(permittivity)) 
     match (strength, alpha):
         case (Number(), None):
             alpha = strength * km / 2
@@ -69,20 +73,20 @@ def add_bc(permittivity: Array, width: tuple[float | None, ...], spacing: float,
 
     numerator = alpha**2 * (order - ar + 2 * 1j * km * r) * ar ** (order - 1)
     denominator = P * factorial(order, exact=True)
-    boundary =  numerator / denominator
+    boundary =  1 / k0**2 * numerator / denominator
     
     # Inside the ROI it's 0
     boundary = boundary.at[roi].set(0)
     return permittivity + boundary, roi
 
 # %%
-spacing = 0.1 
+spacing = 0.1
 wavelength = 1.0 
 width = (25 / wavelength, None, 25 / wavelength)
-alpha = 0.35 
+alpha_boundary = 0.35 
 order = 4
 
-permittivity, roi = add_bc(n_sample**2, width, spacing, wavelength, alpha=alpha, order=order)
+permittivity, roi = add_bc(n_sample**2, width, spacing, wavelength, alpha=alpha_boundary, order=order)
 print(f"Padded permittivity shape: {permittivity.shape}")
 
 # %%
@@ -108,7 +112,128 @@ plt.legend()
 # %% How well did we do?
 # We know that the real part of the permittivity needs to go to km^2 - alpha*2, although we're far form infinity
 # and the imaginary part at 2*km*alpha from th original born series paper.
-print(f"Real permittivity should saturate at {-alpha**2:.2f}, observed {permittivity[0, 0, 0].real - jnp.mean(permittivity.real[roi]):.2f}")
-print(f"Real permittivity should saturate at {2 * alpha * 2 * jnp.pi * jnp.sqrt(jnp.mean(permittivity[roi].real) / wavelength):.2f}, observed {permittivity[0, 0, 0].imag - jnp.mean(permittivity.imag[roi]):.2f}")
+k0 = 2 * jnp.pi / wavelength
+print(f"Real permittivity should saturate at {-alpha_boundary**2:.2f}, observed {k0**2 * (permittivity[0, 0, 0].real - jnp.mean(permittivity.real[roi])):.2f}")
+print(f"Imaginary permittivity should saturate at {2 * alpha_boundary * 2 * jnp.pi * jnp.sqrt(jnp.mean(permittivity[roi].real) / wavelength):.2f}, observed {k0**2 * (permittivity[0, 0, 0].imag - jnp.mean(permittivity.imag[roi])):.2f}")
 
+# %% Now we can start solving
+# The optimal alpha is given by:
+# Note this is NOT the alpha of the boundary, rather the background wavenumber we subtract
+alpha_real = (jnp.min(permittivity.real) + jnp.max(permittivity.real)) / 2
+alpha_imag = jnp.max(jnp.abs(permittivity - alpha_real)) / 0.95
+alpha = alpha_real + 1j * alpha_imag
+
+print(f"Optimal background wavenumber: {alpha:.2f}")
+print(f"Expected propagation speed [wavelength^-1]: {2 * alpha_real / alpha_imag :2f}")
+# %% Padding shapes
+# To prevent circular convolution, we need to pad to twice the size.
+# We just pad on one side as it doesn't matter for the FFT.
+padded_shape = np.array(permittivity.shape)
+n_pad = padded_shape - np.array(permittivity.shape)
+padding = ((0, n_pad[0]), (0, n_pad[1]), (0, n_pad[2]), (0, 0)) # for 5D chromatix shapes
+
+# %% Now making the k-grid and the greens function
+k0 = 2 * jnp.pi / wavelength
+ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, spacing) for shape in padded_shape]
+k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
+
+# Making sure the k_grid is z -y - x ordered.
+assert jnp.diff(k_grid[:, 0, 0, 0])[0] != 0.0
+#assert jnp.diff(k_grid[0, :, 0, 1])[0] != 0.0
+assert jnp.diff(k_grid[0, 0, :, 2])[0] != 0.0
+
+# %% Making the Greens function
+def G_fn(k: Array, k0: ArrayLike, alpha: Array) -> Array:
+    k_sq = jnp.sum(k ** 2, axis=-1)[..., None, None]
+    k_cross = k[..., :, None] * k[..., None, :] / (alpha * k0**2)
+    return (jnp.eye(3) - k_cross) / (k_sq - alpha * k0**2)
+
+G = G_fn(k_grid, k0, alpha)
+print(f"Shape of Greens function {G.shape}")
+
+plt.figure(figsize=(15, 5))
+plt.subplot(131)
+plt.title("Real part of Gzz")
+plt.imshow(jnp.fft.fftshift(G[:, 0, :, 0, 0].real))
+plt.colorbar(fraction=0.046, pad=0.04)
+
+plt.subplot(132)
+plt.title("Imaginary part of Gxx")
+plt.imshow(jnp.fft.fftshift(G[:, 0, :, 2, 2].imag))
+plt.colorbar(fraction=0.046, pad=0.04)
+
+plt.subplot(133)
+plt.title("Real part of Gzx")
+plt.imshow(jnp.fft.fftshift(G[:, 0, :, 0, 2].real))
+plt.colorbar(fraction=0.046, pad=0.04)
+
+# %% Making the potential
+V = (permittivity - alpha)[..., None]
+
+
+# %% Now making a source. To prevent aliasing, we settle on a 2D tukey 
+source = jnp.zeros((*permittivity.shape, 3))
+source = source.at[250, :, :].set(jnp.array([0, 1, 1]))
+source = source * k0**2 * (jnp.mean(permittivity[roi].real) - permittivity.real)[..., None]
+
+plt.figure(figsize=(10, 5))
+plt.subplot(121)
+plt.title(f"Ex of source")
+plt.imshow(source[:, 0, :, 2])
+plt.colorbar(fraction=0.046, pad=0.04)
+
+plt.subplot(122)
+plt.title("Ey of source")
+plt.imshow(source[:, 0, :, 1])
+plt.colorbar(fraction=0.046, pad=0.04)
+
+# %% These function we use solve the problem
+def bmatvec(mat: Array, vec: Array) -> Array:
+    return jnp.matmul(mat, vec[..., None]).squeeze(-1)
+
+def propagate(G: Array, field: Array) -> Array:
+    fft = lambda x: jnp.fft.fftn(x, axes=(0, 1, 2))
+    ifft = lambda x: jnp.fft.ifftn(x, axes=(0, 1, 2))
+
+    #return ifft(bmatvec(G, fft(jnp.pad(field, padding))))[:field.shape[0], :field.shape[1], : field.shape[2], :]
+    return ifft(bmatvec(G, fft(field)))
+
+def update_fn(args):
+    field, history, iteration = args
+
+    # New field
+    dE = 1j / alpha_imag * V * (propagate(G, k0**2 * V * field + source) - field)
+
+    # Calculating change
+    delta = jnp.mean(jnp.abs(dE) ** 2) / jnp.mean(jnp.abs(field) ** 2)
+
+    return field + dE, history.at[iteration].set(delta), iteration + 1
+
+def cond_fn(args) -> bool:
+    _, history, iteration = args
+    return (history[iteration - 1] > rtol) & (iteration < max_iter)
+# %%
+rtol = 1e-8
+max_iter = 1000
+
+init = update_fn((jnp.zeros_like(source), jnp.zeros(max_iter), 0))
+field, history, iteration = jax.block_until_ready(jax.lax.while_loop(cond_fn, update_fn, init))
+
+# %%
+plt.semilogy(history)
+plt.ylabel("dE")
+
+# %%
+plt.figure(figsize=(15, 5))
+plt.subplot(131)
+plt.title("Ex")
+plt.imshow(jnp.rot90(jnp.abs(field[roi][:, 0, :, 2])))
+
+plt.subplot(132)
+plt.title("Ey")
+plt.imshow(jnp.rot90(jnp.abs(field[roi][:, 0, :, 1])))
+
+plt.subplot(133)
+plt.title("Ez")
+plt.imshow(jnp.rot90(jnp.abs(field[roi][:, 0, :, 0])))
 # %%
