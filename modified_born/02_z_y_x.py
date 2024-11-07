@@ -77,6 +77,7 @@ def add_bc(permittivity: Array, width: tuple[float | None, ...], spacing: float,
     
     # Inside the ROI it's 0
     boundary = boundary.at[roi].set(0)
+
     return permittivity + boundary, roi
 
 # %%
@@ -175,13 +176,12 @@ plt.imshow(jnp.fft.fftshift(G[:, 0, :, 0, 2].real))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 # %% Making the potential
-V = jnp.pad((permittivity - alpha)[..., None], (*padding, (0, 0)))
+V = (permittivity - alpha)[..., None]
 
 # %% Now making a source. To prevent aliasing, we settle on a 2D tukey 
 source = jnp.zeros((*permittivity.shape, 3))
 source = source.at[250, :, :].set(jnp.array([0, 1, 1]))
 source = source * k0**2 * (jnp.mean(permittivity[roi].real) - permittivity.real)[..., None]
-source = jnp.pad(source, (*padding, (0, 0)))
 
 plt.figure(figsize=(10, 5))
 plt.subplot(121)
@@ -198,13 +198,18 @@ plt.colorbar(fraction=0.046, pad=0.04)
 def bmatvec(mat: Array, vec: Array) -> Array:
     return jnp.matmul(mat, vec[..., None]).squeeze(-1)
 
+def pad(field: Array) -> Array:
+    return jnp.pad(field, (*padding, (0, 0)))
+
+def crop(field: Array) -> Array:
+    return field[:V.shape[0], :V.shape[1], :V.shape[2], :]
+
+fft = lambda x: jnp.fft.fftn(x, axes=(0, 1, 2))
+ifft = lambda x: jnp.fft.ifftn(x, axes=(0, 1, 2))
+
 def propagate(G: Array, field: Array) -> Array:
-    fft = lambda x: jnp.fft.fftn(x, axes=(0, 1, 2))
-    ifft = lambda x: jnp.fft.ifftn(x, axes=(0, 1, 2))
-
-    #return ifft(bmatvec(G, fft(jnp.pad(field, padding))))[:field.shape[0], :field.shape[1], : field.shape[2], :]
-    return ifft(bmatvec(G, fft(field)))
-
+    return crop(ifft(bmatvec(G, fft(pad(field)))))
+   
 def update_fn(args):
     field, history, iteration = args
 
