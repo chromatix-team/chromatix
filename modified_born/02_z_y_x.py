@@ -13,6 +13,7 @@ from scipy.special import factorial
 import numpy as np
 from jax.typing import ArrayLike
 import jax
+from scipy.signal.windows import tukey
 
 # %%
 n_sample = vacuum_cylinders()
@@ -50,9 +51,7 @@ def add_bc(
     padding = [(0, 0) for _ in range(permittivity.ndim)]
     for idx, n in enumerate(n_pad):
         padding[idx] = (n, n)
-    permittivity = jnp.pad(
-        permittivity, padding, mode="constant", constant_values=jnp.mean(permittivity)
-    )
+    permittivity = jnp.pad(permittivity, padding, mode="edge")
 
     # Gathering constants
     k0 = 2 * jnp.pi / wavelength
@@ -200,19 +199,44 @@ plt.colorbar(fraction=0.046, pad=0.04)
 # %% Making the potential
 V = permittivity - alpha
 
-# %% Now making a source. To prevent aliasing, we settle on a 2D tukey
-source = jnp.zeros((*permittivity.shape, 3))
-source = source.at[250, :, :].set(k0**2 * jnp.array([0, 1, 1]))
 
+# %% Now making a source. To prevent aliasing, we settle on a 2D tukey
+def make_source(
+    permittivity,
+):
+    # We first make a grid
+    N_z, N_y, N_x = permittivity.shape
+    z = spacing * (jnp.linspace(0, (N_z - 1), N_z) - N_z / 2)
+
+    # Sinc options
+    z_loc = 50
+    width = wavelength / 4
+
+    # Adding longitudinal apodisation
+    source = jnp.sinc((z + z_loc) / width)
+
+    alpha = 0.5
+    mask = tukey(N_y, alpha, sym=False)[:, None] * tukey(N_x, alpha, sym=False)[None, :]
+    source = (
+        source[:, None, None, None]
+        * mask[None, ..., None]
+        * (k0**2 * jnp.array([0, 1, 1]))
+    )
+    return source
+
+
+source = make_source(permittivity)
+
+# %%
 plt.figure(figsize=(10, 5))
 plt.subplot(121)
 plt.title(f"Ex of source")
-plt.imshow(source[:, 0, :, 2])
+plt.imshow(jnp.rot90(source[:, 0, :, 2]))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(122)
 plt.title("Ey of source")
-plt.imshow(source[:, 0, :, 1])
+plt.imshow(jnp.rot90(source[:, 0, :, 1]))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 
