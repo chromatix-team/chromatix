@@ -1,75 +1,157 @@
-from __future__ import annotations
+from functools import reduce
+from numbers import Number
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import Array
-from samples import Sample
+from jax.typing import ArrayLike
+from scipy.ndimage import distance_transform_edt
+from scipy.signal.windows import tukey
+from scipy.special import factorial
 
 
-def helmholtz_solver(sample: Sample, rtol=1e-9, max_iter: int = 1000):
-    def update_fn(args):
-        field, history, iteration = args
+def add_bc(
+    permittivity: Array,
+    width: tuple[float | None, ...],
+    spacing: float,
+    wavelength: float,
+    strength: float | None = None,
+    alpha: float | None = None,
+    order: int = 4,
+) -> tuple[Array, tuple[slice, ...]]:
+    """
+    width is in wavelengths. Use None for periodic BCs.
+    """
 
-        # New field
-        dE = field - jnp.fft.ifftn(Gk * jnp.fft.fftn(V * field + source))
-        field = field - 1j / epsilon * V * dE
+    # Figuring out new size
+    n_pad = tuple(0 if width_i is None else int(width_i / spacing) for width_i in width)
+    roi = tuple(slice(n, n + size) for n, size in zip(n_pad, permittivity.shape))
 
-        # Calculating change
-        delta = jnp.mean(jnp.abs(dE[sample.roi]) ** 2)
-        delta /= jnp.mean(jnp.abs(field[sample.roi]) ** 2)
+    # Padding permittivity to new size
+    # We repeat the mean value
+    padding = [(0, 0) for _ in range(permittivity.ndim)]
+    for idx, n in enumerate(n_pad):
+        padding[idx] = (n, n)
+    permittivity = jnp.pad(permittivity, padding, mode="edge")
 
-        return field, history.at[iteration].set(delta), iteration + 1
+    # Gathering constants
+    k0 = 2 * jnp.pi / wavelength
+    km = k0 * jnp.sqrt(jnp.mean(permittivity))
+    match (strength, alpha):
+        case (Number(), None):
+            alpha = strength * km / 2
+        case (None, Number()):
+            pass
+        case (None, None):
+            raise ValueError("Need at least strength or alpha set.")
+        case (Number(), Number()):
+            raise ValueError("Can only set either strength or alpha, not both.")
+        case _:
+            raise ValueError("Everything's wrong.")
 
-    def cond_fn(args) -> bool:
-        _, history, iteration = args
-        # return (history[iteration - 1] > rtol) & (iteration < max_iter)
-        return iteration < max_iter
+    # Defining distance from sample
+    r = jnp.ones_like(permittivity).at[roi].set(0)
+    r = distance_transform_edt(r, sampling=spacing)
 
-    # Unpacking sample
-    source, V, epsilon = sample.source, sample.potential(), sample.epsilon
+    # Making boundary
+    ar = alpha * r
+    P = reduce(
+        lambda P, n: P + (ar**n / factorial(n, exact=True)),
+        range(order + 1),
+        jnp.zeros_like(ar),
+    )
 
-    # Making Greens vector
-    k_red_sq = sample.km_sq + 1j * epsilon
-    Gk = 1 / (4 * jnp.pi**2 * jnp.sum(sample.k_grid**2, axis=0) - k_red_sq)
+    numerator = alpha**2 * (order - ar + 2 * 1j * km * r) * ar ** (order - 1)
+    denominator = P * factorial(order, exact=True)
+    boundary = 1 / k0**2 * numerator / denominator
 
-    # Running and postprocessing
-    init = update_fn((source, jnp.zeros(max_iter), 0))
-    field, history, iteration = jax.lax.while_loop(cond_fn, update_fn, init)
-    return field[sample.roi], {"error": history, "n_iterations": iteration}
+    # Inside the ROI it's 0
+    boundary = boundary.at[roi].set(0)
+
+    return permittivity + boundary, roi
 
 
-# %% Making Greens function
-def G_fn(k: Array, k0: Array, alpha: Array) -> Array:
-    #k_sq = jnp.sum(jnp.abs(k) ** 2, axis=-1)[..., None, None]
-    #k_cross = k[..., :, None] * k[..., None, :] / (alpha * k0**2)
-    #return (jnp.eye(3) - k_cross) / (k_sq - alpha * k0**2)
-    k_sq =  jnp.sum(jnp.abs(k) ** 2, axis=-1)[..., None, None]
-    pi_L = k[..., :, None] * k[..., None, :] / k_sq
-    pi_L = jnp.where(k[..., :, None] ==0, 0, pi_L)
-    pi_t = jnp.eye(3) - pi_L
-    G = pi_t / (k_sq - alpha * k0**2) - pi_L / (alpha * k0**2)
-    return G
+def make_source(
+    sample_shape: tuple[int, ...],
+    spacing: float,
+    wavelength: float,
+    z_loc: float,
+    width: float | None = None,
+    alpha: float = 0.5,
+) -> Array:
+    # We first make a grid
+    N_z, N_y, N_x = sample_shape
+    z = spacing * (jnp.linspace(0, (N_z - 1), N_z) - N_z / 2)
+
+    # Sinc options
+    z_loc = 50
+    width = wavelength / 4
+
+    # Adding longitudinal apodisation
+    source = jnp.sinc((z + z_loc) / width)
+    k0 = 2 * jnp.pi / wavelength
+    alpha = 0.5
+    width_x = int(150 / spacing)
+    width_y = 1
+    n_pad = (N_x - width_x) // 2
+    mask = (
+        tukey(width_y, alpha, sym=False)[:, None]
+        * jnp.pad(tukey(width_x, alpha, sym=False), ((n_pad, n_pad)))[None, :]
+    )
+
+    source = (
+        source[:, None, None, None]
+        * mask[None, ..., None]
+        * (k0**2 * jnp.array([0, 1, 1]))
+    )
+    return source
+
+
+def pad_fourier(x: Array) -> tuple[tuple[int, ...], tuple[tuple[int, int], ...]]:
+    # Pads to fourier friendly shapes (powers of 2), depending
+    # on periodic or absorbing BCs
+    def n_pad(size) -> tuple[int, tuple[int, int]]:
+        new_size = int(2 ** (np.ceil(np.log2(size))))
+        return new_size, (0, new_size - size)
+
+    return tuple(zip(*[n_pad(shape) for shape in x.shape]))
 
 
 def bmatvec(mat: Array, vec: Array) -> Array:
     return jnp.matmul(mat, vec[..., None]).squeeze(-1)
 
 
-def propagate(G: Array, field: Array) -> Array:
+def maxwell_solver(
+    permittivity: Array, source: Array, spacing: float, wavelength: float
+):
     fft = lambda x: jnp.fft.fftn(x, axes=(0, 1, 2))
     ifft = lambda x: jnp.fft.ifftn(x, axes=(0, 1, 2))
 
-    return ifft(bmatvec(G, fft(field)))
+    def G_fn(k: Array, k0: ArrayLike, alpha: Array) -> Array:
+        k_sq = jnp.sum(k**2, axis=-1)[..., None, None]
+        k_cross = k[..., :, None] * k[..., None, :] / (alpha * k0**2)
+        return (jnp.eye(3) - k_cross) / (k_sq - alpha * k0**2)
 
+    def pad(field: Array) -> Array:
+        return jnp.pad(field, (*padding, (0, 0)))
 
-# %%
-def maxwell_solver(source: Source, sample: Sample, rtol=1e-8, max_iter: int = 1000):
+    def crop(field: Array) -> Array:
+        return field[: V.shape[0], : V.shape[1], : V.shape[2], :]
+
+    def propagate(G: Array, field: Array) -> Array:
+        return crop(ifft(bmatvec(G, fft(pad(field)))))
+
     def update_fn(args):
         field, history, iteration = args
 
         # New field
-        field_prop = propagate(Gk, k0**2 * bmatvec(xi, field) + _source)
-        dE = 1j / alpha_imag * bmatvec(xi, (field_prop - field))
+        dE = (
+            1j
+            / alpha_imag
+            * V[..., None]
+            * (propagate(G, k0**2 * V[..., None] * field + source) - field)
+        )
 
         # Calculating change
         delta = jnp.mean(jnp.abs(dE) ** 2) / jnp.mean(jnp.abs(field) ** 2)
@@ -80,28 +162,26 @@ def maxwell_solver(source: Source, sample: Sample, rtol=1e-8, max_iter: int = 10
         _, history, iteration = args
         return (history[iteration - 1] > rtol) & (iteration < max_iter)
 
-    # Getting real part of alpha
-    alpha_real = (jnp.min(sample.permittivity) + jnp.max(sample.permittivity)) / 2
-    alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.95
+    padded_shape, padding = pad_fourier(permittivity)
+
+    alpha_real = (jnp.min(permittivity.real) + jnp.max(permittivity.real)) / 2
+    alpha_imag = jnp.max(jnp.abs(permittivity - alpha_real)) / 0.95
     alpha = alpha_real + 1j * alpha_imag
 
-    # Making greens function and potential
-    k0 = 2 * jnp.pi / source.wavelength
-    Gk = G_fn(sample.k_grid, k0, alpha)
-    xi = sample.permittivity - alpha * jnp.eye(3)
+    k0 = 2 * jnp.pi / wavelength
+    ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, spacing) for shape in padded_shape]
+    k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
 
-    # Setting up source
-    _source = (
-        jnp.zeros((*sample.spatial_shape, 3), dtype=jnp.complex64)
-        .at[*sample.roi, :]
-        .set(source.source)
+    G = G_fn(k_grid, k0, alpha)
+
+    V = permittivity - alpha
+
+    rtol = 1e-6
+    max_iter = 1000
+
+    init = update_fn((jnp.zeros_like(source), jnp.zeros(max_iter), 0))
+    field, history, iteration = jax.block_until_ready(
+        jax.lax.while_loop(cond_fn, update_fn, init)
     )
-
-    # Running and postprocessing
-    init = update_fn((jnp.zeros_like(_source), jnp.zeros(max_iter), 0))
-    field, history, iteration = jax.lax.while_loop(cond_fn, update_fn, init)
-    return field[sample.roi], {
-        "full_field": field,
-        "error": history,
-        "n_iterations": iteration,
-    }
+    history = history[:iteration]
+    return field, history
