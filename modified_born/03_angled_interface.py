@@ -1,5 +1,4 @@
-# In this notebook we redevelop the code to do proper padding and z - y - x ordering.
-# We've already made the samples, just checking.
+# In this notebook we check Cedrics suggestion about using a angled interface
 # %% Imports
 from functools import reduce
 from numbers import Number
@@ -13,10 +12,10 @@ import numpy as np
 from jax.typing import ArrayLike
 import jax
 from scipy.signal.windows import tukey
+from samples import angled_interface
 
 # %%
-n_sample = jnp.full((1000, 1000), 1.0)
-n_sample = n_sample.at[jnp.triu_indices(n=1000)].set(1.55)[::-1, None, :]
+n_sample = angled_interface()
 
 plt.imshow(jnp.rot90(n_sample[:, 0, :]))
 plt.colorbar()

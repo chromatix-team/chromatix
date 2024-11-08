@@ -20,6 +20,7 @@ dependencies = [
     "matplotlib>=3.9.2",
     "pytest>=8.3.3",
     "ruff>=0.7.1",
+    "jaxopt>=0.8.3",
 ]
 version = "0.3.0"
 

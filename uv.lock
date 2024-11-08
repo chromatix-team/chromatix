@@ -242,6 +242,7 @@ dependencies = [
     { name = "einops" },
     { name = "flax" },
     { name = "jax" },
+    { name = "jaxopt" },
     { name = "matplotlib" },
     { name = "optax" },
     { name = "pytest" },
@@ -274,6 +275,7 @@ requires-dist = [
     { name = "einops", specifier = ">=0.6.0" },
     { name = "flax", specifier = ">=0.6.3" },
     { name = "jax", specifier = ">=0.4.6" },
+    { name = "jaxopt", specifier = ">=0.8.3" },
     { name = "matplotlib", specifier = ">=3.9.2" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.4.2" },
     { name = "mkdocs-jupyter", marker = "extra == 'docs'" },
@@ -715,6 +717,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/a0/87a4eae3811ce7014ce2c59b811ad930273bfbbb8252ba78079606f9ec40/jaxlib-0.4.35-cp313-cp313-manylinux2014_aarch64.whl", hash = "sha256:7b11ad7c13f7f96f36efd303711ecac425f19ca2ddf65cf1be1541167a959ee5", size = 70629568 },
     { url = "https://files.pythonhosted.org/packages/b3/89/59d6fe10e30ff5a48a73319bafa9a11cd999f91a47e4f08f7dc3651c899c/jaxlib-0.4.35-cp313-cp313-manylinux2014_x86_64.whl", hash = "sha256:0be3cf9df879d9ae1b5b92fc281f77d21f522fcbae1a48a02661026bbd9b9309", size = 87350315 },
     { url = "https://files.pythonhosted.org/packages/79/d7/d7600c65fe0412a6584d84ca172816a8cf19965219ee3dd59542447ffe2f/jaxlib-0.4.35-cp313-cp313-win_amd64.whl", hash = "sha256:330c090bb9af413f552d8a92d097e50baec6b75823430fb2966a49f5298d4c43", size = 56562022 },
+]
+
+[[package]]
+name = "jaxopt"
+version = "0.8.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jax" },
+    { name = "jaxlib" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/af/73f7514ea14d6aba0a851e03afbdd532a7af896577c708c6ce405917ce80/jaxopt-0.8.3.tar.gz", hash = "sha256:4b06dfa6f915a4f3291699606245af6069371a48dc5c92d4c507840d62990646", size = 121236 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/a4/fc292a90a9c51d1b633cdffe2df30c702e1e0b3e0b568c7b81004cac0a06/jaxopt-0.8.3-py3-none-any.whl", hash = "sha256:4be2f82798393682529c9ca5046e5397ac6c8657b8acb6bf275e773b28df15b6", size = 172264 },
 ]
 
 [[package]]
