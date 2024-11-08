@@ -176,12 +176,11 @@ plt.imshow(jnp.fft.fftshift(G[:, 0, :, 0, 2].real))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 # %% Making the potential
-V = (permittivity - alpha)[..., None]
+V = (permittivity - alpha)
 
 # %% Now making a source. To prevent aliasing, we settle on a 2D tukey 
 source = jnp.zeros((*permittivity.shape, 3))
-source = source.at[250, :, :].set(jnp.array([0, 1, 1]))
-source = source * k0**2 * (jnp.mean(permittivity[roi].real) - permittivity.real)[..., None]
+source = source.at[250, :, :].set(k0**2 * jnp.array([0, 1, 1]))
 
 plt.figure(figsize=(10, 5))
 plt.subplot(121)
