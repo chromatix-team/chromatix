@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 from einops import reduce
 from jax import Array
+from solvers import Sample
 
 
 def sample_grid(size: tuple[int, int, int]) -> Array:
@@ -24,7 +25,7 @@ def cylinders(
     n_background: float,
     n_cylinder: float,
     antialiasing: int | None = 10,
-) -> Array:
+) -> Sample:
     # Making the grid, in 2D
     N_z, N_y, N_x = size
 
@@ -42,10 +43,10 @@ def cylinders(
     sample = jnp.where(mask == 1.0, n_cylinder, n_background)
     if antialiasing is not None:
         sample = reduce(sample, f"(z {antialiasing}) (x {antialiasing}) -> z x", "mean")
-
+        spacing *= antialiasing
     # Setting index
     sample = jnp.repeat(sample[:, None, :], N_y, axis=1)
-    return sample
+    return Sample.init(sample, spacing)
 
 
 def vacuum_cylinders():
@@ -97,8 +98,9 @@ def bio_cylinders():
 
 
 def angled_interface():
-    return (
+    sample = (
         jnp.full((1000, 1000), 1.0)
         .at[jnp.triu_indices(n=1000)]
         .set(1.55)[::-1, None, :]
     )
+    return Sample.init(sample, 0.1)

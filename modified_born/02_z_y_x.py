@@ -16,7 +16,7 @@ import jax
 from scipy.signal.windows import tukey
 
 # %%
-n_sample = vacuum_cylinders()
+n_sample = jnp.sqrt(vacuum_cylinders().permittivity)
 print(f"Sample has shape {n_sample.shape}")
 
 # %%
