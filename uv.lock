@@ -274,7 +274,7 @@ requires-dist = [
     { name = "chex", specifier = ">=0.1.86" },
     { name = "einops", specifier = ">=0.6.0" },
     { name = "flax", specifier = ">=0.6.3" },
-    { name = "jax", specifier = ">=0.4.6" },
+    { name = "jax", extras = ["cpu"], specifier = ">=0.4.6" },
     { name = "jaxopt", specifier = ">=0.8.3" },
     { name = "matplotlib", specifier = ">=3.9.2" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.4.2" },

@@ -4,8 +4,9 @@ from numbers import Number
 import jax.numpy as jnp
 import numpy as np
 from fixed_point import FixedPointIteration
-from flax.struct import PyTreeNode
+from flax import struct
 from jax import Array
+from jax.lax import stop_gradient
 from jax.typing import ArrayLike
 from scipy.ndimage import distance_transform_edt
 from scipy.signal.windows import tukey
@@ -15,24 +16,24 @@ from typing_extensions import Self
 from chromatix import VectorField
 
 
-class Sample(PyTreeNode):
+class Sample(struct.PyTreeNode):
     """Simple container to hold some sample specific data."""
 
     permittivity: Array
-    roi: tuple[slice, ...]
     spacing: float
+    roi: tuple[slice, ...] = struct.field(pytree_node=False)
 
     @classmethod
     def init(cls, refractive_index: Array, spacing: float) -> Self:
         roi = tuple(slice(size) for size in refractive_index.shape[:3])
-        return cls(refractive_index**2, roi, spacing)
+        return cls(refractive_index**2, spacing, roi)
 
     @property
     def shape(self):
         return self.permittivity.shape
 
 
-class Source(PyTreeNode):
+class Source(struct.PyTreeNode):
     """Simple container to hold some source related data."""
 
     source: Array
@@ -58,7 +59,7 @@ def add_absorbing_bc(
     spacing = sample.spacing
 
     # Figuring out new size and roi
-    n_pad = tuple(0 if width_i is None else int(width_i / spacing) for width_i in width)
+    n_pad = tuple(0 if width_i is None else int(width_i) for width_i in width)
     roi = tuple(slice(n, n + size) for n, size in zip(n_pad, permittivity.shape))
 
     # Padding permittivity to new size
@@ -84,8 +85,9 @@ def add_absorbing_bc(
             raise ValueError("Everything's wrong.")
 
     # Defining distance from sample
-    r = jnp.ones_like(permittivity).at[roi].set(0.0)
-    r = distance_transform_edt(r, sampling=spacing)
+    r = np.ones(permittivity.shape)
+    r[roi] = 0.0
+    r = spacing * distance_transform_edt(r)
 
     # Making boundary
     ar = alpha * r
@@ -98,11 +100,10 @@ def add_absorbing_bc(
     numerator = alpha**2 * (order - ar + 2 * 1j * km * r) * ar ** (order - 1)
     denominator = P * factorial(order, exact=True)
     boundary = 1 / k0**2 * numerator / denominator
+    boundary = boundary.at[roi].set(0.0)
 
-    # Inside the ROI it's 0
-    boundary = boundary.at[roi].set(0)
-
-    return Sample(permittivity + boundary, roi, spacing)
+    # We don't want the gradient through the boundary
+    return sample.replace(permittivity=permittivity + stop_gradient(boundary), roi=roi)
 
 
 def plane_wave_source(
@@ -149,11 +150,11 @@ def bouter(a: Array, b: Array) -> Array:
     return a[..., :, None] * b[..., None, :]
 
 
-class Results(PyTreeNode):
+class Results(struct.PyTreeNode):
     field: Array
-    roi: tuple[slice, ...]
     history: Array
     n_iter: int
+    roi: tuple[slice, ...] = struct.field(pytree_node=False)
 
 
 def maxwell_solver(
@@ -228,8 +229,9 @@ def maxwell_solver(
         update_fn, maxiter=max_iter, tol=rtol, has_aux=True, aux_err=True
     )
     results = solver.run(field_init, V, source.source, G)
+
     return Results(
-        results.params, sample.roi, results.state.error, results.state.iter_num
+        results.params, results.state.error, results.state.iter_num, sample.roi
     )
 
 
@@ -239,11 +241,14 @@ def thick_sample_exact(
     boundary_width: tuple[int | None],
     alpha: float = 0.35,
     order: int = 4,
+    rtol: float = 1e-6,
+    max_iter: int = 1000,
+    sinc_width: float | None = None,
 ) -> tuple[VectorField, Results]:
     sample = add_absorbing_bc(
         sample, field.spectrum.squeeze(), boundary_width, alpha=alpha, order=order
     )
-    source = plane_wave_source(field, sample)
-    results = maxwell_solver(sample, source)
+    source = plane_wave_source(field, sample, width=sinc_width)
+    results = maxwell_solver(sample, source, rtol, max_iter)
     field = field.replace(u=results.field[-1][None, ..., None, :])
     return field, results

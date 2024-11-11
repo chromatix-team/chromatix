@@ -9,14 +9,11 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from samples import vacuum_cylinders
 from solvers import thick_sample_exact
-
+from jax import jit
 import chromatix.functional as cf
 
 # Settings
 wavelength = 1.0
-width = (25 / wavelength, None, 25 / wavelength)
-alpha_boundary = 0.35
-order = 4
 
 # %% Sample and incoming field
 sample = vacuum_cylinders()
@@ -26,8 +23,10 @@ field = cf.plane_wave(
     wavelength,
     amplitude=jnp.array([0, 1, 1]),
 )
-
-field, results = thick_sample_exact(field, sample, (25, None, 25))
+# 250 voxels = 25 wavelengths = 25 mum
+field, results = jit(thick_sample_exact, static_argnames=("boundary_width"))(
+    field, sample, (250, None, 250)
+)
 
 print(f"Converged in {results.n_iter} iterations.")
 # %%

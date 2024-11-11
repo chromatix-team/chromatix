@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
-    "jax >= 0.4.6",
+    "jax[cpu]>=0.4.6",
     "einops >= 0.6.0",
     "flax >= 0.6.3",
     "chex>=0.1.86",
