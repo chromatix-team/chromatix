@@ -1,9 +1,9 @@
 from functools import reduce
 from numbers import Number
 
-import jax
 import jax.numpy as jnp
 import numpy as np
+from fixed_point import FixedPointIteration
 from flax.struct import PyTreeNode
 from jax import Array
 from jax.typing import ArrayLike
@@ -198,21 +198,15 @@ def maxwell_solver(
         return crop(ifft(bmatvec(G, fft(pad(field)))))
 
     # Iteration methods
-    def update_fn(args):
-        field, history, iteration = args
-
-        # New field
-        scattered_field = k0**2 * V * field + source.source
+    def update_fn(
+        field: Array, V: Array, source: Array, G: Array
+    ) -> tuple[Array, dict[str, Array]]:
+        scattered_field = k0**2 * V * field + source
         dE = 1j / alpha_imag * V * (propagate(G, scattered_field) - field)
 
-        # Calculating change
-        delta = jnp.mean(jnp.abs(dE) ** 2) / jnp.mean(jnp.abs(field) ** 2)
-
-        return field + dE, history.at[iteration].set(delta), iteration + 1
-
-    def cond_fn(args) -> bool:
-        _, history, iteration = args
-        return (history[iteration - 1] > rtol) & (iteration < max_iter)
+        return field + dE, {
+            "error": jnp.mean(jnp.abs(dE) ** 2) / jnp.mean(jnp.abs(field) ** 2)
+        }
 
     # Calculating background wavenumber and potential
     alpha_real = (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
@@ -230,7 +224,26 @@ def maxwell_solver(
     # Running the actual calculation
     if field_init is None:
         field_init = jnp.zeros_like(source.source)
-    init = update_fn((field_init, jnp.zeros(max_iter), 0))
-    field, history, iteration = jax.lax.while_loop(cond_fn, update_fn, init)
+    solver = FixedPointIteration(
+        update_fn, maxiter=200, tol=1e-6, has_aux=True, aux_err=True
+    )
+    results = solver.run(field_init, V, source.source, G)
+    return Results(
+        results.params, sample.roi, results.state.error, results.state.iter_num
+    )
 
-    return Results(field, sample.roi, history, iteration)
+
+def thick_sample_exact(
+    field: VectorField,
+    sample: Sample,
+    boundary_width: tuple[int | None],
+    alpha: float = 0.35,
+    order: int = 4,
+) -> tuple[VectorField, Results]:
+    sample = add_absorbing_bc(
+        sample, field.spectrum.squeeze(), boundary_width, alpha=alpha, order=order
+    )
+    source = plane_wave_source(field, sample)
+    results = maxwell_solver(sample, source)
+    field = field.replace(u=results.field[-1][None, ..., None, :])
+    return field, results
