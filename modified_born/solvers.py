@@ -225,7 +225,7 @@ def maxwell_solver(
     if field_init is None:
         field_init = jnp.zeros_like(source.source)
     solver = FixedPointIteration(
-        update_fn, maxiter=200, tol=1e-6, has_aux=True, aux_err=True
+        update_fn, maxiter=max_iter, tol=rtol, has_aux=True, aux_err=True
     )
     results = solver.run(field_init, V, source.source, G)
     return Results(
