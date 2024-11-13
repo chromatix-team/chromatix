@@ -200,18 +200,23 @@ def maxwell_solver(
 
     # Iteration methods
     def update_fn(
-        field: Array, V: Array, source: Array, G: Array
-    ) -> tuple[Array, dict[str, Array]]:
+        x: tuple[Array, Array], V: Array, source: Array, G: Array
+    ) -> tuple[Array, Array]:
+        field = x[0] + 1j * x[1]  # making the complex field
         scattered_field = k0**2 * V * field + source
         dE = 1j / alpha_imag * V * (propagate(G, scattered_field) - field)
-
-        return field + dE, {
-            "error": jnp.mean(jnp.abs(dE) ** 2) / jnp.mean(jnp.abs(field) ** 2)
-        }
+        field = field + dE
+        return field.real, field.imag
 
     # Calculating background wavenumber and potential
-    alpha_real = (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
-    alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.99
+    # We DO NOT want the gradient of alpha - this is something we just calcualte to converge
+    # So we stop the gradient - we just want the gradient to flow through V
+    alpha_real = stop_gradient(
+        (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
+    )
+    alpha_imag = stop_gradient(
+        jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.99
+    )
     alpha = alpha_real + 1j * alpha_imag
     V = sample.permittivity[..., None] - alpha
 
@@ -222,16 +227,22 @@ def maxwell_solver(
     k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
     G = G_fn(k_grid, k0, alpha)
 
-    # Running the actual calculation
     if field_init is None:
-        field_init = jnp.zeros_like(source.source)
-    solver = FixedPointIteration(
-        update_fn, maxiter=max_iter, tol=rtol, has_aux=True, aux_err=True
-    )
-    results = solver.run(field_init, V, source.source, G)
+        field_init = (
+            jnp.zeros(source.source.shape, dtype=jnp.float32),
+            jnp.zeros(source.source.shape, dtype=jnp.float32),
+        )
+    else:
+        field_init = (field_init.real, field_init.imag)
+
+    solver = FixedPointIteration(update_fn, maxiter=max_iter, tol=rtol)
+    results = solver.run(field_init, V=V, source=source.source, G=G)
 
     return Results(
-        results.params, results.state.error, results.state.iter_num, sample.roi
+        results.params[0] + 1j * results.params[1],
+        results.state.error,
+        results.state.iter_num,
+        sample.roi,
     )
 
 
@@ -244,11 +255,12 @@ def thick_sample_exact(
     rtol: float = 1e-6,
     max_iter: int = 1000,
     sinc_width: float | None = None,
+    field_init: Array | None = None,
 ) -> tuple[VectorField, Results]:
     sample = add_absorbing_bc(
         sample, field.spectrum.squeeze(), boundary_width, alpha=alpha, order=order
     )
     source = plane_wave_source(field, sample, width=sinc_width)
-    results = maxwell_solver(sample, source, rtol, max_iter)
-    field = field.replace(u=results.field[-1][None, ..., None, :])
+    results = maxwell_solver(sample, source, rtol, max_iter, field_init)
+    field = field.replace(u=results.field[sample.roi][-1][None, ..., None, :])
     return field, results

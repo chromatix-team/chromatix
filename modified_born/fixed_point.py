@@ -25,7 +25,7 @@ import jax.numpy as jnp
 from jax.tree_util import tree_leaves, tree_structure
 
 from jaxopt._src import base
-from jaxopt._src.tree_util import tree_l2_norm, tree_sub
+from jaxopt._src.tree_util import tree_l2_norm, tree_sub, tree_div
 
 
 class FixedPointState(NamedTuple):
@@ -70,12 +70,12 @@ class FixedPointIteration(base.IterativeSolver):
     maxiter: int = 100
     tol: float = 1e-5
     has_aux: bool = False
-    aux_err: bool = False
     verbose: bool = False
     implicit_diff: bool = True
     implicit_diff_solve: Optional[Callable] = None
     jit: base.AutoOrBoolean = "auto"
     unroll: base.AutoOrBoolean = "auto"
+    error_fn: Callable | None = None
 
     def init_state(self, init_params, *args, **kwargs) -> FixedPointState:
         """Initialize the solver state.
@@ -107,12 +107,8 @@ class FixedPointIteration(base.IterativeSolver):
           (params, state)
         """
         next_params, aux = self._fun(params, *args, **kwargs)
+        error = self._error_fn(next_params, params)
 
-        error = (
-            aux["error"]
-            if self.aux_err
-            else tree_l2_norm(tree_sub(next_params, params))
-        )
         next_state = FixedPointState(
             iter_num=state.iter_num + 1,
             error=error,
@@ -133,3 +129,12 @@ class FixedPointIteration(base.IterativeSolver):
             self._fun = lambda *a, **kw: (self.fixed_point_fun(*a, **kw), None)
 
         self.reference_signature = self.fixed_point_fun
+
+        if self.error_fn is None:
+            self._error_fn = lambda next_params, params: tree_l2_norm(
+                tree_sub(next_params, params)
+            )
+        else:
+            self._error_fn = lambda next_params, params: self.error_fn(
+                next_params, params
+            )
