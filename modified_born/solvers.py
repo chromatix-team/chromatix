@@ -163,32 +163,8 @@ def maxwell_solver(
     rtol: float = 1e-6,
     max_iter: int = 1000,
     field_init: Array | None = None,
+    pad_fourier: bool = True,
 ) -> Results:
-    # Helper methods
-    def fft(x: Array) -> Array:
-        return jnp.fft.fftn(x, axes=(0, 1, 2))
-
-    def ifft(x: Array) -> Array:
-        return jnp.fft.ifftn(x, axes=(0, 1, 2))
-
-    def pad(field: Array) -> Array:
-        return jnp.pad(field, (*padding, (0, 0)))
-
-    def crop(field: Array) -> Array:
-        return field[: sample.shape[0], : sample.shape[1], : sample.shape[2], :]
-
-    def calculate_padding(
-        shape: tuple[int, ...],
-    ) -> tuple[tuple[int, ...], tuple[tuple[int, int], ...]]:
-        # Pads to fourier friendly shapes (powers of 2), depending
-        # on periodic or absorbing BCs
-        # Returns both padded shape and the padding to apply
-        def n_pad(size) -> tuple[int, tuple[int, int]]:
-            new_size = int(2 ** (np.ceil(np.log2(size))))
-            return new_size, (0, new_size - size)
-
-        return tuple(zip(*[n_pad(shape) for shape in shape]))
-
     # Physical methods
     def G_fn(k: Array, k0: ArrayLike, alpha: Array) -> Array:
         k_sq = jnp.sum(k**2, axis=-1)[..., None, None]
@@ -196,44 +172,60 @@ def maxwell_solver(
         return (jnp.eye(3) - k_cross) / (k_sq - alpha * k0**2)
 
     def propagate(G: Array, field: Array) -> Array:
-        return crop(ifft(bmatvec(G, fft(pad(field)))))
+        fft = lambda x: jnp.fft.fftn(x, axes=(0, 1, 2))  # noqa: E731
+        ifft = lambda x: jnp.fft.ifftn(x, axes=(0, 1, 2))  # noqa: E731
+        return ifft(bmatvec(G, fft(field)))
 
     # Iteration methods
-    def update_fn(x: Array, V: Array, source: Array, G: Array) -> Array:
-        field = x[0] + 1j * x[1]  # making the complex field
+    def update_fn(u: Array, V: Array, source: Array, G: Array) -> Array:
+        field = u[0] + 1j * u[1]  # making the complex field
         scattered_field = k0**2 * V * field + source
         field = field + 1j / alpha.imag * V * (propagate(G, scattered_field) - field)
         return jnp.stack([field.real, field.imag])
 
     # Calculating background wavenumber and potential
-    # We DO NOT want the gradient of alpha - this is something we just calcualte to converge
-    # So we stop the gradient - we just want the gradient to flow through V
+    # We DO NOT want the gradient of alpha, we just want the gradient to flow through V
     alpha_real = (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
     alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.99
     alpha = stop_gradient(alpha_real + 1j * alpha_imag)
-    V = sample.permittivity[..., None] - alpha
+    _V = sample.permittivity[..., None] - alpha
 
-    # We pad to a fourier friendly shape
-    padded_shape, padding = calculate_padding(sample.shape)
+    # Padding source and potential to next power of 2
+    # We add 0 at the end to account that for source
+    if pad_fourier:
+        padding = [
+            int(2 ** (np.ceil(np.log2(size)))) - size if size > 1 else 0
+            for size in _V.shape
+        ]
+        padding = tuple((0, size) for size in padding)
+        pad = lambda x: jnp.pad(x, padding, mode="empty")  # noqa: E731
+        _V, _source = pad(_V), pad(source.source)
+    else:
+        _source = source.source
+
+    # Making the Greens function
     k0 = 2 * jnp.pi / source.wavelength
-    ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, sample.spacing) for shape in padded_shape]
+    ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, sample.spacing) for shape in _V.shape[:3]]
     k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
     G = G_fn(k_grid, k0, alpha)
 
+    # Figuring out initial field
     if field_init is None:
-        field_init = jnp.zeros((2, *source.source.shape))
+        field_init = jnp.zeros((2, *_source.shape))
     else:
         field_init = jnp.stack([field_init.real, field_init.imag])
+        field_init = pad(field_init) if pad_fourier else field_init
 
+    # Running solver
     solver = FixedPointIteration(update_fn, maxiter=max_iter, tol=rtol)
-    results = solver.run(field_init, V=V, source=source.source, G=G)
+    results = solver.run(field_init, V=_V, source=_source, G=G)
 
-    return Results(
-        results.params[0] + 1j * results.params[1],
-        results.state.error,
-        results.state.iter_num,
-        sample.roi,
-    )
+    # Decomposed, padded field to complex unpadded
+    field = results.params[0] + 1j * results.params[1]
+    if pad_fourier:
+        field = field[: sample.shape[0], : sample.shape[1], : sample.shape[2]]
+
+    return Results(field, results.state.error, results.state.iter_num, sample.roi)
 
 
 def thick_sample_exact(
