@@ -3,11 +3,11 @@ from numbers import Number
 
 import jax.numpy as jnp
 import numpy as np
-from fixed_point import FixedPointIteration
 from flax import struct
 from jax import Array
 from jax.lax import stop_gradient
 from jax.typing import ArrayLike
+from optimistix import FixedPointIteration, fixed_point
 from scipy.ndimage import distance_transform_edt
 from scipy.signal.windows import tukey
 from scipy.special import factorial
@@ -152,16 +152,16 @@ def bouter(a: Array, b: Array) -> Array:
 
 class Results(struct.PyTreeNode):
     field: Array
-    history: Array
-    n_iter: int
-    roi: tuple[slice, ...] = struct.field(pytree_node=False)
+    error: Array
+    n_steps: int
 
 
 def maxwell_solver(
     sample: Sample,
     source: Source,
-    rtol: float = 1e-6,
-    max_iter: int = 1000,
+    rtol: float = 1e-3,
+    atol: float = 1e-8,
+    max_steps: int = 500,
     field_init: Array | None = None,
     pad_fourier: bool = True,
 ) -> Results:
@@ -177,8 +177,9 @@ def maxwell_solver(
         return ifft(bmatvec(G, fft(field)))
 
     # Iteration methods
-    def update_fn(u: Array, V: Array, source: Array, G: Array) -> Array:
+    def update_fn(u: Array, args: tuple[Array, Array, Array]) -> Array:
         field = u[0] + 1j * u[1]  # making the complex field
+        V, source, G = args
         scattered_field = k0**2 * V * field + source
         field = field + 1j / alpha.imag * V * (propagate(G, scattered_field) - field)
         return jnp.stack([field.real, field.imag])
@@ -193,10 +194,8 @@ def maxwell_solver(
     # Padding source and potential to next power of 2
     # We add 0 at the end to account that for source
     if pad_fourier:
-        padding = [
-            int(2 ** (np.ceil(np.log2(size)))) - size if size > 1 else 0
-            for size in _V.shape
-        ]
+        fourier_size = lambda size: int(2 ** (np.ceil(np.log2(size))))  # noqa: E731
+        padding = [fourier_size(size) - size if size > 1 else 0 for size in _V.shape]
         padding = tuple((0, size) for size in padding)
         pad = lambda x: jnp.pad(x, padding, mode="empty")  # noqa: E731
         _V, _source = pad(_V), pad(source.source)
@@ -217,15 +216,25 @@ def maxwell_solver(
         field_init = pad(field_init) if pad_fourier else field_init
 
     # Running solver
-    solver = FixedPointIteration(update_fn, maxiter=max_iter, tol=rtol)
-    results = solver.run(field_init, V=_V, source=_source, G=G)
+    results = fixed_point(
+        update_fn,
+        solver=FixedPointIteration(rtol=rtol, atol=atol),
+        y0=field_init,
+        max_steps=max_steps,
+        args=(_V, _source, G),
+        throw=False,
+    )
 
     # Decomposed, padded field to complex unpadded
-    field = results.params[0] + 1j * results.params[1]
+    field = results.value[0] + 1j * results.value[1]
     if pad_fourier:
-        field = field[: sample.shape[0], : sample.shape[1], : sample.shape[2]]
+        roi = tuple(
+            slice(n_pad // 2, size + n_pad // 2)
+            for size, (_, n_pad) in zip(sample.shape, padding)
+        )
+        field = field[roi]
 
-    return Results(field, results.state.error, results.state.iter_num, sample.roi)
+    return Results(field, results.state.relative_error, results.stats["num_steps"])
 
 
 def thick_sample_exact(
@@ -234,8 +243,9 @@ def thick_sample_exact(
     boundary_width: tuple[int | None],
     alpha: float = 0.35,
     order: int = 4,
-    rtol: float = 1e-6,
-    max_iter: int = 1000,
+    rtol: float = 1e-3,
+    atol: float = 1e-8,
+    max_steps: int = 1000,
     sinc_width: float | None = None,
     field_init: Array | None = None,
 ) -> tuple[VectorField, Results]:
@@ -243,6 +253,8 @@ def thick_sample_exact(
         sample, field.spectrum.squeeze(), boundary_width, alpha=alpha, order=order
     )
     source = plane_wave_source(field, sample, width=sinc_width)
-    results = maxwell_solver(sample, source, rtol, max_iter, field_init)
+    results = maxwell_solver(
+        sample, source, rtol=rtol, atol=atol, max_steps=max_steps, field_init=field_init
+    )
     field = field.replace(u=results.field[sample.roi][-1][None, ..., None, :])
     return field, results
