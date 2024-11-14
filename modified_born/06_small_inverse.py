@@ -13,7 +13,7 @@ from samples import bio_cylinders
 from solvers import Sample, thick_sample_exact
 import optax
 import chromatix.functional as cf
-import jax.random as jr
+import numpy as np
 
 
 # %% Forward pass - generating data
@@ -32,7 +32,7 @@ def generate_data(
         sample,
         boundary_width=(125, None, 125),
         max_iter=250,
-        rtol=1e-3,
+        rtol=1e-4,
         field_init=field_init,
     )
     return field.intensity.squeeze(), results
@@ -45,9 +45,7 @@ sample = sample.replace(
 
 # 2D so we can only have 5 vector
 
-kvecs = jnp.pi * jnp.array(
-    [[0.0, -0.25], [0, -0.125], [0.0, 0.0], [0.0, 0.125], [0.0, 0.25]]
-)
+kvecs = jnp.pi * jnp.stack([jnp.zeros((20,)), jnp.linspace(-0.2, 0.2, 20)], axis=1)
 measurements, results = jax.jit(jax.vmap(generate_data, in_axes=(None, 0)))(
     sample, kvecs
 )
@@ -90,12 +88,18 @@ def loss_fn(refractive_index, measurements, kvecs, field_init):
     images, results = jax.vmap(generate_data, in_axes=(None, 0, 0))(
         sample, kvecs, field_init
     )
-    return jnp.mean((images - measurements) ** 2) / jnp.mean(measurements) ** 2, (
+    l = 5e-3
+    tv = jnp.sqrt(
+        jnp.sum(jnp.diff(n_sample, axis=0) ** 2)
+        + jnp.sum(jnp.diff(n_sample, axis=2) ** 2)
+    )
+    return jnp.mean(jnp.abs(images - measurements)) + l * tv, (
         results.field,
         results.n_iter,
     )
 
 
+@jax.jit
 def update_fn(params, opt_state, measurements, kvecs, field_init):
     (loss, (field_init, n_iter)), grads = jax.value_and_grad(loss_fn, has_aux=True)(
         params, measurements, kvecs, field_init
@@ -109,15 +113,49 @@ def update_fn(params, opt_state, measurements, kvecs, field_init):
 print("Starting training now.")
 # We know it's a biosample so we initialise at 1.3
 # n_sample = jnp.ones_like(sample.permittivity)
-n_sample = 1.3 + 0.01 * jr.normal(jr.key(42), (250, 1, 250))
+n_sample = jnp.full((250, 1, 250), 1.33)
 
-optimiser = optax.adamw(1e-3)
+optimiser = optax.adam(1e-4)
 opt_state = optimiser.init(n_sample)
 field_init = jnp.zeros((kvecs.shape[0], 500, 1, 500, 3), dtype=jnp.complex64)
-for idx in range(10):
+loss_hist = []
+convergence_hist = []
+
+# %%
+for idx in range(1000):
     n_sample, opt_state, loss, field_init, n_iter = update_fn(
         n_sample, opt_state, measurements, kvecs, field_init
     )
-    print(f"Iteration {idx}: {loss:.2f}, {n_iter} iterations to converge.")
+    loss_hist.append(loss)
+    convergence_hist.append(n_iter)
 
+    if idx % 25 == 0:
+        print(f"Iteration {idx}: {loss:.2f}, {n_iter} iterations to converge.")
+        plot_permittivity(n_sample, sample)
+        plot_loss(loss_hist)
+
+
+# %%
+def plot_loss(loss):
+    plt.title("Loss")
+    plt.semilogy(loss)
+    plt.show()
+
+
+def plot_permittivity(n_learned, sample):
+    plt.figure(layout="tight")
+    plt.subplot(121)
+    plt.imshow(np.rot90(n_learned[:, 0, :] ** 2))
+    plt.title("Inferred permittivity")
+    plt.colorbar(fraction=0.046, pad=0.04)
+
+    plt.subplot(122)
+    plt.imshow(np.rot90(sample.permittivity[:, 0, :]))
+    plt.title("True permittivity")
+    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.show()
+
+
+# %%
+plot_permittivity(n_sample, sample)
 # %%
