@@ -24,11 +24,12 @@ field = cf.plane_wave(
     amplitude=jnp.array([0, 1, 1]),
 )
 # 250 voxels = 25 wavelengths = 25 mum
-field, results = jit(thick_sample_exact, static_argnames=("boundary_width"))(
-    field, sample, (250, None, 250)
-)
+field, results = jit(
+    thick_sample_exact, static_argnames=("boundary_width", "max_steps")
+)(field, sample, (250, None, 250))
 
 print(f"Converged in {results.n_steps} iterations.")
+print(f"Relative error of {results.rel_error}")
 # %%
 plt.figure(figsize=(15, 5))
 plt.subplot(131)

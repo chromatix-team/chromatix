@@ -7,12 +7,11 @@ from flax import struct
 from jax import Array
 from jax.lax import stop_gradient
 from jax.typing import ArrayLike
-from optimistix import FixedPointIteration, fixed_point
+from optimistix import FixedPointIteration, fixed_point, max_norm
 from scipy.ndimage import distance_transform_edt
 from scipy.signal.windows import tukey
 from scipy.special import factorial
 from typing_extensions import Self
-
 from chromatix import VectorField
 
 
@@ -152,7 +151,7 @@ def bouter(a: Array, b: Array) -> Array:
 
 class Results(struct.PyTreeNode):
     field: Array
-    error: Array
+    rel_error: Array
     n_steps: int
 
 
@@ -160,7 +159,7 @@ def maxwell_solver(
     sample: Sample,
     source: Source,
     rtol: float = 1e-3,
-    atol: float = 1e-8,
+    atol: float = 1e-3,
     max_steps: int = 500,
     field_init: Array | None = None,
     pad_fourier: bool = True,
@@ -197,10 +196,21 @@ def maxwell_solver(
         fourier_size = lambda size: int(2 ** (np.ceil(np.log2(size))))  # noqa: E731
         padding = [fourier_size(size) - size if size > 1 else 0 for size in _V.shape]
         padding = tuple((0, size) for size in padding)
+        padded_roi = tuple(
+            slice(int(n_pad // 2), int(size + n_pad // 2))
+            for size, (_, n_pad) in zip(sample.shape, padding)
+        )
+        sample_roi = tuple(
+            slice(roi_outer.start + roi_inner.start, roi_outer.start + roi_inner.stop)
+            for roi_outer, roi_inner in zip(padded_roi, sample.roi)
+        )
+
         pad = lambda x: jnp.pad(x, padding, mode="empty")  # noqa: E731
         _V, _source = pad(_V), pad(source.source)
+
     else:
         _source = source.source
+        sample_roi = sample.roi
 
     # Making the Greens function
     k0 = 2 * jnp.pi / source.wavelength
@@ -216,9 +226,13 @@ def maxwell_solver(
         field_init = pad(field_init) if pad_fourier else field_init
 
     # Running solver
+    # This is custom norm operating only on the sample ROI
+    def norm(x):
+        return max_norm(x[:, sample_roi[0], sample_roi[1], sample_roi[2]])
+
     results = fixed_point(
         update_fn,
-        solver=FixedPointIteration(rtol=rtol, atol=atol),
+        solver=FixedPointIteration(rtol=rtol, atol=atol, norm=norm),
         y0=field_init,
         max_steps=max_steps,
         args=(_V, _source, G),
@@ -228,12 +242,7 @@ def maxwell_solver(
     # Decomposed, padded field to complex unpadded
     field = results.value[0] + 1j * results.value[1]
     if pad_fourier:
-        roi = tuple(
-            slice(n_pad // 2, size + n_pad // 2)
-            for size, (_, n_pad) in zip(sample.shape, padding)
-        )
-        field = field[roi]
-
+        field = field[padded_roi]
     return Results(field, results.state.relative_error, results.stats["num_steps"])
 
 
@@ -244,8 +253,8 @@ def thick_sample_exact(
     alpha: float = 0.35,
     order: int = 4,
     rtol: float = 1e-3,
-    atol: float = 1e-8,
-    max_steps: int = 1000,
+    atol: float = 1e-3,
+    max_steps: int = 500,
     sinc_width: float | None = None,
     field_init: Array | None = None,
 ) -> tuple[VectorField, Results]:
