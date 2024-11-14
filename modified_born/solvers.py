@@ -199,25 +199,18 @@ def maxwell_solver(
         return crop(ifft(bmatvec(G, fft(pad(field)))))
 
     # Iteration methods
-    def update_fn(
-        x: tuple[Array, Array], V: Array, source: Array, G: Array
-    ) -> tuple[Array, Array]:
+    def update_fn(x: Array, V: Array, source: Array, G: Array) -> Array:
         field = x[0] + 1j * x[1]  # making the complex field
         scattered_field = k0**2 * V * field + source
-        dE = 1j / alpha_imag * V * (propagate(G, scattered_field) - field)
-        field = field + dE
-        return field.real, field.imag
+        field = field + 1j / alpha.imag * V * (propagate(G, scattered_field) - field)
+        return jnp.stack([field.real, field.imag])
 
     # Calculating background wavenumber and potential
     # We DO NOT want the gradient of alpha - this is something we just calcualte to converge
     # So we stop the gradient - we just want the gradient to flow through V
-    alpha_real = stop_gradient(
-        (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
-    )
-    alpha_imag = stop_gradient(
-        jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.99
-    )
-    alpha = alpha_real + 1j * alpha_imag
+    alpha_real = (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
+    alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.99
+    alpha = stop_gradient(alpha_real + 1j * alpha_imag)
     V = sample.permittivity[..., None] - alpha
 
     # We pad to a fourier friendly shape
@@ -228,12 +221,9 @@ def maxwell_solver(
     G = G_fn(k_grid, k0, alpha)
 
     if field_init is None:
-        field_init = (
-            jnp.zeros(source.source.shape, dtype=jnp.float32),
-            jnp.zeros(source.source.shape, dtype=jnp.float32),
-        )
+        field_init = jnp.zeros((2, *source.source.shape))
     else:
-        field_init = (field_init.real, field_init.imag)
+        field_init = jnp.stack([field_init.real, field_init.imag])
 
     solver = FixedPointIteration(update_fn, maxiter=max_iter, tol=rtol)
     results = solver.run(field_init, V=V, source=source.source, G=G)

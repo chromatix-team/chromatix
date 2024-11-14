@@ -25,7 +25,7 @@ field = cf.plane_wave(
 )
 # 250 voxels = 25 wavelengths = 25 mum
 field, results = jit(thick_sample_exact, static_argnames=("boundary_width"))(
-    field, sample, (250, None, 250)
+    field, sample, (250, None, 250), rtol=1e-3
 )
 
 print(f"Converged in {results.n_iter} iterations.")
