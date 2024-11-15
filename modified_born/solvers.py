@@ -259,6 +259,7 @@ def maxwell_solver_jaxopt(
     max_steps: int = 500,
     field_init: Array | None = None,
     pad_fourier: bool = True,
+    implicit: bool = True,
 ) -> Results:
     # Physical methods
     def G_fn(k: Array, k0: ArrayLike, alpha: Array) -> Array:
@@ -327,7 +328,7 @@ def maxwell_solver_jaxopt(
 
     # JAXopt solver setup and execution
     solver = jop.FixedPointIteration(
-        fixed_point_fun=update_fn, maxiter=max_steps, tol=rtol
+        fixed_point_fun=update_fn, maxiter=max_steps, tol=rtol, implicit_diff=implicit
     )
 
     state = (_V, _source, G, alpha)
@@ -352,19 +353,22 @@ def thick_sample_exact(
     max_steps: int = 500,
     sinc_width: float | None = None,
     field_init: Array | None = None,
+    implicit: bool = True,
+    pad_fourier: bool = True,
 ) -> tuple[VectorField, Results]:
     sample = add_absorbing_bc(
         sample, field.spectrum.squeeze(), boundary_width, alpha=alpha, order=order
     )
     source = plane_wave_source(field, sample, width=sinc_width)
-    results = maxwell_solver(
+    results = maxwell_solver_jaxopt(
         sample,
         source,
         rtol=rtol,
         atol=atol,
         max_steps=max_steps,
         field_init=field_init,
-        pad_fourier=False,
+        pad_fourier=pad_fourier,
+        implicit=implicit,
     )
     field = field.replace(u=results.field[sample.roi][-1][None, ..., None, :])
     return field, results

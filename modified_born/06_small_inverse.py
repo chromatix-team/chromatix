@@ -31,8 +31,6 @@ def generate_data(
         field,
         sample,
         boundary_width=(125, None, 125),
-        max_iter=250,
-        rtol=1e-4,
         field_init=field_init,
     )
     return field.intensity.squeeze(), results
@@ -58,27 +56,27 @@ plt.title("Intensities from different angle of illuminations.")
 plt.figure(figsize=(15, 5), layout="tight")
 plt.subplot(151)
 plt.title("Ez")
-plt.imshow(jnp.rot90(jnp.abs(results.field[0][results.roi][:, 0, :, 0])))
+plt.imshow(jnp.rot90(jnp.abs(results.field[0][sample.roi][:, 0, :, 0])))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(152)
 plt.title("Ez")
-plt.imshow(jnp.rot90(jnp.abs(results.field[1][results.roi][:, 0, :, 0])))
+plt.imshow(jnp.rot90(jnp.abs(results.field[1][sample.roi][:, 0, :, 0])))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(153)
 plt.title("Ez")
-plt.imshow(jnp.rot90(jnp.abs(results.field[2][results.roi][:, 0, :, 0])))
+plt.imshow(jnp.rot90(jnp.abs(results.field[2][sample.roi][:, 0, :, 0])))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(154)
 plt.title("Ez")
-plt.imshow(jnp.rot90(jnp.abs(results.field[3][results.roi][:, 0, :, 0])))
+plt.imshow(jnp.rot90(jnp.abs(results.field[3][sample.roi][:, 0, :, 0])))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(155)
 plt.title("Ez")
-plt.imshow(jnp.rot90(jnp.abs(results.field[4][results.roi][:, 0, :, 0])))
+plt.imshow(jnp.rot90(jnp.abs(results.field[4][sample.roi][:, 0, :, 0])))
 plt.colorbar(fraction=0.046, pad=0.04)
 
 
@@ -95,7 +93,7 @@ def loss_fn(refractive_index, measurements, kvecs, field_init):
     )
     return jnp.mean(jnp.abs(images - measurements)) + l * tv, (
         results.field,
-        results.n_iter,
+        results.n_steps,
     )
 
 
@@ -124,7 +122,7 @@ convergence_hist = []
 # %%
 for idx in range(1000):
     n_sample, opt_state, loss, field_init, n_iter = update_fn(
-        n_sample, opt_state, measurements, kvecs, field_init
+        n_sample, opt_state, measurements, kvecs, None
     )
     loss_hist.append(loss)
     convergence_hist.append(n_iter)
