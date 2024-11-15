@@ -13,6 +13,9 @@ from scipy.signal.windows import tukey
 from scipy.special import factorial
 from typing_extensions import Self
 from chromatix import VectorField
+from optimistix import ImplicitAdjoint
+import lineax as lx
+import jaxopt as jop
 
 
 class Sample(struct.PyTreeNode):
@@ -176,9 +179,9 @@ def maxwell_solver(
         return ifft(bmatvec(G, fft(field)))
 
     # Iteration methods
-    def update_fn(u: Array, args: tuple[Array, Array, Array]) -> Array:
+    def update_fn(u: Array, args: tuple[Array, Array, Array, Array]) -> Array:
         field = u[0] + 1j * u[1]  # making the complex field
-        V, source, G = args
+        V, source, G, alpha = args
         scattered_field = k0**2 * V * field + source
         field = field + 1j / alpha.imag * V * (propagate(G, scattered_field) - field)
         return jnp.stack([field.real, field.imag])
@@ -186,7 +189,7 @@ def maxwell_solver(
     # Calculating background wavenumber and potential
     # We DO NOT want the gradient of alpha, we just want the gradient to flow through V
     alpha_real = (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
-    alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.99
+    alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.95
     alpha = stop_gradient(alpha_real + 1j * alpha_imag)
     _V = sample.permittivity[..., None] - alpha
 
@@ -230,13 +233,15 @@ def maxwell_solver(
     def norm(x):
         return max_norm(x[:, sample_roi[0], sample_roi[1], sample_roi[2]])
 
+    adjoint = ImplicitAdjoint(linear_solver=lx.NormalCG(atol=1e-3, rtol=1e-3))
     results = fixed_point(
         update_fn,
         solver=FixedPointIteration(rtol=rtol, atol=atol, norm=norm),
         y0=field_init,
         max_steps=max_steps,
-        args=(_V, _source, G),
+        args=(_V, _source, G, alpha),
         throw=False,
+        adjoint=adjoint,
     )
 
     # Decomposed, padded field to complex unpadded
@@ -244,6 +249,96 @@ def maxwell_solver(
     if pad_fourier:
         field = field[padded_roi]
     return Results(field, results.state.relative_error, results.stats["num_steps"])
+
+
+def maxwell_solver_jaxopt(
+    sample: Sample,
+    source: Source,
+    rtol: float = 1e-3,
+    atol: float = 1e-3,
+    max_steps: int = 500,
+    field_init: Array | None = None,
+    pad_fourier: bool = True,
+) -> Results:
+    # Physical methods
+    def G_fn(k: Array, k0: ArrayLike, alpha: Array) -> Array:
+        k_sq = jnp.sum(k**2, axis=-1)[..., None, None]
+        k_cross = bouter(k, k) / (alpha * k0**2)
+        return (jnp.eye(3) - k_cross) / (k_sq - alpha * k0**2)
+
+    def propagate(G: Array, field: Array) -> Array:
+        fft = lambda x: jnp.fft.fftn(x, axes=(0, 1, 2))  # noqa: E731
+        ifft = lambda x: jnp.fft.ifftn(x, axes=(0, 1, 2))  # noqa: E731
+        return ifft(bmatvec(G, fft(field)))
+
+    # Iteration methods
+    def update_fn(u: Array, state) -> Array:
+        V, source, G, alpha = state
+        field = u[0] + 1j * u[1]  # making the complex field
+        scattered_field = k0**2 * V * field + source
+        field = field + 1j / alpha.imag * V * (propagate(G, scattered_field) - field)
+        return jnp.stack([field.real, field.imag])
+
+    # Calculating background wavenumber and potential
+    # We DO NOT want the gradient of alpha, we just want the gradient to flow through V
+    alpha_real = (sample.permittivity.real.min() + sample.permittivity.real.max()) / 2
+    alpha_imag = jnp.max(jnp.abs(sample.permittivity - alpha_real)) / 0.95
+    alpha = stop_gradient(alpha_real + 1j * alpha_imag)
+    _V = sample.permittivity[..., None] - alpha
+
+    # Padding source and potential to next power of 2
+    # We add 0 at the end to account that for source
+    if pad_fourier:
+        fourier_size = lambda size: int(2 ** (np.ceil(np.log2(size))))  # noqa: E731
+        padding = [fourier_size(size) - size if size > 1 else 0 for size in _V.shape]
+        padding = tuple((0, size) for size in padding)
+        padded_roi = tuple(
+            slice(int(n_pad // 2), int(size + n_pad // 2))
+            for size, (_, n_pad) in zip(sample.shape, padding)
+        )
+        sample_roi = tuple(
+            slice(roi_outer.start + roi_inner.start, roi_outer.start + roi_inner.stop)
+            for roi_outer, roi_inner in zip(padded_roi, sample.roi)
+        )
+
+        pad = lambda x: jnp.pad(x, padding, mode="empty")  # noqa: E731
+        _V, _source = pad(_V), pad(source.source)
+
+    else:
+        _source = source.source
+        sample_roi = sample.roi
+
+    # Making the Greens function
+    k0 = 2 * jnp.pi / source.wavelength
+    ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, sample.spacing) for shape in _V.shape[:3]]
+    k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
+    G = G_fn(k_grid, k0, alpha)
+
+    # Figuring out initial field
+    if field_init is None:
+        field_init = jnp.zeros((2, *_source.shape))
+    else:
+        field_init = jnp.stack([field_init.real, field_init.imag])
+        field_init = pad(field_init) if pad_fourier else field_init
+
+    # Custom norm for sample ROI
+    def norm_fun(x):
+        return jnp.max(jnp.abs(x[:, sample_roi[0], sample_roi[1], sample_roi[2]]))
+
+    # JAXopt solver setup and execution
+    solver = jop.FixedPointIteration(
+        fixed_point_fun=update_fn, maxiter=max_steps, tol=rtol
+    )
+
+    state = (_V, _source, G, alpha)
+    params, state = solver.run(field_init, state)
+
+    # Convert result back to complex field
+    field = params[0] + 1j * params[1]
+    if pad_fourier:
+        field = field[padded_roi]
+
+    return Results(field=field, rel_error=state.error, n_steps=state.iter_num)
 
 
 def thick_sample_exact(
@@ -263,7 +358,13 @@ def thick_sample_exact(
     )
     source = plane_wave_source(field, sample, width=sinc_width)
     results = maxwell_solver(
-        sample, source, rtol=rtol, atol=atol, max_steps=max_steps, field_init=field_init
+        sample,
+        source,
+        rtol=rtol,
+        atol=atol,
+        max_steps=max_steps,
+        field_init=field_init,
+        pad_fourier=False,
     )
     field = field.replace(u=results.field[sample.roi][-1][None, ..., None, :])
     return field, results
