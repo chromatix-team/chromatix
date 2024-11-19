@@ -22,7 +22,7 @@ def generate_data(
 ) -> Array:
     field = cf.plane_wave(
         (sample.shape[1], sample.shape[2]),
-        sample.spacing,
+        sample.spacing[-1],
         spectrum=2.0,
         amplitude=jnp.array([0, 1, 1]),
         kykx=kvec,
@@ -30,20 +30,16 @@ def generate_data(
     field, results = thick_sample_exact(
         field,
         sample,
-        boundary_width=(125, None, 125),
+        boundary_width=(268, None, 268),
         field_init=field_init,
     )
     return field.intensity.squeeze(), results
 
 
 sample = bio_cylinders()
-sample = sample.replace(
-    permittivity=sample.permittivity[::4, :, ::4], spacing=sample.spacing * 4
-)
-
 # 2D so we can only have 5 vector
 
-kvecs = jnp.pi * jnp.stack([jnp.zeros((20,)), jnp.linspace(-0.2, 0.2, 20)], axis=1)
+kvecs = jnp.pi * jnp.stack([jnp.zeros((10,)), jnp.linspace(-0.2, 0.2, 10)], axis=1)
 measurements, results = jax.jit(jax.vmap(generate_data, in_axes=(None, 0)))(
     sample, kvecs
 )
@@ -82,7 +78,7 @@ plt.colorbar(fraction=0.046, pad=0.04)
 
 # %% Defining loss and update fn
 def loss_fn(refractive_index, measurements, kvecs, field_init):
-    sample = Sample.init(refractive_index, spacing=0.4)
+    sample = Sample.init(refractive_index, spacing=jnp.full((3,), 0.4))
     images, results = jax.vmap(generate_data, in_axes=(None, 0, 0))(
         sample, kvecs, field_init
     )
@@ -111,18 +107,18 @@ def update_fn(params, opt_state, measurements, kvecs, field_init):
 print("Starting training now.")
 # We know it's a biosample so we initialise at 1.3
 # n_sample = jnp.ones_like(sample.permittivity)
-n_sample = jnp.full((250, 1, 250), 1.33)
+n_sample = jnp.full((1000, 1, 1000), 1.33)
 
 optimiser = optax.adam(1e-4)
 opt_state = optimiser.init(n_sample)
-field_init = jnp.zeros((kvecs.shape[0], 500, 1, 500, 3), dtype=jnp.complex64)
+field_init = jnp.zeros((kvecs.shape[0], 1536, 1, 1536, 3), dtype=jnp.complex64)
 loss_hist = []
 convergence_hist = []
 
 # %%
 for idx in range(1000):
     n_sample, opt_state, loss, field_init, n_iter = update_fn(
-        n_sample, opt_state, measurements, kvecs, None
+        n_sample, opt_state, measurements, kvecs, field_init
     )
     loss_hist.append(loss)
     convergence_hist.append(n_iter)

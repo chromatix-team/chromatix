@@ -16,17 +16,18 @@ from chromatix import VectorField
 from optimistix import ImplicitAdjoint
 import lineax as lx
 import jaxopt as jop
+import jax
 
 
 class Sample(struct.PyTreeNode):
     """Simple container to hold some sample specific data."""
 
     permittivity: Array
-    spacing: float
+    spacing: Array
     roi: tuple[slice, ...] = struct.field(pytree_node=False)
 
     @classmethod
-    def init(cls, refractive_index: Array, spacing: float) -> Self:
+    def init(cls, refractive_index: Array, spacing: Array) -> Self:
         roi = tuple(slice(size) for size in refractive_index.shape[:3])
         return cls(refractive_index**2, spacing, roi)
 
@@ -46,6 +47,15 @@ class Source(struct.PyTreeNode):
         return self.source.shape
 
 
+def distance_transform(r: Array, spacing: Array):
+    # Defining distance from sample
+    def fn(r, spacing):
+        return distance_transform_edt(r, sampling=spacing)
+
+    out_type = jax.ShapeDtypeStruct(r.shape, r.dtype)
+    return jax.pure_callback(fn, out_type, r, spacing, vmap_method="sequential")
+
+
 def add_absorbing_bc(
     sample: Sample,
     wavelength: float,
@@ -58,7 +68,6 @@ def add_absorbing_bc(
     width is in mum. Use None for periodic BCs.
     """
     permittivity = sample.permittivity
-    spacing = sample.spacing
 
     # Figuring out new size and roi
     n_pad = tuple(0 if width_i is None else int(width_i) for width_i in width)
@@ -86,12 +95,10 @@ def add_absorbing_bc(
         case _:
             raise ValueError("Everything's wrong.")
 
-    # Defining distance from sample
-    r = np.ones(permittivity.shape)
-    r[roi] = 0.0
-    r = spacing * distance_transform_edt(r)
-
     # Making boundary
+    r = distance_transform(
+        jnp.ones(permittivity.shape).at[roi].set(0.0), sample.spacing
+    )
     ar = alpha * r
     P = reduce(
         lambda P, n: P + (ar**n / factorial(n, exact=True)),
@@ -118,15 +125,18 @@ def plane_wave_source(
 ) -> Source:
     # Getting the longitudinal apodisation
     N_z, N_y, N_x = sample.shape
-    z = sample.spacing * jnp.linspace(0, (N_z - 1), N_z)
+    z = sample.spacing[0] * jnp.linspace(0, (N_z - 1), N_z)
     if width is None:
         width = field.spectrum.squeeze() / 4
-    sinc_pulse = jnp.sinc((z - (sample.roi[0].start * sample.spacing + z_loc)) / width)
+    sinc_pulse = jnp.sinc(
+        (z - (sample.roi[0].start * sample.spacing[0] + z_loc)) / width
+    )
 
     # Padding the field
     # NOTE: We don't support multi wavelength yet.
     n_pad = (np.array([N_y, N_x]) - np.array(field.spatial_shape)) // 2
     padding = ((0, 0), (n_pad[0], n_pad[0]), (n_pad[1], n_pad[1]), (0, 0))
+
     u = jnp.pad(field.u.squeeze(-2), padding, mode="edge")
 
     # Making the actual source
@@ -220,7 +230,10 @@ def maxwell_solver_optimistix(
 
     # Making the Greens function
     k0 = 2 * jnp.pi / source.wavelength
-    ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, sample.spacing) for shape in _V.shape[:3]]
+    ks = [
+        2 * jnp.pi * jnp.fft.fftfreq(shape, spacing)
+        for shape, spacing in (_V.shape[:3], sample.spacing)
+    ]
     k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
     G = G_fn(k_grid, k0, alpha)
 
@@ -289,7 +302,10 @@ def maxwell_solver(
 
     # Making the Greens function
     k0 = 2 * jnp.pi / source.wavelength
-    ks = [2 * jnp.pi * jnp.fft.fftfreq(shape, sample.spacing) for shape in V.shape[:3]]
+    ks = [
+        2 * jnp.pi * jnp.fft.fftfreq(shape, spacing)
+        for shape, spacing in zip(V.shape[:3], sample.spacing)
+    ]
     k_grid = jnp.stack(jnp.meshgrid(*ks, indexing="ij"), axis=-1)
     G = G_fn(k_grid, k0, alpha)
 

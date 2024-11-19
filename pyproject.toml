@@ -23,6 +23,7 @@ dependencies = [
     "jaxopt>=0.8.3",
     "ipykernel>=6.29.5",
     "optimistix>=0.0.9",
+    "scikit-image>=0.24.0",
 ]
 version = "0.3.0"
 
