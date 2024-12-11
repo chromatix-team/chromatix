@@ -165,9 +165,9 @@ def multislice_thick_sample(
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         field = kernel_propagate(field, propagator)
         if return_stack:
-            _fields.append(field.u)
+            _fields.append(field.u)  # pyright: ignore
     if return_stack:
-        field = field.replace(u=jnp.concatenate(_fields, axis=-5))
+        field = field.replace(u=jnp.concatenate(_fields, axis=-5))  # pyright: ignore
         return crop(field, N_pad)
     # Propagate field backwards to the middle (or chosen distance) of the stack
     if reverse_propagate_distance is None:

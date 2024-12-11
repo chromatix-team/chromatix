@@ -1,5 +1,5 @@
 import math
-from typing import Sequence
+from typing import no_type_check, Sequence
 
 import jax.numpy as jnp
 import numpy as np
@@ -46,6 +46,7 @@ def flat_phase(shape: tuple[int, int], *args, value: ScalarLike = 0.0) -> Array:
     return jnp.full(shape, value)
 
 
+@no_type_check
 def microlens_array_amplitude_and_phase(
     shape: tuple[int, int],
     spacing: ScalarLike,
@@ -59,6 +60,7 @@ def microlens_array_amplitude_and_phase(
     amplitude = jnp.zeros(shape)
     grid = create_grid(shape, spacing)
 
+    @no_type_check
     def _place_mask(
         i: int, centers_amplitude_and_phase: tuple[Array, Array]
     ) -> tuple[Array, Array]:
@@ -79,6 +81,7 @@ def microlens_array_amplitude_and_phase(
     return amplitude, phase
 
 
+@no_type_check
 def hexagonal_microlens_array_amplitude_and_phase(
     shape: tuple[int, int],
     spacing: ScalarLike,
@@ -112,6 +115,7 @@ def hexagonal_microlens_array_amplitude_and_phase(
     )
 
 
+@no_type_check
 def rectangular_microlens_array_amplitude_and_phase(
     shape: tuple[int, int],
     spacing: ScalarLike,
@@ -152,11 +156,11 @@ def linear_phase(
     rotation: ScalarLike = 0.0,
     n_medium: ScalarLike = 1.0,
 ) -> Array:
-    dn = n_mask - n_medium
+    dn = jnp.asarray(n_mask - n_medium)
     grid = create_grid(shape, spacing)
     grid = rotate_grid(grid, rotation)
     phase = grid[1] - grid[1].min()
-    phase = 2 * jnp.pi * dn * max_thickness * (phase / phase.max()) / wavelength
+    phase = 2 * jnp.pi * dn * jnp.asarray(max_thickness) * (phase / phase.max()) / jnp.asarray(wavelength)
     return phase
 
 
@@ -168,7 +172,7 @@ def circular_phase(
 ) -> Array:
     grid = create_grid(shape, spacing)
     phase = l2_sq_norm(grid) <= (w / 2) ** 2
-    phase = shift * phase
+    phase = jnp.asarray(shift) * phase
     return phase
 
 
@@ -182,12 +186,12 @@ def sawtooth_phase(
     rotation: ScalarLike = 0.0,
     n_medium: ScalarLike = 1.0,
 ) -> Array:
-    dn = n_grating - n_medium
+    dn = jnp.asarray(n_grating - n_medium)
     grid = create_grid(shape, spacing)
     grid = rotate_grid(grid, rotation)
     phase = grid[1] - grid[1].min()
     phase = phase % period
-    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / wavelength
+    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / jnp.asarray(wavelength)
     return phase
 
 
@@ -201,12 +205,12 @@ def sinusoid_phase(
     rotation: ScalarLike = 0.0,
     n_medium: ScalarLike = 1.0,
 ) -> Array:
-    dn = n_grating - n_medium
+    dn = jnp.asarray(n_grating - n_medium)
     grid = create_grid(shape, spacing)
     grid = rotate_grid(grid, rotation)
     phase = grid[1] - grid[1].min()
     phase = jnp.sin(2 * jnp.pi * phase / period)
-    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / wavelength
+    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / jnp.asarray(wavelength)
     return phase
 
 
@@ -218,10 +222,10 @@ def axicon_phase(
     slope_angle: ScalarLike,
     n_medium: ScalarLike = 1.0,
 ) -> Array:
-    dn = n_axicon - n_medium
+    dn = jnp.asarray(n_axicon - n_medium)
     grid = create_grid(shape, spacing)
     thickness = jnp.sin(slope_angle) * l2_norm(grid)
-    phase = 2 * jnp.pi * dn * thickness / wavelength
+    phase = 2.0 * jnp.pi * dn * thickness / jnp.asarray(wavelength)
     return phase
 
 
@@ -428,7 +432,7 @@ def zernike_aberrations(
     zernike_polynomials = jnp.asarray(zernike_polynomials)
     zernike_polynomials = rearrange(zernike_polynomials, "b h w -> h w b")
 
-    phase = (2 * jnp.pi / wavelength) * jnp.dot(
+    phase = (2 * jnp.pi / jnp.asarray(wavelength)) * jnp.dot(
         zernike_polynomials, jnp.asarray(coefficients)
     )
 

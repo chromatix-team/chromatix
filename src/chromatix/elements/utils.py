@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, no_type_check
 
 from chex import PRNGKey
 from flax import linen as nn
@@ -112,6 +112,7 @@ def trainable(x: Any, rng: bool = True) -> Trainable:
     init = x
     if callable(x) and not rng:
 
+        @no_type_check
         def no_rng_x(key: PRNGKey, *args, **kwargs) -> Array:
             return x(*args, **kwargs)
 
