@@ -8,7 +8,7 @@ from jax.scipy.ndimage import map_coordinates
 
 from chromatix.elements.utils import register
 from chromatix.field import Field
-from chromatix.functional import phase_change, wrap_phase
+from chromatix.functional import phase_change, wrap_phase, interpolated_phase_change
 from chromatix.ops import quantize
 from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import seidel_aberrations, zernike_aberrations
@@ -150,16 +150,9 @@ class SpatialLightModulator(nn.Module):
         assert (
             phase.shape == self.shape
         ), "Provided phase shape should match provided SLM shape"
-        phase = wrap_phase(phase, self.phase_range)
-        if self.num_bits is not None:
-            phase = quantize(phase, self.num_bits, range=self.phase_range)
-        field_pixel_grid = jnp.meshgrid(
-            jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
-            jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,
-            indexing="ij",
+        return interpolated_phase_change(
+            field, phase, self.phase_range, self.num_bits, self.interpolation_order
         )
-        phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
-        return phase_change(field, phase)
 
 
 class SeidelAberrations(nn.Module):
