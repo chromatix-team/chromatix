@@ -12,8 +12,8 @@ from ..utils import _broadcast_2d_to_spatial, center_pad
 from .polarizers import polarizer
 from .propagation import (
     compute_asm_propagator,
-    compute_exact_propagator,
     exact_propagate,
+    asm_propagate,
     kernel_propagate,
 )
 
@@ -107,6 +107,7 @@ def multislice_thick_sample(
     propagator: ArrayLike | None = None,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     reverse_propagate_distance: ScalarLike | None = None,
+    return_stack: bool = False,
 ) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
@@ -141,19 +142,33 @@ def multislice_thick_sample(
         reverse_propagate_distance: If provided, propagates field at the end
             backwards by this amount from the top of the stack. By default,
             field is propagated backwards to the middle of the sample.
+        return_stack: If ``True``, returns the 3D stack of intermediate
+            scattered fields at each plane of the thick sample. This 3D
+            stack is returned as a ``Field`` where the innermost batch
+            dimension is the number of planes in the provided ``dn_stack``/
+            ``absorption_stack`` instead of the field defocused to the middle of
+            the sample after scattering through the whole sample. If ``True``,
+            ``reverse_propagate_distance`` is ignored. Defaults to ``False``.
     """
     assert_equal_shape([absorption_stack, dn_stack])
     field = pad(field, N_pad)
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator is None:
-        propagator = compute_exact_propagator(field, thickness_per_slice, n, kykx)
+       propagator = compute_asm_propagator(field, thickness_per_slice, n, kykx)
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
+    if return_stack:
+        _fields = []
     for absorption, dn in zip(absorption_stack, dn_stack):
         absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
         dn = _broadcast_2d_to_spatial(dn, field.ndim)
         field = thin_sample(field, absorption, dn, thickness_per_slice)
         field = kernel_propagate(field, propagator)
+        if return_stack:
+            _fields.append(field.u)
+    if return_stack:
+        field = field.replace(u=jnp.concatenate(_fields, axis=-5))
+        return crop(field, N_pad)
     # Propagate field backwards to the middle (or chosen distance) of the stack
     if reverse_propagate_distance is None:
         reverse_propagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
@@ -165,8 +180,8 @@ def multislice_thick_sample(
 
 def fluorescent_multislice_thick_sample(
     field: ScalarField,
-    fluorescence_stack: ArrayLike,
-    dn_stack: ArrayLike,
+    fluorescence_stack: Array,
+    dn_stack: Array,
     n: ScalarLike,
     thickness_per_slice: ScalarLike,
     N_pad: int,
