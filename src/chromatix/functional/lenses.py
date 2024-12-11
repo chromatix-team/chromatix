@@ -4,6 +4,11 @@ from chromatix import Field
 from chromatix.functional.amplitude_masks import amplitude_change
 from chromatix.functional.convenience import optical_fft
 from chromatix.functional.phase_masks import phase_change
+from chromatix.functional.rays import (
+    compute_free_space_abcd,
+    compute_plano_convex_spherical_lens_abcd,
+    ray_transfer,
+)
 from chromatix.typing import Array, ScalarLike
 
 from ..utils import l2_sq_norm
@@ -193,3 +198,45 @@ def rectangular_microlens_array(
     return field
 
 
+def thick_plano_convex_lens(
+    field: Field,
+    f: ScalarLike,
+    R: ScalarLike,
+    center_thickness: ScalarLike,
+    n_lens: ScalarLike,
+    n_medium: ScalarLike = 1.0,
+    NA: ScalarLike | None = None,
+    inverse: bool = False,
+    magnification: ScalarLike = 1.0,
+) -> Field:
+    if NA is not None:
+        D = 2 * f * NA / n_medium  # Expression for NA yields width of pupil
+        field = circular_pupil(field, D)
+    ABCD = compute_plano_convex_spherical_lens_abcd(
+        f, R, center_thickness, n_lens, n_medium, inverse
+    )
+    field = ray_transfer(field, ABCD, n_medium, magnification=magnification)
+    return field
+
+
+def thick_plano_convex_ff_lens(
+    field: Field,
+    f: ScalarLike,
+    R: ScalarLike,
+    center_thickness: ScalarLike,
+    n_lens: ScalarLike,
+    n_medium: ScalarLike = 1.0,
+    NA: ScalarLike | None = None,
+    inverse: bool = False,
+    magnification: ScalarLike = 1.0,
+) -> Field:
+    if NA is not None:
+        D = 2 * f * NA / n_medium  # Expression for NA yields width of pupil
+        field = circular_pupil(field, D)
+    _lens = compute_plano_convex_spherical_lens_abcd(
+        f, R, center_thickness, n_lens, n_medium, inverse
+    )
+    _free_space = compute_free_space_abcd(f)
+    ABCD = _free_space @ _lens @ _free_space
+    field = ray_transfer(field, ABCD, n_medium, magnification=magnification)
+    return field
