@@ -328,7 +328,8 @@ def seidel_aberrations(
 
     l2_sq_grid = X**2 + Y**2
 
-    phase *= l2_sq_grid < 1
+    phase *= l2_sq_grid <= 1
+    phase *= 2 * jnp.pi / wavelength
     return phase
 
 
@@ -393,7 +394,7 @@ def zernike_aberrations(
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n)
 
-    rho = jnp.sum(grid**2, axis=0)  # radial coordinate
+    rho = l2_norm(grid)  # radial coordinate
 
     mask = rho <= 1
     rho = rho * mask
@@ -427,7 +428,9 @@ def zernike_aberrations(
     zernike_polynomials = jnp.asarray(zernike_polynomials)
     zernike_polynomials = rearrange(zernike_polynomials, "b h w -> h w b")
 
-    phase = jnp.dot(zernike_polynomials, jnp.asarray(coefficients))
+    phase = (2 * jnp.pi / wavelength) * jnp.dot(
+        zernike_polynomials, jnp.asarray(coefficients)
+    )
 
     return phase
 
