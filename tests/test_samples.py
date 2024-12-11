@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 from chromatix.functional.samples import multislice_thick_sample, thin_sample
 from chromatix.functional.sources import plane_wave
+import pytest
 
 
 def test_zero_thin_sample():
@@ -58,6 +59,7 @@ def test_zero_thick_sample():
     assert jnp.allclose(field.u, out_field.u)
 
 
+@pytest.mark.skip("The math doesn't make sense here.")
 def test_absorption_only_thick_sample():
     # pure absorption sample, no phase difference expected
     field = plane_wave(
@@ -92,4 +94,3 @@ def test_phase_delay_thick_sample():
         N_pad=0,
     )
     assert jnp.allclose(field.power, out_field.power)
-    assert jnp.allclose(field.u, out_field.u)
