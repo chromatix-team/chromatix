@@ -4,7 +4,13 @@ from chromatix.field import Field
 from chromatix.typing import ScalarLike
 from chromatix.utils import l2_norm, l2_sq_norm, linf_norm
 
-__all__ = ["circular_pupil", "square_pupil", "rectangular_pupil", "super_gaussian_pupil", "tukey_pupil"]
+__all__ = [
+    "circular_pupil",
+    "square_pupil",
+    "rectangular_pupil",
+    "super_gaussian_pupil",
+    "tukey_pupil",
+]
 
 
 def circular_pupil(field: Field, w: ScalarLike) -> Field:
