@@ -4,6 +4,7 @@ from typing import Sequence
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange
+import jax
 from jax import Array
 from scipy.special import comb  # type: ignore
 
@@ -17,10 +18,15 @@ from .utils import (
 )
 
 __all__ = [
+    "axicon_phase",
     "flat_phase",
     "microlens_array_amplitude_and_phase",
     "hexagonal_microlens_array_amplitude_and_phase",
     "rectangular_microlens_array_amplitude_and_phase",
+    "circular_phase",
+    "linear_phase",
+    "sawtooth_phase",
+    "sinusoid_phase",
     "potato_chip",
     "seidel_aberrations",
     "zernike_aberrations",
@@ -52,13 +58,22 @@ def microlens_array_amplitude_and_phase(
     phase = jnp.zeros(shape)
     amplitude = jnp.zeros(shape)
     grid = create_grid(shape, spacing)
-    for i in range(centers.shape[1]):
+
+    def _place_mask(
+        i: int, centers_amplitude_and_phase: tuple[Array, Array]
+    ) -> tuple[Array, Array]:
+        centers, amplitude, phase = centers_amplitude_and_phase
         center = centers[:, i]
         squared_distance = l2_sq_norm(grid - center[:, jnp.newaxis, jnp.newaxis])
         L = wavelength * fs[i] / n
         mask = jnp.squeeze(squared_distance) < (radii[i] ** 2)
         amplitude += mask
         phase += mask * jnp.squeeze(squared_distance / L)
+        return centers, amplitude, phase
+
+    centers, amplitude, phase = jax.lax.fori_loop(
+        0, centers.shape[1], _place_mask, (centers, amplitude, phase)
+    )
     phase *= -jnp.pi
     amplitude = jnp.clip(amplitude, 0.0, 1.0)
     return amplitude, phase
@@ -79,7 +94,10 @@ def hexagonal_microlens_array_amplitude_and_phase(
     q_basis = np.array([0, 1])
     r_basis = np.array([np.sqrt(3) / 2, 1 / 2])
     for q in range(-hex_distance, hex_distance + 1):
-        for r in range(max(-hex_distance, -q - hex_distance), min(hex_distance, -q + hex_distance) + 1):
+        for r in range(
+            max(-hex_distance, -q - hex_distance),
+            min(hex_distance, -q + hex_distance) + 1,
+        ):
             unit_hex_coordinates.append(q_basis * q + r_basis * r)
     unit_hex_coordinates = np.array(unit_hex_coordinates).T
     hex_coordinates = unit_hex_coordinates * separation
@@ -110,7 +128,9 @@ def rectangular_microlens_array_amplitude_and_phase(
         np.arange(num_lenses_width) - num_lenses_width // 2,
         indexing="ij",
     )
-    unit_coordinates = np.array(unit_coordinates).reshape(2, num_lenses_height * num_lenses_width)
+    unit_coordinates = np.array(unit_coordinates).reshape(
+        2, num_lenses_height * num_lenses_width
+    )
     coordinates = unit_coordinates * separation
     return microlens_array_amplitude_and_phase(
         shape,
@@ -121,6 +141,88 @@ def rectangular_microlens_array_amplitude_and_phase(
         coordinates,
         jnp.ones(coordinates.shape[1]) * radius,
     )
+
+
+def linear_phase(
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n_mask: ScalarLike,
+    max_thickness: ScalarLike,
+    rotation: ScalarLike = 0.0,
+    n_medium: ScalarLike = 1.0,
+) -> Array:
+    dn = n_mask - n_medium
+    grid = create_grid(shape, spacing)
+    grid = rotate_grid(grid, rotation)
+    phase = grid[1] - grid[1].min()
+    phase = 2 * jnp.pi * dn * max_thickness * (phase / phase.max()) / wavelength
+    return phase
+
+
+def circular_phase(
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    shift: ScalarLike,
+    w: ScalarLike,
+) -> Array:
+    grid = create_grid(shape, spacing)
+    phase = l2_sq_norm(grid) <= (w / 2) ** 2
+    phase = shift * phase
+    return phase
+
+
+def sawtooth_phase(
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n_grating: ScalarLike,
+    period: ScalarLike,
+    thickness: ScalarLike,
+    rotation: ScalarLike = 0.0,
+    n_medium: ScalarLike = 1.0,
+) -> Array:
+    dn = n_grating - n_medium
+    grid = create_grid(shape, spacing)
+    grid = rotate_grid(grid, rotation)
+    phase = grid[1] - grid[1].min()
+    phase = phase % period
+    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / wavelength
+    return phase
+
+
+def sinusoid_phase(
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n_grating: ScalarLike,
+    period: ScalarLike,
+    thickness: ScalarLike,
+    rotation: ScalarLike = 0.0,
+    n_medium: ScalarLike = 1.0,
+) -> Array:
+    dn = n_grating - n_medium
+    grid = create_grid(shape, spacing)
+    grid = rotate_grid(grid, rotation)
+    phase = grid[1] - grid[1].min()
+    phase = jnp.sin(2 * jnp.pi * phase / period)
+    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / wavelength
+    return phase
+
+
+def axicon_phase(
+    shape: tuple[int, int],
+    spacing: ScalarLike,
+    wavelength: ScalarLike,
+    n_axicon: ScalarLike,
+    slope_angle: ScalarLike,
+    n_medium: ScalarLike = 1.0,
+) -> Array:
+    dn = n_axicon - n_medium
+    grid = create_grid(shape, spacing)
+    thickness = jnp.sin(slope_angle) * l2_norm(grid)
+    phase = 2 * jnp.pi * dn * thickness / wavelength
+    return phase
 
 
 def potato_chip(
