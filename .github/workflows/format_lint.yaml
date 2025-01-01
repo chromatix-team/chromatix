@@ -18,6 +18,6 @@ jobs:
           pip install uv
           uv sync --extra dev
       - name: Lint with ruff
-        run: uv run ruff format .
+        run: uv run ruff format --check .
       - name: Format with ruff
         run: uv run ruff check --output-format=github --fix .
