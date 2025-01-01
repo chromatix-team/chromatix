@@ -1,9 +1,10 @@
 from functools import partial
 
-import chromatix.functional as cf
 import jax.numpy as jnp
 import pytest
 from chex import assert_shape
+
+import chromatix.functional as cf
 
 
 @pytest.mark.parametrize(

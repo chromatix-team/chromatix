@@ -3,6 +3,7 @@ from time import perf_counter_ns
 import jax
 import jax.numpy as jnp
 import numpy as np
+
 from chromatix import OpticalSystem
 from chromatix.elements import FFLens, ObjectivePointSource, PhaseMask
 
