@@ -1,10 +1,11 @@
 from functools import partial
 
-import chromatix.functional as cf
 import jax.numpy as jnp
 import numpy as np
 import pytest
 from scipy.special import fresnel
+
+import chromatix.functional as cf
 
 D = 40
 w = D / 10

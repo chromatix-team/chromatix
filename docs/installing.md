@@ -52,8 +52,16 @@ make changes to the internals of Chromatix or add new features (pull requests
 welcomed!). Otherwise, please use the first installation command to get the
 latest version of Chromatix.
 
+## Using `uv`
+
 Another option for development is to use a Python project management tool such
-as [`Hatch`](https://hatch.pypa.io/latest/).
+as [`uv`](https://docs.astral.sh/uv/). After installing `uv`, you can run the
+following commands for an editable install and to run the unit tests:
+```bash
+$ uv sync --extra dev
+$ uv run pytest
+```
+A virtual environment is created in `.venv`. 
 
 ## Using `conda`
 

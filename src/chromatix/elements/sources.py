@@ -1,7 +1,9 @@
 from typing import Callable, Optional, Tuple, Union
-import numpy as np
+
 import flax.linen as nn
+import numpy as np
 from chex import Array, PRNGKey
+
 from chromatix.elements.utils import register
 from chromatix.field import Field
 from chromatix.functional.sources import (
@@ -52,7 +54,7 @@ class PointSource(nn.Module):
     amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
     pupil: Optional[Callable[[Field], Field]] = None
     scalar: bool = True
-    epsilon: float = np.finfo(np.float32).eps,
+    epsilon: float = (np.finfo(np.float32).eps,)
 
     @nn.compact
     def __call__(self) -> Field:
@@ -71,7 +73,7 @@ class PointSource(nn.Module):
             amplitude,
             self.pupil,
             self.scalar,
-            self.epsilon
+            self.epsilon,
         )
 
 
