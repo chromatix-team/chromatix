@@ -33,9 +33,9 @@ def high_pass_filter(
     Returns:
         The high pass filtered array.
     """
-    assert len(axes) == len(
-        sigma
-    ), "Must specify same number of axes to convolve as elements in sigma"
+    assert len(axes) == len(sigma), (
+        "Must specify same number of axes to convolve as elements in sigma"
+    )
     low_pass_kernel = gaussian_kernel(sigma, shape=kernel_shape)
     # NOTE(gj): 1e-3 effectively gives delta kernel
     delta_kernel = gaussian_kernel((1e-3,) * len(sigma), shape=low_pass_kernel.shape)
@@ -63,9 +63,9 @@ def gaussian_filter(
     Returns:
         The Gaussian filtered array.
     """
-    assert len(axes) == len(
-        sigma
-    ), "Must specify same number of axes to convolve as elements in sigma"
+    assert len(axes) == len(sigma), (
+        "Must specify same number of axes to convolve as elements in sigma"
+    )
     kernel = gaussian_kernel(sigma, shape=kernel_shape)
     kernel = _broadcast_2d_to_spatial(kernel, data.ndim)
     return fourier_convolution(data, kernel, axes=axes)

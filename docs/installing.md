@@ -46,6 +46,12 @@ or for an editable install for development, first clone the repository and then 
 $ git clone https://github.com/chromatix-team/chromatix
 $ cd chromatix
 $ pip install -e .
+# install dependencies for development
+$ pip install pytest ruff pre-commit
+# install pre-commit hooks for formatting
+pre-commit install
+# test
+$ pytest
 ```
 Editable installations for development are recommended if you would like to
 make changes to the internals of Chromatix or add new features (pull requests
@@ -59,6 +65,7 @@ as [`uv`](https://docs.astral.sh/uv/). After installing `uv`, you can run the
 following commands for an editable install and to run the unit tests:
 ```bash
 $ uv sync --extra dev
+$ uv run pre-commit install
 $ uv run pytest
 ```
 A virtual environment is created in `.venv`. 

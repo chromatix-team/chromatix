@@ -59,9 +59,9 @@ def init_plane_resample(
     """
     assert len(out_shape) == 2, "Shape must be tuple of form (H W)"
     out_spacing = jnp.atleast_1d(out_spacing).squeeze()
-    assert (
-        out_spacing.size <= 2
-    ), "Spacing is either a float or array of shape (2,) for non-square pixels"
+    assert out_spacing.size <= 2, (
+        "Spacing is either a float or array of shape (2,) for non-square pixels"
+    )
     if resampling_method == "pool":
 
         def op(x: Array, in_spacing: Union[float, Array]) -> Array:
@@ -77,9 +77,9 @@ def init_plane_resample(
 
         def op(x: Array, in_spacing: Union[float, Array]) -> Array:
             in_spacing = jnp.atleast_1d(in_spacing).squeeze()
-            assert (
-                in_spacing.size <= 2
-            ), "Spacing is either a float or array of shape (2,) for non-square pixels"
+            assert in_spacing.size <= 2, (
+                "Spacing is either a float or array of shape (2,) for non-square pixels"
+            )
             _in_shape, _out_shape = jnp.array(x.shape[:-2]), jnp.array(out_shape)
             scale = in_spacing / out_spacing
             translation = -0.5 * (_in_shape * scale - _out_shape)
