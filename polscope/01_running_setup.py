@@ -130,7 +130,7 @@ scope = PolScope()
 
 potential = single_bead_sample(
     1.52,
-    jnp.array([1.37, 1.44, 1.44]),
+    jnp.array([1.5, 1.54, 1.54]),
     jnp.array([0, 1/4 * jnp.pi, 0]),
     radius=10.0,
     shape=(256, 256, 256),
