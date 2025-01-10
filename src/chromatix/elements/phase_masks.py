@@ -147,9 +147,9 @@ class SpatialLightModulator(nn.Module):
             field.spectrum[..., 0, 0].squeeze(),
             *pupil_args,
         )
-        assert (
-            phase.shape == self.shape
-        ), "Provided phase shape should match provided SLM shape"
+        assert phase.shape == self.shape, (
+            "Provided phase shape should match provided SLM shape"
+        )
         phase = wrap_phase(phase, self.phase_range)
         if self.num_bits is not None:
             phase = quantize(phase, 2.0**self.num_bits, range=self.phase_range)

@@ -198,12 +198,12 @@ def generic_field(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
-    assert (
-        amplitude.ndim >= 5
-    ), "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
-    assert (
-        phase.ndim >= 5
-    ), "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
+    assert amplitude.ndim >= 5, (
+        "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
+    )
+    assert phase.ndim >= 5, (
+        "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
+    )
     vectorial_dimension = 1 if scalar else 3
     assert_axis_dimension(amplitude, -1, vectorial_dimension)
     assert_axis_dimension(phase, -1, vectorial_dimension)
