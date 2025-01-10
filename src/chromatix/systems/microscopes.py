@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable
 
 import jax.numpy as jnp
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import sigmoid_taper
 
 from ..elements import FFLens, ObjectivePointSource, PhaseMask
-from ..field import Field
+from ..field import ScalarField, VectorField
 from ..ops import fourier_convolution
 from ..utils import center_crop
 from .optical_system import OpticalSystem
@@ -71,18 +73,18 @@ class Microscope(nn.Module):
             this to `False`. Defaults to `True`.
     """
 
-    system_psf: Callable[[Microscope], Union[Field, Array]]
+    system_psf: Callable[[Microscope], ScalarField | VectorField | Array]
     sensor: nn.Module
-    f: float
-    n: float
-    NA: float
-    spectrum: Array
-    spectral_density: Array
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
     padding_ratio: float = 0
     taper_width: float = 0
     fast_fft_shape: bool = True
 
-    def __call__(self, sample: Array, *args: Any, **kwargs: Any) -> Array:
+    def __call__(self, sample: ArrayLike, *args: Any, **kwargs: Any) -> Array:
         """
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
@@ -101,12 +103,15 @@ class Microscope(nn.Module):
         psf = self._process_psf(system_psf, ndim, spatial_dims)
         return self.image(sample, psf, axes=spatial_dims)
 
-    def psf(self, *args: Any, **kwargs: Any) -> Union[Field, Array]:
+    def psf(self, *args: Any, **kwargs: Any) -> ScalarField | VectorField | Array:
         """Computes PSF of system, taking any necessary arguments."""
         return self.system_psf(self, *args, **kwargs)
 
     def _process_psf(
-        self, system_psf: Union[Field, Array], ndim: int, spatial_dims: Tuple[int, int]
+        self,
+        system_psf: ScalarField | VectorField | Array,
+        ndim: int,
+        spatial_dims: tuple[int, int],
     ) -> Array:
         """
         Prepare PSF to be convolved with a sample by doing the following:
@@ -125,7 +130,7 @@ class Microscope(nn.Module):
             padding = (0, 0)
         # WARNING(dd): Assumes that field has same spacing at all wavelengths
         # when calculating intensity!
-        if isinstance(system_psf, Field):
+        if isinstance(system_psf, (ScalarField | VectorField)):
             psf = system_psf.intensity
             spacing = system_psf.dx[..., 0, 0].squeeze()
         else:
@@ -137,16 +142,18 @@ class Microscope(nn.Module):
                 ]
             )
         if self.padding_ratio > 0:
-            pad_spec = [None for _ in range(ndim)]
+            pad_spec: list[Any] = [None for _ in range(ndim)]
             pad_spec[spatial_dims[0]] = padding[0] // 2
             pad_spec[spatial_dims[1]] = padding[1] // 2
             psf = center_crop(psf, pad_spec)
         if self.taper_width > 0:
-            psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)
+            psf = psf * sigmoid_taper(unpadded_shape, self.taper_width, ndim=ndim)  # type: ignore
         psf = self.sensor.resample(psf, spacing)
         return psf
 
-    def image(self, sample: Array, psf: Array, axes: Tuple[int, int] = (1, 2)) -> Array:
+    def image(
+        self, sample: ArrayLike, psf: ArrayLike, axes: tuple[int, int] = (1, 2)
+    ) -> Array:
         """
         Computes image or batch of images using the specified ``psf`` and
         ``sample``. Assumes that both the ``sample`` and ``psf`` have already
@@ -156,7 +163,9 @@ class Microscope(nn.Module):
             sample: The sample volume to image with of shape `(B... H W 1 1)`.
             psf: The PSF intensity volume to image with of shape `(B... H W 1 1)`.
         """
-        image = fourier_convolution(sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape)
+        image = fourier_convolution(
+            sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape
+        )
         # NOTE(dd): By this point, the image should already be at the same
         # spacing as the sensor. Any resampling to the pixels of the sensor
         # should already have happened to the PSF.
@@ -183,12 +192,12 @@ class Optical4FSystemPSF(nn.Module):
             initialization function (e.g. using trainable).
     """
 
-    shape: Tuple[int, int]
-    spacing: float
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, ...]], Array]]
+    shape: tuple[int, int]
+    spacing: ScalarLike
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
 
     @nn.compact
-    def __call__(self, microscope: Microscope, z: Array) -> Field:
+    def __call__(self, microscope: Microscope, z: ArrayLike) -> Array:
         padding = tuple(int(s * microscope.padding_ratio) for s in self.shape)
         padded_shape = tuple(s + p for s, p in zip(self.shape, padding))
         required_spacing = self.compute_required_spacing(
@@ -201,7 +210,7 @@ class Optical4FSystemPSF(nn.Module):
         system = OpticalSystem(
             [
                 ObjectivePointSource(
-                    padded_shape,
+                    padded_shape,  # type: ignore
                     required_spacing,
                     microscope.spectrum,
                     microscope.spectral_density,
@@ -218,6 +227,10 @@ class Optical4FSystemPSF(nn.Module):
 
     @staticmethod
     def compute_required_spacing(
-        height: int, output_spacing: float, f: float, n: float, spectrum: Array
-    ) -> float:
+        height: int,
+        output_spacing: ScalarLike,
+        f: ScalarLike,
+        n: ScalarLike,
+        spectrum: ScalarLike,
+    ) -> ScalarLike:
         return f * spectrum / (n * height * output_spacing)

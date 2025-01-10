@@ -1,17 +1,32 @@
-from typing import Optional
-
 import jax.numpy as jnp
 
+from chromatix import Field
+from chromatix.functional.amplitude_masks import amplitude_change
 from chromatix.functional.convenience import optical_fft
+from chromatix.functional.phase_masks import phase_change
+from chromatix.typing import Array, ScalarLike
 
-from ..field import Field
 from ..utils import l2_sq_norm
+from ..utils.initializers import (
+    hexagonal_microlens_array_amplitude_and_phase,
+    microlens_array_amplitude_and_phase,
+    rectangular_microlens_array_amplitude_and_phase,
+)
 from .pupils import circular_pupil
 
-__all__ = ["thin_lens", "ff_lens", "df_lens"]
+__all__ = [
+    "thin_lens",
+    "ff_lens",
+    "df_lens",
+    "microlens_array",
+    "hexagonal_microlens_array",
+    "rectangular_microlens_array",
+]
 
 
-def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
+def thin_lens(
+    field: Field, f: ScalarLike, n: ScalarLike, NA: ScalarLike | None = None
+) -> Field:
     """
     Applies a thin lens placed directly after the incoming ``Field``.
 
@@ -37,9 +52,9 @@ def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> F
 
 def ff_lens(
     field: Field,
-    f: float,
-    n: float,
-    NA: Optional[float] = None,
+    f: ScalarLike,
+    n: ScalarLike,
+    NA: ScalarLike | None = None,
     inverse: bool = False,
 ) -> Field:
     """
@@ -67,10 +82,10 @@ def ff_lens(
 
 def df_lens(
     field: Field,
-    d: float,
-    f: float,
-    n: float,
-    NA: Optional[float] = None,
+    d: ScalarLike,
+    f: ScalarLike,
+    n: ScalarLike,
+    NA: ScalarLike | None = None,
     inverse: bool = False,
 ) -> Field:
     """
@@ -101,3 +116,80 @@ def df_lens(
     L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
     phase = jnp.pi * (1 - d / f) * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
     return field * jnp.exp(1j * phase)
+
+
+def microlens_array(
+    field: Field,
+    n: ScalarLike,
+    fs: Array,
+    centers: Array,
+    radii: Array,
+    block_between: bool = False,
+) -> Field:
+    amplitude, phase = microlens_array_amplitude_and_phase(
+        field.spatial_shape,
+        field._dx[0, 0],
+        field.spectrum[..., 0, 0].squeeze(),
+        n,
+        fs,
+        centers,
+        radii,
+    )
+    field = phase_change(field, phase)
+    if block_between:
+        field = amplitude_change(field, amplitude)
+    return field
+
+
+def hexagonal_microlens_array(
+    field: Field,
+    n: ScalarLike,
+    f: Array,
+    num_lenses_per_side: ScalarLike,
+    radius: Array,
+    separation: ScalarLike,
+    block_between: bool = False,
+) -> Field:
+    amplitude, phase = hexagonal_microlens_array_amplitude_and_phase(
+        field.spatial_shape,
+        field._dx[0, 0],
+        field.spectrum[..., 0, 0].squeeze(),
+        n,
+        f,
+        num_lenses_per_side,
+        radius,
+        separation,
+    )
+    field = phase_change(field, phase)
+    if block_between:
+        field = amplitude_change(field, amplitude)
+    return field
+
+
+def rectangular_microlens_array(
+    field: Field,
+    n: ScalarLike,
+    f: Array,
+    num_lenses_height: ScalarLike,
+    num_lenses_width: ScalarLike,
+    radius: Array,
+    separation: ScalarLike,
+    block_between: bool = False,
+) -> Field:
+    amplitude, phase = rectangular_microlens_array_amplitude_and_phase(
+        field.spatial_shape,
+        field._dx[0, 0],
+        field.spectrum[..., 0, 0].squeeze(),
+        n,
+        f,
+        num_lenses_height,
+        num_lenses_width,
+        radius,
+        separation,
+    )
+    field = phase_change(field, phase)
+    if block_between:
+        field = amplitude_change(field, amplitude)
+    return field
+
+
