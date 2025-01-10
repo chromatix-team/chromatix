@@ -34,6 +34,12 @@ or for an editable install for development, first clone the repository and then 
 $ git clone https://github.com/chromatix-team/chromatix
 $ cd chromatix
 $ pip install -e .
+# install dependencies for development
+$ pip install pytest ruff pre-commit
+# install pre-commit hooks for formatting
+pre-commit install
+# test
+$ pytest
 ```
 Check out [the documentation](https://chromatix.readthedocs.io/en/latest/installing/) for more details on installation.
 
