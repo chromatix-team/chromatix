@@ -34,7 +34,7 @@ def point_source(
     spectral_density: ScalarLike,
     z: ScalarLike,
     n: ScalarLike,
-    power: ScalarLike = 1.0,
+    power: ScalarLike | None = 1.0,
     amplitude: ScalarLike = 1.0,
     pupil: FieldPupil | None = None,
     scalar: bool = True,
@@ -53,8 +53,8 @@ def point_source(
             be created.
         z: The distance of the point source.
         n: Refractive index.
-        power: The total power that the result should be normalized to,
-            defaults to 1.0.
+        power: The total power that the result should be normalized to, defaults
+            to 1.0. If ``None``, no normalization occurs.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
@@ -81,7 +81,9 @@ def point_source(
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def objective_point_source(
@@ -93,7 +95,7 @@ def objective_point_source(
     f: ScalarLike,
     n: ScalarLike,
     NA: ScalarLike,
-    power: ScalarLike = 1.0,
+    power: ScalarLike | None = 1.0,
     amplitude: ScalarLike = 1.0,
     offset: ArrayLike | tuple[float, float] = (0.0, 0.0),
     scalar: bool = True,
@@ -113,8 +115,8 @@ def objective_point_source(
         f: Focal length of the objective lens.
         n: Refractive index.
         NA: The numerical aperture of the objective lens.
-        power: The total power that the result should be normalized to,
-            defaults to 1.0.
+        power: The total power that the result should be normalized to, defaults
+            to 1.0. If ``None``, no normalization occurs.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
@@ -142,7 +144,9 @@ def objective_point_source(
     field = field.replace(u=u)
     D = 2 * f * NA / n
     field = circular_pupil(field, D)  # type: ignore
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def plane_wave(
@@ -150,7 +154,7 @@ def plane_wave(
     dx: ScalarLike,
     spectrum: ScalarLike,
     spectral_density: ScalarLike,
-    power: ScalarLike = 1.0,
+    power: ScalarLike | None = 1.0,
     amplitude: ScalarLike = 1.0,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     pupil: FieldPupil | None = None,
@@ -168,8 +172,8 @@ def plane_wave(
         spectrum: The wavelengths included in the ``Field`` to be created.
         spectral_density: The weights of each wavelength in the ``Field`` to
             be created.
-        power: The total power that the result should be normalized to,
-            defaults to 1.0
+        power: The total power that the result should be normalized to, defaults
+            to 1.0. If ``None``, no normalization occurs.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
@@ -191,11 +195,13 @@ def plane_wave(
     field = create(dx, spectrum, spectral_density, shape=shape)
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
+    u = amplitude * jnp.exp(1j * 2 * jnp.pi * jnp.sum(kykx * field.grid, axis=0))
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def generic_field(
@@ -204,7 +210,7 @@ def generic_field(
     spectral_density: ScalarLike,
     amplitude: ArrayLike,
     phase: ArrayLike,
-    power: ScalarLike = 1.0,
+    power: ScalarLike | None = 1.0,
     pupil: FieldPupil | None = None,
     scalar: bool = True,
 ) -> ScalarField | VectorField:
@@ -220,19 +226,19 @@ def generic_field(
             be created.
         amplitude: The amplitude of the field with shape `(B... H W C [1 | 3])`.
         phase: The phase of the field with shape `(B... H W C [1 | 3])`.
-        power: The total power that the result should be normalized to,
-            defaults to 1.0.
+        power: The total power that the result should be normalized to, defaults
+            to 1.0. If ``None``, no normalization occurs.
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
-    assert (
-        amplitude.ndim >= 5
-    ), "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
-    assert (
-        phase.ndim >= 5
-    ), "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
+    assert amplitude.ndim >= 5, (
+        "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
+    )
+    assert phase.ndim >= 5, (
+        "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
+    )
     vectorial_dimension = 1 if scalar else 3
     assert_axis_dimension(amplitude, -1, vectorial_dimension)
     assert_axis_dimension(phase, -1, vectorial_dimension)
@@ -241,4 +247,6 @@ def generic_field(
     field = create(dx, spectrum, spectral_density, u=u)
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
