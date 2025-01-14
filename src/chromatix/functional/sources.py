@@ -163,7 +163,10 @@ def plane_wave(
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
     u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
-    field = field.replace(u=u)
+    # There's no spectral dependence so we need to manually put in the spectral axis
+    # hence the ones_like term.
+    field = field.replace(u=u * jnp.ones_like(field.u))
+
     if pupil is not None:
         field = pupil(field)
     return field * jnp.sqrt(power / field.power)
