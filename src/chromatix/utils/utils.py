@@ -16,12 +16,13 @@ def next_order(val: int) -> int:
     return int(2 ** np.ceil(np.log2(val)))
 
 
-def center_pad(u: ArrayLike, pad_width: Sequence[int], cval: float = 0) -> Array:
+def center_pad(u: ArrayLike, padding: Sequence[int], cval: float = 0) -> Array:
     """
-    Symmetrically pads ``u`` with lengths specified per axis in ``n_padding``,
-    which should be iterable and have the same size as ``u.ndims``.
+    Symmetrically pads ``u`` with lengths specified per axis in ``padding``,
+    which should be an iterable of integers and have the same length as
+    ``u.ndims``.
     """
-    pad = [(n, n) for n in pad_width]
+    pad = [(n, n) for n in padding]
     return jnp.pad(u, pad, constant_values=cval)
 
 
