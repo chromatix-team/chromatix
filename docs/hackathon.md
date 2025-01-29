@@ -29,9 +29,10 @@ Here's a list of things which are either not implemented yet or interest us:
 * Super resolution setups: we haven't modelled super-resolution microscopes such as STED yet.
 * Modified Born Series: The MBS is an exciting approach to exactly solve Maxwell's equations. How much can it improve sample reconstruction?
 * High-NA objectives: Most modern microscopes use high-NA objectives. Can we model these, and how much does it change the simulation?
-* LLMs to build setups: Can we use LLMs to automatically construct Chromatix setups?
+* LLMs to build setups: Can we use an LLM to read a paper, and automatically construct the corresponding Chromatix setup? 
 * Extremely large reconstructions: how far can we push the envelope on reconstruction size using Chromatix?
 * Implicit neural representations: how well can NERFs replace voxelgrids?
+* Can we use LLMs to build and expand documentation? 
 
 
 
