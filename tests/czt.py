@@ -1,9 +1,6 @@
-import jax
-
-jax.config.update("jax_enable_x64", True)
-
 import time
 
+import jax
 import jax.numpy as jnp
 import jax.random as random
 import numpy as np
@@ -12,7 +9,7 @@ from scipy.signal import czt as czt_scipy
 from chromatix.utils import czt
 
 
-def test_czt_1d():
+def test_czt():
     # compare by doing same computation as DFT
     key = random.PRNGKey(42)
     N = M = 100
@@ -26,15 +23,18 @@ def test_czt_1d():
 
 
 PLOT = True
-float_32 = False
+float_64 = True
 seed = 0
 np.random.seed(seed)
+
+if float_64:
+    jax.config.update("jax_enable_x64", True)
 
 ### scipy FFT vs. CZT
 N = M = 100
 axis = 0
 x = np.random.randn(N, N) + 1j * np.random.randn(N, N)
-if float_32:
+if not float_64:
     x = x.astype(np.complex64)
 W = np.exp(-1j * 2 * np.pi / N)
 A = 1
@@ -44,6 +44,12 @@ dft_x = np.fft.fft(x, axis=axis)
 start_time = time.time()
 czt_scipy_x = czt_scipy(x, a=A, w=W, m=M, axis=axis)
 assert np.allclose(dft_x, czt_scipy_x)
+max_err = np.max(np.abs(dft_x - czt_scipy_x))
+print("Max error : ", max_err)
+
+print("\nInput dtype : ", x.dtype)
+print("DFT dtype : ", dft_x.dtype)
+print("scipy CZT dtype : ", czt_scipy_x.dtype)
 
 print("\n----- numpy FFT vs jax FFT")
 dft_jax = jnp.fft.fft(x, axis=axis)
@@ -61,9 +67,9 @@ except AssertionError as e:
     print(e)
 max_err = np.max(np.abs(dft_jax - czt_x))
 print("Max error : ", max_err)
+
 print("\nInput dtype : ", x.dtype)
 print("DFT dtype : ", dft_jax.dtype)
-print("scipy CZT dtype : ", czt_scipy_x.dtype)
 print("custom CZT dtype : ", czt_x.dtype)
 
 # -- plot
@@ -82,7 +88,7 @@ print("\n----- scipy CZT vs custom CZT")
 N = 100
 M = 10
 x = np.random.randn(N) + 1j * np.random.randn(N)
-if float_32:
+if not float_64:
     x = x.astype(np.complex64)
 czt_x = czt.czt(x, m=M, a=A, w=W, axis=axis)
 czt_scipy_x = czt_scipy(x, m=M, a=A, w=W, axis=axis)
@@ -95,10 +101,10 @@ except AssertionError as e:
 print("\n----- jax 2D FFT vs custom 2D CZT")
 N = 10
 M = 10
-x = np.random.randn(N, N) + 1j * np.random.randn(N, N)
-if float_32:
-    x = x.astype(np.complex64)
 W = np.exp(-1j * 2 * np.pi / N)
+x = np.random.randn(N, N) + 1j * np.random.randn(N, N)
+if not float_64:
+    x = x.astype(np.complex64)
 A = 1
 dft_jax = jnp.fft.fft2(x)
 czt_x = czt.cztn(x, a=[A, A], w=[W, W], m=[M, M], axes=[0, 1])
