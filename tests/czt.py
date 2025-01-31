@@ -1,3 +1,7 @@
+import jax
+
+jax.config.update("jax_enable_x64", True)
+
 import time
 
 import jax.numpy as jnp
@@ -22,6 +26,7 @@ def test_czt_1d():
 
 
 PLOT = True
+float_32 = False
 seed = 0
 np.random.seed(seed)
 
@@ -29,7 +34,8 @@ np.random.seed(seed)
 N = M = 100
 axis = 0
 x = np.random.randn(N, N) + 1j * np.random.randn(N, N)
-x = x.astype(np.complex64)
+if float_32:
+    x = x.astype(np.complex64)
 W = np.exp(-1j * 2 * np.pi / N)
 A = 1
 
@@ -53,7 +59,8 @@ try:
     np.testing.assert_allclose(dft_jax, czt_x)
 except AssertionError as e:
     print(e)
-
+max_err = np.max(np.abs(dft_jax - czt_x))
+print("Max error : ", max_err)
 print("\nInput dtype : ", x.dtype)
 print("DFT dtype : ", dft_jax.dtype)
 print("scipy CZT dtype : ", czt_scipy_x.dtype)
@@ -71,28 +78,33 @@ if PLOT:
     plt.legend()
     plt.show()
 
-# print("\n----- scipy CZT vs custom CZT")
-# N = 100
-# M = 10
-# x = np.random.randn(N) + 1j * np.random.randn(N)
-# czt_x = czt.czt(x, m=M, a=A, w=W, axis=axis)
-# czt_scipy_x = czt_scipy(x, m=M, a=A, w=W, axis=axis)
-# # assert jnp.allclose(czt_x, czt_scipy_x)
-# try:
-#     np.testing.assert_allclose(czt_scipy_x, czt_x)
-# except AssertionError as e:
-#     print(e)
+print("\n----- scipy CZT vs custom CZT")
+N = 100
+M = 10
+x = np.random.randn(N) + 1j * np.random.randn(N)
+if float_32:
+    x = x.astype(np.complex64)
+czt_x = czt.czt(x, m=M, a=A, w=W, axis=axis)
+czt_scipy_x = czt_scipy(x, m=M, a=A, w=W, axis=axis)
+# assert jnp.allclose(czt_x, czt_scipy_x)
+try:
+    np.testing.assert_allclose(czt_scipy_x, czt_x)
+except AssertionError as e:
+    print(e)
 
-# print("\n----- jax 2D FFT vs custom 2D CZT")
-# N = 10
-# M = 10
-# x = np.random.randn(N, N) + 1j * np.random.randn(N, N)
-# x = x.astype(np.complex64)
-# W = np.exp(-1j * 2 * np.pi / N)
-# A = 1
-# dft_jax = jnp.fft.fft2(x)
-# czt_x = czt.cztn(x, a=[A, A], w=[W, W], m=[M, M], axes=[0, 1])
-# try:
-#     np.testing.assert_allclose(dft_jax, czt_x)
-# except AssertionError as e:
-#     print(e)
+print("\n----- jax 2D FFT vs custom 2D CZT")
+N = 10
+M = 10
+x = np.random.randn(N, N) + 1j * np.random.randn(N, N)
+if float_32:
+    x = x.astype(np.complex64)
+W = np.exp(-1j * 2 * np.pi / N)
+A = 1
+dft_jax = jnp.fft.fft2(x)
+czt_x = czt.cztn(x, a=[A, A], w=[W, W], m=[M, M], axes=[0, 1])
+try:
+    np.testing.assert_allclose(dft_jax, czt_x)
+except AssertionError as e:
+    print(e)
+max_err = np.max(np.abs(dft_jax - czt_x))
+print("Max error : ", max_err)
