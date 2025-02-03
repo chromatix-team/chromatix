@@ -16,13 +16,13 @@ def _verify_axes(x, axes):
 def _verify_cztn_input(x, a, w, m, axes):
     D = len(a)
     if not (len(w) == len(m) == D):
-        raise ValueError("Length of [A], [W], and [M] must match.")
+        raise ValueError("Length of [a], [w], and [m] must match.")
 
     if x.ndim < D:
         raise ValueError("[x] does not have enough dimensions.")
 
     if axes is not None:
-        assert len(axes) == D, "Length of [axes] must match [A], [W], and [M]."
+        assert len(axes) == D, "Length of [axes] must match [a], [w], and [m]."
         axes = _verify_axes(x, axes)
     else:
         axes = list(range(D))
@@ -45,7 +45,16 @@ def _verify_cztn_input(x, a, w, m, axes):
 
 def czt(x: Array, m: int, a: complex, w: complex, axis=-1) -> Array:
     """
-    Chirp Z-transform (CZT) of a signal along one dimension.
+    Chirp Z-transform (CZT) of a signal along one dimension. The CZT is a
+    generalization of the discrete Fourier transform (DFT). The DFT samples the
+    Z plane at uniformly-spaced points on the unit circle, whereas the CZT
+    samples the Z plane at uniformly-spaced points on a spiral. This can be
+    used to interpolate the DFT to any desired frequency resolution.
+
+    Bluestein's algorithm is used to compute the CZT as a convolution.
+
+    !!! warning
+        Using float32/complex64 may have numerical accuracy issues.
 
     Args:
         x: Input signal to transform.
@@ -58,7 +67,11 @@ def czt(x: Array, m: int, a: complex, w: complex, axis=-1) -> Array:
 
 def cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
     """
-    Chirp Z-transform (CZT) of a signal along multiple dimensions.
+    Chirp Z-transform (CZT) of a signal along multiple dimensions as defined by
+    the `axes` parameter.
+
+    !!! warning
+        Using float32/complex64 may have numerical accuracy issues.
 
     Args:
         x: Input signal to transform.
@@ -76,13 +89,11 @@ def cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
     n_czt = []
     n_idx = []
     for d in range(n_dim):
-        n_czt.append(n_input[d] + m[d] - 1)  # TODO next fast len or not?
-        # from scipy.fft import next_fast_len
-        # n_czt.append(next_fast_len(n_input[d] + m[d] - 1))
+        n_czt.append(n_input[d] + m[d] - 1)
         n_idx.append(jnp.arange(n_czt[d]))
 
     # modulate input (chirp)
-    u = x.copy()  # TODO copy?
+    u = x.copy()
     for d in range(n_dim):
         broadcast_shape = [1] * len(x.shape)
         broadcast_shape[axes[d]] = n_input[d]
