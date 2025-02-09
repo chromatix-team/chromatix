@@ -62,7 +62,32 @@ def czt(x: Array, m: int, a: complex, w: complex, axis=-1) -> Array:
         a: The starting point in the complex plane.
         w: The ratio between points in each step.
     """
-    return cztn(x, m=[m], a=[a], w=[w], axes=[axis])
+    axes, a, w = _verify_cztn_input(x, a=[a], w=[w], m=[m], axes=[axis])
+    axis = axes[0]
+    a = a[0]
+    w = w[0]
+
+    # compute modulation terms
+    n = x.shape[axis]
+    n_czt = m + n - 1
+    k = jnp.arange(n_czt)
+    wk2 = w ** (k**2 / 2)
+    Awk2 = a ** -k[:n] * wk2[:n]
+    Fwk2 = jnp.fft.fft(1 / jnp.hstack((wk2[n - 1 : 0 : -1], wk2[:m])), n_czt)
+    wk2 = wk2[:m]
+    idx = [slice(None)] * len(x.shape)
+    idx[axis] = slice(n - 1, n + m - 1)
+    idx = tuple(idx)
+
+    # perform CZT
+    broadcast_shape = [1] * len(x.shape)
+    broadcast_shape[axis] = n
+    y = jnp.fft.fft(x * Awk2.reshape(broadcast_shape), n_czt, axis=axis)
+    broadcast_shape[axis] = n_czt
+    y = jnp.fft.ifft(y * Fwk2.reshape(broadcast_shape), axis=axis)
+    broadcast_shape[axis] = m
+    y = y[idx] * wk2.reshape(broadcast_shape)
+    return y
 
 
 def cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
@@ -83,50 +108,79 @@ def cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
 
     axes, a, w = _verify_cztn_input(x, a=a, w=w, m=m, axes=axes)
 
-    # initialize variables
+    # initialize variables and modulation vectors
     n_dim = len(axes)
-    n_input = [x.shape[d] for d in axes]
+    all_dims = tuple([d for d in range(len(x.shape))])
     n_czt = []
-    n_idx = []
+    Awk2 = []
+    Fwk2 = []
+    wk2 = []
     for d in range(n_dim):
-        n_czt.append(n_input[d] + m[d] - 1)
-        n_idx.append(jnp.arange(n_czt[d]))
+        N = x.shape[d]
+        M = m[d]
+        n_czt.append(N + M - 1)
+
+        # pre-compute modulation vectors
+        k = jnp.arange(n_czt[d])
+        _wk2 = w[d] ** (k**2 / 2)
+        _wk2_neg = w[d] ** (-(k**2) / 2)
+        Awk2.append((a[d] ** -k[:N]) * _wk2[:N])
+        Fwk2.append(
+            jnp.fft.fft(
+                jnp.concatenate(
+                    [
+                        _wk2_neg[:M],
+                        jnp.zeros(n_czt[d] - M - N + 1),
+                        _wk2_neg[(N - 1) : 0 : -1],
+                    ]
+                ),
+            )
+        )
+        wk2.append(_wk2[:M])
 
     # modulate input (chirp)
-    u = x.copy()
+    mod_args = []
     for d in range(n_dim):
-        broadcast_shape = [1] * len(x.shape)
-        broadcast_shape[axes[d]] = n_input[d]
-        u_mod_d = (a[d] ** -n_idx[d][: n_input[d]]) * (
-            w[d] ** (n_idx[d][: n_input[d]] ** 2 / 2)
-        )
-        u *= u_mod_d.reshape(broadcast_shape)
-    U = jnp.fft.fftn(u, axes=axes, s=n_czt)
+        mod_args.append(Awk2[d])
+        mod_args.append((..., axes[d]))
+    _x = jnp.einsum(x, all_dims, *mod_args, all_dims)
+    _x = jnp.fft.fftn(_x, axes=axes, s=n_czt)
 
-    # prepare second sequence for convolution
+    # convolution
+    mod_args = []
     for d in range(n_dim):
-        _n = n_input[d]
-        broadcast_shape = [1] * len(x.shape)
-        broadcast_shape[axes[d]] = n_czt[d]
-        v_left = w[d] ** (-(n_idx[d][: m[d]] ** 2) / 2)
-        v_center = jnp.zeros(n_czt[d] - m[d] - _n + 1)
-        v_right = w[d] ** (-((n_czt[d] - n_idx[d][n_czt[d] - _n + 1 :]) ** 2) / 2)
-        v = jnp.concatenate((v_left, v_center, v_right))
-        V = jnp.fft.fft(v).reshape(broadcast_shape)
-        U *= V
-    out = jnp.fft.ifftn(U, axes=axes)
+        mod_args.append(Fwk2[d])
+        mod_args.append((..., axes[d]))
+    _x = jnp.einsum(_x, all_dims, *mod_args, all_dims)
+    _x = jnp.fft.ifftn(_x, axes=axes)
 
     # crop desired region
-    slices = [slice(None)] * len(out.shape)
+    slices = [slice(None)] * len(_x.shape)
     for d in range(n_dim):
         slices[axes[d]] = slice(m[d])
-    out = out[tuple(slices)]
+    _x = _x[tuple(slices)]
 
     # final modulation terms
+    mod_args = []
     for d in range(n_dim):
-        broadcast_shape = [1] * len(x.shape)
-        broadcast_shape[axes[d]] = m[d]
-        czt_mod = w[d] ** (n_idx[d][: m[d]] ** 2 / 2)
-        out *= czt_mod.reshape(broadcast_shape)
+        mod_args.append(wk2[d])
+        mod_args.append((..., axes[d]))
+    y = jnp.einsum(_x, all_dims, *mod_args, all_dims)
+    return y
 
-    return out
+
+def _czt(x: Array, m: int, a: complex, w: complex, axis=-1) -> Array:
+    """
+    1D CZT by calling multi-dimensional one (slower).
+    """
+    return cztn(x, m=[m], a=[a], w=[w], axes=[axis])
+
+
+def _cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
+    """
+    Slower version of multi-dimension CZT as a sequence of 1D CZT.
+    """
+    x_czt = x.copy()
+    for d, ax in enumerate(axes):
+        x_czt = czt(x_czt, a=a[d], w=w[d], m=m[d], axis=ax)
+    return x_czt
