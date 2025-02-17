@@ -93,7 +93,31 @@ def czt(x: Array, m: int, a: complex, w: complex, axis=-1) -> Array:
 def cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
     """
     Chirp Z-transform (CZT) of a signal along multiple dimensions as defined by
-    the `axes` parameter.
+    the `axes` parameter. This implementation loops over the dimensions and
+    performs the CZT along each dimension.
+
+    !!! warning
+        Using float32/complex64 may have numerical accuracy issues.
+
+    Args:
+        x: Input signal to transform.
+        m: Number of samples in the output. List for each dimension.
+        a: The starting point in the complex plane. List for each dimension.
+        w: The ratio between points in each step. List for each dimension.
+        axes: Axes along which to perform the CZT.
+    """
+    x_czt = x.copy()
+    for d, ax in enumerate(axes):
+        x_czt = czt(x_czt, a=a[d], w=w[d], m=m[d], axis=ax)
+    return x_czt
+
+
+def _cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
+    """
+    Chirp Z-transform (CZT) of a signal along multiple dimensions as defined by
+    the `axes` parameter. This implementation uses ``einsum`` and ``fftn`` to
+    perform the CZT along multiple dimensions, but is slower than the looped
+    implementation.
 
     !!! warning
         Using float32/complex64 may have numerical accuracy issues.
@@ -167,20 +191,3 @@ def cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
         mod_args.append((..., axes[d]))
     y = jnp.einsum(_x, all_dims, *mod_args, all_dims)
     return y
-
-
-def _czt(x: Array, m: int, a: complex, w: complex, axis=-1) -> Array:
-    """
-    1D CZT by calling multi-dimensional one (slower).
-    """
-    return cztn(x, m=[m], a=[a], w=[w], axes=[axis])
-
-
-def _cztn(x: Array, m: List, a: List, w: List, axes: List) -> Array:
-    """
-    Slower version of multi-dimension CZT as a sequence of 1D CZT.
-    """
-    x_czt = x.copy()
-    for d, ax in enumerate(axes):
-        x_czt = czt(x_czt, a=a[d], w=w[d], m=m[d], axis=ax)
-    return x_czt
