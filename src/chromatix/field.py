@@ -84,6 +84,7 @@ class Field(struct.PyTreeNode):
     _dx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
     _spectrum: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
     _spectral_density: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
+    _shift_yx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
 
     @property
     def grid(self) -> Array:
@@ -102,7 +103,7 @@ class Field(struct.PyTreeNode):
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
-        return self.dx * grid
+        return self.dx * grid + self.shift_yx
 
     @property
     def k_grid(self) -> Array:
@@ -132,6 +133,15 @@ class Field(struct.PyTreeNode):
         for all entries in a batch.
         """
         return _broadcast_2d_to_grid(self._dx, self.ndim)
+
+    @property
+    def shift_yx(self) -> Array:
+        """
+        The shift in microns of the field in the destination plane. Defined as
+        an array of shape ``(2 1... 1 1 C 1)`` specifying the shift in the y
+        and x directions respectively.
+        """
+        return _broadcast_2d_to_grid(self._shift_yx, self.ndim)
 
     @property
     def dk(self) -> Array:
@@ -225,6 +235,14 @@ class Field(struct.PyTreeNode):
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
+    @property
+    def spatial_limits(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """Return the spatial limits of the field in microns: (y_min, y_max), (x_min, x_max)."""
+        return (float(self.grid[0].min()), float(self.grid[0].max())), (
+            float(self.grid[1].min()),
+            float(self.grid[1].max()),
+        )
+
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
@@ -307,6 +325,7 @@ class ScalarField(Field):
         spectral_density: Union[float, Array],
         u: Optional[Array] = None,
         shape: Optional[Tuple[int, int]] = None,
+        shift_yx: Union[float, Array] = None,
     ) -> Field:
         """
         Create a scalar approximation ``Field`` object in a convenient way.
@@ -339,6 +358,8 @@ class ScalarField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
+            shift_yx: If provided, defines a shift in microns in the destination
+                plane. Should be an array of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -356,7 +377,11 @@ class ScalarField(Field):
         if dx.ndim == 1:
             dx = jnp.stack([dx, dx])
         assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+        if shift_yx is None:
+            shift_yx = jnp.zeros((2, 1))
+        assert_rank(shift_yx, 2)  # shift_yx should have shape (2, C) here
+        assert shift_yx.shape[0] == 2
+        return cls(u, dx, spectrum, spectral_density, shift_yx)
 
 
 class VectorField(Field):
