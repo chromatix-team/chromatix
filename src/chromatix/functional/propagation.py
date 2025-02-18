@@ -4,9 +4,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from chex import Array
+from jax.scipy.signal import fftconvolve
 
-from chromatix.field import crop, pad
+from chromatix.field import ScalarField, crop, pad
 from chromatix.functional.convenience import optical_fft
+from chromatix.utils.czt import czt
 from chromatix.utils.fft import fft, ifft
 
 from ..field import Field
@@ -253,6 +255,9 @@ def asm_propagate(
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     bandlimit: bool = False,
     shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    dx: Union[float, Array] = None,
+    N_out: Tuple[int, int] = None,
+    use_czt: bool = False,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -280,26 +285,103 @@ def asm_propagate(
             Shimobaba. Defaults to ``False``.
         shift_yx: If provided, defines a shift in microns in the destination
             plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+        dx: If provided, defines a different output sampling at the output
+            plane.
+        N_out: If provided, defines the output shape of the field. Should be
+            a tuple of integers. If not provided and ``dx`` is provided, the
+            output shape will default to that of the input field.
+        use_czt: Whether or not to use chirp Z-transform for off-axis
+            propagation or interpolating with different output sampling.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
-    propagator = compute_asm_propagator(field, z, n, kykx, bandlimit, shift_yx)
-    field = kernel_propagate(field, propagator)
+    propagator = compute_asm_propagator(
+        field, z, n, kykx, bandlimit, shift_yx if not use_czt else (0.0, 0.0)
+    )
+    field = kernel_propagate(
+        field, propagator, dx=dx, N_out=N_out, shift_yx=shift_yx, use_czt=use_czt
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
 
 
-def kernel_propagate(field: Field, propagator: Array) -> Field:
+def kernel_propagate(
+    field: Field,
+    propagator: Array,
+    dx: Union[float, Array] = None,
+    N_out: Tuple[int, int] = None,
+    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    use_czt: bool = False,
+) -> Field:
     """
     Propagate an incoming ``Field`` by the given propagation kernel
     (``propagator``). This amounts to performing a Fourier convolution of the
     ``field`` and the ``propagator``.
     """
     axes = field.spatial_dims
-    u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
+    if dx is None and N_out is None:
+        u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
+    else:
+        if N_out is None:
+            N_out = field.spatial_shape
+        if dx is None:
+            dx = field.dx
+        # TODO support vector field?
+        output_field = ScalarField.create(
+            dx=dx,
+            spectrum=field.spectrum,
+            spectral_density=field.spectral_density,
+            shape=N_out,
+            shift_yx=np.array(shift_yx)[..., np.newaxis],
+        )
+        # Scaling factor un Eq 7 of "Band-limited angular spectrum numerical
+        # propagation method with selective scaling of observation window size
+        # and sample number"
+        alpha = output_field.dx / field.dk
+
+        # output field in k-space
+        u = fft(field.u, axes=axes, shift=True) * jnp.fft.fftshift(propagator)
+
+        if use_czt:
+            (y_min, y_max), (x_min, x_max) = output_field.spatial_limits
+            limits_min = [y_min, x_min]
+            limits_max = [y_max, x_max]
+            T = field.surface_area.squeeze()
+
+            # loop over dimensions
+            for d in range(len(axes)):
+                # -- chirp z-transform
+                m = N_out[d]
+                a = jnp.exp(-1j * 2 * jnp.pi / T[d] * limits_min[d])
+                w = jnp.exp(
+                    1j * (2 * jnp.pi / T[d]) * (limits_max[d] - limits_min[d]) / (m - 1)
+                )
+                u = czt(x=u, m=m, a=a, w=w, axis=axes[d])
+
+                # -- modulate
+                sh = [1] * u.ndim
+                sh[axes[d]] = m
+                N = (m - 1) // 2
+                C = jnp.reshape(w ** (-N * jnp.arange(m)), sh) * (a**N)
+                u *= C
+            u *= jnp.prod(1 / alpha)
+
+        else:
+            # Eq 9 of "Band-limited angular spectrum numerical propagation method
+            # with selective scaling of observation window size and sample number"
+            # (2012)
+            wn = alpha * field.k_grid
+            f = jnp.prod(jnp.exp(-1j * jnp.pi / alpha * wn**2), axis=0)
+            B = u * jnp.prod((1 / alpha) * jnp.exp(1j * jnp.pi / alpha * wn**2), axis=0)
+            mod_terms = jnp.prod(
+                output_field.dx * jnp.exp(1j * jnp.pi / alpha * output_field.grid**2),
+                axis=0,
+            )
+            u = mod_terms * fftconvolve(B, f, mode="same", axes=axes)
+
     return field.replace(u=u)
 
 
