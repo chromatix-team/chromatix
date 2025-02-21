@@ -23,7 +23,7 @@ def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
         x: Input signal to transform.
         m: Number of samples in the output.
         a: The starting point in the complex plane. Must lie on the unit circle
-            for numerical stability
+            for numerical stability.
         w: The ratio between points in each step. Should lie on the unit
             circle.
         axis: Axis along which to perform the CZT.
