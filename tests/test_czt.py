@@ -19,7 +19,7 @@ def test_czt_as_dft():
     w = jnp.exp(-1j * 2 * jnp.pi / N)
     for axis in range(2):
         dft_x = jnp.fft.fft(x, axis=axis)
-        czt_x = czt(x, a=1.0, w=w, m=M, axis=axis, n=N)
+        czt_x = czt(x, a=1.0, w=w, m=M, axis=axis)
         assert jnp.allclose(dft_x, czt_x)
 
 
@@ -30,7 +30,7 @@ def test_czt_as_idft():
     w = jnp.exp(1j * 2 * jnp.pi / N)
     for axis in range(2):
         dft_x = jnp.fft.ifft(x, axis=axis)
-        czt_x = czt(x, a=1.0, w=w, m=M, axis=axis, n=N)
+        czt_x = czt(x, a=1.0, w=w, m=M, axis=axis)
         assert jnp.allclose(dft_x, czt_x / N)  # czt does not do the scaling.
 
 
@@ -51,7 +51,7 @@ def test_against_scipy():
     a = 1.0
     for axis in range(2):
         ref = czt_scipy(x, a=a, w=w, m=M, axis=axis)
-        czt_chromatix = czt(x, a=a, w=w, m=M, axis=axis, n=N)
+        czt_chromatix = czt(x, a=a, w=w, m=M, axis=axis)
         assert np.allclose(ref, czt_chromatix)
 
 
@@ -61,8 +61,12 @@ def test_czt_jit():
     x = random.uniform(key, shape=(N, N)) + 1j * random.uniform(key, shape=(N, N))
     w = jnp.exp(-1j * 2 * jnp.pi / N)
     # -- czt
-    czt_jit = jit(czt, static_argnums=[1, 2, 5])
-    czt_jit(x, a=1.0, w=w, m=M, n=N)
+    czt_jit = jit(czt, static_argnums=[1])
+    czt_jit(x, a=1.0, w=w, m=M)
+    czt_jit = jit(czt, static_argnums=[1, 4])
+    czt_jit(x, a=1.0, w=w, m=M, axis=0)
     # -- cztn
+    cztn_jit = jit(cztn, static_argnums=[1])
+    cztn_jit(x, a=(1, 1), w=(w, w), m=(M, M))
     cztn_jit = jit(cztn, static_argnums=[1, 4])
     cztn_jit(x, a=(1, 1), w=(w, w), m=(M, M), axes=(0, 1))

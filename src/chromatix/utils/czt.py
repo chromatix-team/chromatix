@@ -8,8 +8,8 @@ from jax.typing import ArrayLike
 # from functools import partial
 
 
-# @partial(jit, static_argnums=[1, 2, 5])
-def czt(x: ArrayLike, n: int, m: int, a: complex, w: complex, axis=-1) -> Array:
+# @partial(jit, static_argnums=[1, 4])
+def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
     """
     Chirp Z-transform (CZT) of a signal along one dimension. The CZT is a
     generalization of the discrete Fourier transform (DFT). The DFT samples the
@@ -24,7 +24,6 @@ def czt(x: ArrayLike, n: int, m: int, a: complex, w: complex, axis=-1) -> Array:
 
     Args:
         x: Input signal to transform.
-        n: Number of samples in the input at dimension `axis`.
         m: Number of samples in the output.
         a: The starting point in the complex plane. Must lie on the unit circle
             for numerical stability.
@@ -42,6 +41,7 @@ def czt(x: ArrayLike, n: int, m: int, a: complex, w: complex, axis=-1) -> Array:
     # )
 
     # compute modulation terms
+    n = x.shape[axis]
     n_czt = m + n - 1
     k = jnp.arange(n_czt)
     wk2 = w ** (k**2 / 2)
@@ -63,7 +63,7 @@ def cztn(
     m: Tuple[int],
     a: Tuple[complex],
     w: Tuple[complex],
-    axes: Tuple[int],
+    axes: Tuple[int] = (-2, -1),
 ) -> Array:
     """
     Chirp Z-transform (CZT) of a signal along multiple dimensions as defined by
@@ -82,5 +82,5 @@ def cztn(
     """
     x_czt = x
     for d, ax in enumerate(axes):
-        x_czt = czt(x_czt, a=a[d], w=w[d], m=m[d], axis=ax, n=x.shape[ax])
+        x_czt = czt(x_czt, a=a[d], w=w[d], m=m[d], axis=ax)
     return x_czt
