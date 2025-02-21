@@ -172,6 +172,9 @@ def transfer_propagate(
     N_pad: int,
     cval: float = 0,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    dx: Union[float, Array] = None,
+    N_out: Tuple[int, int] = None,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -192,13 +195,25 @@ def transfer_propagate(
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
+        shift_yx: If provided, defines a shift in microns in the destination
+            plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+        dx: If provided, defines a different output sampling at the output
+            plane.
+        N_out: If provided, defines the output shape of the field. Should be
+            a tuple of integers. If not provided and ``dx`` is provided, the
+            output shape will default to that of the input field.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
     propagator = compute_transfer_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator)
+    use_czt = (
+        True if dx is not None or N_out is not None or shift_yx != (0.0, 0.0) else False
+    )
+    field = kernel_propagate(
+        field, propagator, dx=dx, N_out=N_out, shift_yx=shift_yx, use_czt=use_czt
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
