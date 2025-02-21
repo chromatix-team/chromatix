@@ -19,11 +19,9 @@ __all__ = [
     "compute_sas_precompensation",
     "transform_propagate_sas",
     "transfer_propagate",
-    "exact_propagate",
     "asm_propagate",
     "kernel_propagate",
     "compute_transfer_propagator",
-    "compute_exact_propagator",
     "compute_asm_propagator",
     "compute_padding_transform",
     "compute_padding_transfer",
@@ -206,46 +204,6 @@ def transfer_propagate(
     return field
 
 
-def exact_propagate(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    N_pad: int,
-    cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-    mode: Literal["full", "same"] = "full",
-) -> Field:
-    """
-    Propagate ``field`` for a distance ``z`` using exact transfer method.
-
-    This method removes evanescent waves.
-
-    Args:
-        field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or a 1D array.
-        n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for
-            the propagation FFT. Use padding calculator utilities from
-            ``chromatix.functional.propagation`` to compute the padding.
-            !!! warning
-                The pad value hould not be a Jax array, otherwise a
-                ConcretizationError will arise when traced!
-        cval: The background value to use when padding the Field. Defaults to 0
-            for zero padding.
-        kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
-        mode: Either "full" or "same". If "same", the shape of the output
-            ``Field`` will match the shape of the incoming ``Field``. Defaults
-            to "full", in which case the output shape will include padding.
-    """
-    field = pad(field, N_pad, cval=cval)
-    propagator = compute_exact_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator)
-    if mode == "same":
-        field = crop(field, N_pad)
-    return field
-
-
 def asm_propagate(
     field: Field,
     z: Union[float, Array],
@@ -253,6 +211,7 @@ def asm_propagate(
     N_pad: int,
     cval: float = 0,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    remove_evanescent: bool = False,
     bandlimit: bool = False,
     shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     dx: Union[float, Array] = None,
@@ -279,6 +238,8 @@ def asm_propagate(
             for zero padding.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format `[ky, kx]`.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            False.
         bandlimit: If ``True``, bandlimited the kernel according to "Band-
             Limited Angular Spectrum Method for Numerical Simulation of Free-
             Space Propagation in Far and Near Fields" (2009) by Matsushima and
@@ -298,7 +259,13 @@ def asm_propagate(
     """
     field = pad(field, N_pad, cval=cval)
     propagator = compute_asm_propagator(
-        field, z, n, kykx, bandlimit, shift_yx if not use_czt else (0.0, 0.0)
+        field,
+        z,
+        n,
+        kykx,
+        bandlimit,
+        shift_yx if not use_czt else (0.0, 0.0),
+        remove_evanescent=remove_evanescent,
     )
     field = kernel_propagate(
         field, propagator, dx=dx, N_out=N_out, shift_yx=shift_yx, use_czt=use_czt
@@ -409,36 +376,6 @@ def compute_transfer_propagator(
     return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
 
 
-def compute_exact_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-) -> Array:
-    """
-    Compute propagation kernel for propagation with no Fresnel approximation.
-
-    This version of the propagation kernel removes evanescent waves. Returns
-    an array that can be multiplied with the Fourier transform of the incoming
-    Field, as performed by kernel_propagate.
-
-    Args:
-        field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or an array of shape (Z 1
-            1 1).
-        n: A float that defines the refractive index of the medium.
-        kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format `[ky, kx]`.
-    """
-    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
-    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * jnp.sqrt(kernel)
-    kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
-    return jnp.fft.ifftshift(kernel_field, axes=field.spatial_dims)
-
-
 def compute_asm_propagator(
     field: Field,
     z: Union[float, Array],
@@ -446,6 +383,7 @@ def compute_asm_propagator(
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     bandlimit: bool = False,
     shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    remove_evanescent: bool = False,
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -468,11 +406,16 @@ def compute_asm_propagator(
             Shimobaba. Defaults to ``False``.
         shift_yx: If provided, defines a shift in microns in the destination
             plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            False.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    delay = jnp.sqrt(jnp.complex64(kernel))  # keep evanescent modes
+    if remove_evanescent:
+        delay = jnp.sqrt(jnp.maximum(kernel, 0.0))
+    else:
+        delay = jnp.sqrt(jnp.complex64(kernel))
     # shift in output plane
     shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
     out_shift = 2 * jnp.pi * jnp.sum(field.k_grid * shift_yx, axis=0)

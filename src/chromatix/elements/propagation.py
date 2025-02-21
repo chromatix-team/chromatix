@@ -10,9 +10,7 @@ from ..field import Field
 from ..functional import (
     asm_propagate,
     compute_asm_propagator,
-    compute_exact_propagator,
     compute_transfer_propagator,
-    exact_propagate,
     kernel_propagate,
     transfer_propagate,
     transform_propagate,
@@ -120,7 +118,9 @@ class Propagate(nn.Module):
                 propagator = self.variable(
                     "state",
                     "kernel",
-                    lambda: compute_exact_propagator(*propagator_args),
+                    lambda: compute_asm_propagator(
+                        *propagator_args, remove_evanescent=True
+                    ),
                 )
             elif self.method == "asm":
                 propagator = self.variable(
@@ -151,7 +151,7 @@ class Propagate(nn.Module):
                 mode=self.mode,
             )
         elif self.method == "exact":
-            return exact_propagate(
+            return asm_propagate(
                 field,
                 z,
                 n,
@@ -159,6 +159,7 @@ class Propagate(nn.Module):
                 cval=self.cval,
                 kykx=self.kykx,
                 mode=self.mode,
+                remove_evanescent=True,
             )
         elif self.method == "asm":
             return asm_propagate(

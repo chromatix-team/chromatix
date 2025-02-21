@@ -12,9 +12,8 @@ from ..field import ScalarField, VectorField
 from ..utils import _broadcast_2d_to_spatial, center_pad
 from .polarizers import polarizer
 from .propagation import (
+    asm_propagate,
     compute_asm_propagator,
-    compute_exact_propagator,
-    exact_propagate,
     kernel_propagate,
 )
 
@@ -148,7 +147,9 @@ def multislice_thick_sample(
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator is None:
-        propagator = compute_exact_propagator(field, thickness_per_slice, n, kykx)
+        propagator = compute_asm_propagator(
+            field, thickness_per_slice, n, kykx, remove_evanescent=True
+        )
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
     for absorption, dn in zip(absorption_stack, dn_stack):
         absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
@@ -158,8 +159,13 @@ def multislice_thick_sample(
     # Propagate field backwards to the middle (or chosen distance) of the stack
     if reverse_propagate_distance is None:
         reverse_propagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
-    field = exact_propagate(
-        field, z=-reverse_propagate_distance, n=n, kykx=kykx, N_pad=0
+    field = asm_propagate(
+        field,
+        z=-reverse_propagate_distance,
+        n=n,
+        kykx=kykx,
+        N_pad=0,
+        remove_evanescent=True,
     )
     return crop(field, N_pad)
 

@@ -121,7 +121,9 @@ def test_exact_propagation(shape, N_pad):
     field = cf.plane_wave(
         shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
     )
-    out_field = cf.exact_propagate(field, z, n, N_pad=N_pad, mode="same")
+    out_field = cf.asm_propagate(
+        field, z, n, N_pad=N_pad, mode="same", remove_evanescent=True
+    )
     I_numerical = out_field.intensity.squeeze()
 
     # Analytical
@@ -136,8 +138,12 @@ def test_exact_propagation(shape, N_pad):
     # Forward and backward
     field = cf.plane_wave(shape, spacing, 0.532, 1.0)
     field = cf.square_pupil(field, w)  # Pupil after plane wave to lose some power
-    out_field = cf.exact_propagate(field, z, n, N_pad=0, mode="same")
-    back_field = cf.exact_propagate(out_field, -z, n, N_pad=0, mode="same")
+    out_field = cf.asm_propagate(
+        field, z, n, N_pad=0, mode="same", remove_evanescent=True
+    )
+    back_field = cf.asm_propagate(
+        out_field, -z, n, N_pad=0, mode="same", remove_evanescent=True
+    )
     assert jnp.allclose(back_field.u, field.u, rtol=2e-5)
 
 
