@@ -4,11 +4,7 @@ import jax.numpy as jnp
 from jax import Array
 from jax.typing import ArrayLike
 
-# from jax import jit
-# from functools import partial
 
-
-# @partial(jit, static_argnums=[1, 4])
 def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
     """
     Chirp Z-transform (CZT) of a signal along one dimension. The CZT is a
@@ -57,7 +53,6 @@ def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
     return y
 
 
-# @partial(jit, static_argnums=[1, 4])
 def cztn(
     x: ArrayLike,
     m: Tuple[int],
