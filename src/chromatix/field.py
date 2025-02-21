@@ -393,6 +393,7 @@ class VectorField(Field):
         spectral_density: Union[float, Array],
         u: Optional[Array] = None,
         shape: Optional[Tuple[int, int]] = None,
+        shift_yx: Union[float, Array] = None,
     ) -> Field:
         """
         Create a vectorial ``Field`` object in a convenient way.
@@ -425,6 +426,8 @@ class VectorField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
+            shift_yx: If provided, defines a shift in microns in the destination
+                plane. Should be an array of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -442,7 +445,11 @@ class VectorField(Field):
         if dx.ndim == 1:
             dx = jnp.stack([dx, dx])
         assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+        if shift_yx is None:
+            shift_yx = jnp.zeros((2, 1))
+        assert_rank(shift_yx, 2)  # shift_yx should have shape (2, C) here
+        assert shift_yx.shape[0] == 2
+        return cls(u, dx, spectrum, spectral_density, shift_yx)
 
     @property
     def jones_vector(self) -> Array:
