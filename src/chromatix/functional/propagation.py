@@ -231,7 +231,7 @@ def asm_propagate(
     shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     dx: Union[float, Array] = None,
     N_out: Tuple[int, int] = None,
-    use_czt: bool = False,
+    use_czt: bool = True,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -268,11 +268,16 @@ def asm_propagate(
             output shape will default to that of the input field.
         use_czt: Whether or not to use chirp Z-transform for off-axis
             propagation or interpolating with different output sampling.
+            Defaults to True if ``dx`` or ``N_out`` is provided.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
+    if dx is None and N_out is None:
+        # If neither dx nor N_out is provided, use the default ASM propagation
+        # as FFT is faster than CZT
+        use_czt = False
     propagator = compute_asm_propagator(
         field,
         z,
@@ -304,13 +309,13 @@ def kernel_propagate(
     ``field`` and the ``propagator``.
     """
     axes = field.spatial_dims
-    if dx is None and N_out is None:
+    if dx is None and N_out is None and not use_czt:
         u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
     else:
         if N_out is None:
             N_out = field.spatial_shape
         if dx is None:
-            dx = field.dx
+            dx = field.dx.squeeze()
         # TODO support vector field?
         output_field = ScalarField.create(
             dx=dx,
@@ -319,7 +324,7 @@ def kernel_propagate(
             shape=N_out,
             shift_yx=np.array(shift_yx)[..., np.newaxis],
         )
-        # Scaling factor un Eq 7 of "Band-limited angular spectrum numerical
+        # Scaling factor in Eq 7 of "Band-limited angular spectrum numerical
         # propagation method with selective scaling of observation window size
         # and sample number"
         alpha = output_field.dx / field.dk
@@ -344,11 +349,12 @@ def kernel_propagate(
                 u = czt(x=u, m=m, a=a, w=w, axis=axes[d])
 
                 # -- modulate
-                sh = [1] * u.ndim
-                sh[axes[d]] = m
                 N = (m - 1) // 2
-                C = jnp.reshape(w ** (-N * jnp.arange(m)), sh) * (a**N)
-                u *= C
+                u = jnp.moveaxis(u, axes[d], -1)
+                C = w ** (-N * jnp.arange(m)) * (a**N)
+                u *= C  # applied to last dimension
+                u = jnp.moveaxis(u, -1, axes[d])
+
             u *= jnp.prod(1 / alpha)
 
         else:
