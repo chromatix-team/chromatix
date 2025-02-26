@@ -6,7 +6,7 @@ import numpy as np
 from chex import Array
 from jax.scipy.signal import fftconvolve
 
-from chromatix.field import ScalarField, crop, pad
+from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
 from chromatix.utils.czt import czt
 from chromatix.utils.fft import fft, ifft
@@ -266,9 +266,9 @@ def asm_propagate(
         N_out: If provided, defines the output shape of the field. Should be
             a tuple of integers. If not provided and ``dx`` is provided, the
             output shape will default to that of the input field.
-        use_czt: Whether or not to use chirp Z-transform for off-axis
-            propagation or interpolating with different output sampling.
-            Defaults to True if ``dx`` or ``N_out`` is provided.
+        use_czt: Whether or not to use chirp Z-transform for different output
+            sampling. Defaults to True if `dx` or `N_out` is provided, and
+            to False if neither is provided.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
@@ -311,32 +311,32 @@ def kernel_propagate(
     axes = field.spatial_dims
     if dx is None and N_out is None and not use_czt:
         u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
+        field = field.shift(shift_yx)
     else:
         if N_out is None:
             N_out = field.spatial_shape
         if dx is None:
             dx = field.dx.squeeze()
-        # TODO support vector field?
-        output_field = ScalarField.create(
-            dx=dx,
-            spectrum=field.spectrum,
-            spectral_density=field.spectral_density,
-            shape=N_out,
-            shift_yx=np.array(shift_yx)[..., np.newaxis],
-        )
+        in_field = field.u
+        in_field_dk = field.dk
+        in_field_k_grid = field.k_grid
+        in_field_surface_area = field.surface_area.squeeze()
+        field = field.shift(shift_yx)
+        field = field.set_sampling(dx=dx, shape=N_out)
+
         # Scaling factor in Eq 7 of "Band-limited angular spectrum numerical
         # propagation method with selective scaling of observation window size
         # and sample number"
-        alpha = output_field.dx / field.dk
+        alpha = field.dx / in_field_dk
 
         # output field in k-space
-        u = fft(field.u, axes=axes, shift=True) * jnp.fft.fftshift(propagator)
+        u = fft(in_field, axes=axes, shift=True) * jnp.fft.fftshift(propagator)
 
         if use_czt:
-            (y_min, y_max), (x_min, x_max) = output_field.spatial_limits
+            (y_min, y_max), (x_min, x_max) = field.spatial_limits
             limits_min = [y_min, x_min]
             limits_max = [y_max, x_max]
-            T = field.surface_area.squeeze()
+            T = in_field_surface_area
 
             # loop over dimensions
             for d in range(len(axes)):
@@ -361,11 +361,11 @@ def kernel_propagate(
             # Eq 9 of "Band-limited angular spectrum numerical propagation method
             # with selective scaling of observation window size and sample number"
             # (2012)
-            wn = alpha * field.k_grid
+            wn = alpha * in_field_k_grid
             f = jnp.prod(jnp.exp(-1j * jnp.pi / alpha * wn**2), axis=0)
             B = u * jnp.prod((1 / alpha) * jnp.exp(1j * jnp.pi / alpha * wn**2), axis=0)
             mod_terms = jnp.prod(
-                output_field.dx * jnp.exp(1j * jnp.pi / alpha * output_field.grid**2),
+                field.dx * jnp.exp(1j * jnp.pi / alpha * field.grid**2),
                 axis=0,
             )
             u = mod_terms * fftconvolve(B, f, mode="same", axes=axes)

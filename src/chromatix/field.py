@@ -245,6 +245,45 @@ class Field(struct.PyTreeNode):
             float(self.grid[1].max()),
         )
 
+    def shift(self, shift_yx: Union[float, Array]) -> Field:
+        """
+        Shift the field in the destination plane.
+
+        Args:
+            shift_yx: The shift in the destination plane. Should be an array of
+                shape `[2,]` in the format `[y, x]`.
+        """
+        if isinstance(shift_yx, Number):
+            shift_yx = jnp.array([shift_yx, shift_yx])
+        shift_yx = jnp.array(shift_yx)  # Ensure it is an array
+        if shift_yx.ndim == 1:
+            shift_yx = shift_yx[:, None]
+        assert_rank(shift_yx, 2)
+        return self.replace(_shift_yx=shift_yx)
+
+    def set_sampling(
+        self, dx: Union[float, Array] = None, shape: Tuple[int, int] = None
+    ) -> Field:
+        """
+        Note that this function overwrites the field `u` with a new empty field.
+        """
+        if dx is None:
+            dx = self.dx
+        else:
+            if dx.ndim == 1:
+                dx = jnp.stack([dx, dx])
+            assert_rank(dx, 2)  # dx should have shape (2, C) here
+        if shape is None:
+            shape = self.spatial_shape
+        else:
+            assert len(shape) == len(self.spatial_shape)
+        return self.replace(
+            u=jnp.empty(
+                (1, *shape, self.spectrum.size, self.u.shape[-1]), dtype=jnp.complex64
+            ),
+            _dx=dx,
+        )
+
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
@@ -381,8 +420,13 @@ class ScalarField(Field):
         assert_rank(dx, 2)  # dx should have shape (2, C) here
         if shift_yx is None:
             shift_yx = jnp.zeros((2, 1))
+        elif isinstance(shift_yx, Tuple):
+            shift_yx = jnp.array(shift_yx)
+        elif isinstance(shift_yx, Number):
+            shift_yx = jnp.array([shift_yx, shift_yx])
+        if shift_yx.ndim == 1:
+            shift_yx = shift_yx[:, None]
         assert_rank(shift_yx, 2)  # shift_yx should have shape (2, C) here
-        assert shift_yx.shape[0] == 2
         return cls(u, dx, spectrum, spectral_density, shift_yx)
 
 
