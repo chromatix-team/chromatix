@@ -84,6 +84,7 @@ class Field(struct.PyTreeNode):
     _dx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
     _spectrum: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
     _spectral_density: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
+    _shift_yx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
 
     @property
     def grid(self) -> Array:
@@ -102,7 +103,7 @@ class Field(struct.PyTreeNode):
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
-        return self.dx * grid
+        return self.dx * grid + self.shift_yx
 
     @property
     def k_grid(self) -> Array:
@@ -134,6 +135,15 @@ class Field(struct.PyTreeNode):
         return _broadcast_2d_to_grid(self._dx, self.ndim)
 
     @property
+    def shift_yx(self) -> Array:
+        """
+        The shift of the field in the destination plane. Defined as an array of
+        shape ``(2 1... 1 1 C 1)`` specifying the shift in the y and x
+        directions respectively.
+        """
+        return _broadcast_2d_to_grid(self._shift_yx, self.ndim)
+
+    @property
     def dk(self) -> Array:
         """
         The frequency spacing of the samples in the frequency space of ``u``.
@@ -149,8 +159,8 @@ class Field(struct.PyTreeNode):
     @property
     def surface_area(self) -> Array:
         """
-        The surface area of the field in microns. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
+        The surface area of the field. Defined as an array of shape
+        ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
         dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
@@ -224,6 +234,55 @@ class Field(struct.PyTreeNode):
     def conj(self) -> Array:
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
+
+    @property
+    def spatial_limits(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """
+        Return the spatial limits of the field: (y_min, y_max), (x_min, x_max).
+        """
+        return (float(self.grid[0].min()), float(self.grid[0].max())), (
+            float(self.grid[1].min()),
+            float(self.grid[1].max()),
+        )
+
+    def shift(self, shift_yx: Union[float, Array]) -> Field:
+        """
+        Shift the field in the destination plane.
+
+        Args:
+            shift_yx: The shift in the destination plane. Should be an array of
+                shape `[2,]` in the format `[y, x]`.
+        """
+        if isinstance(shift_yx, Number):
+            shift_yx = jnp.array([shift_yx, shift_yx])
+        shift_yx = jnp.array(shift_yx)  # Ensure it is an array
+        if shift_yx.ndim == 1:
+            shift_yx = shift_yx[:, None]
+        assert_rank(shift_yx, 2)
+        return self.replace(_shift_yx=shift_yx)
+
+    def set_sampling(
+        self, dx: Union[float, Array] = None, shape: Tuple[int, int] = None
+    ) -> Field:
+        """
+        Note that this function overwrites the field `u` with a new empty field.
+        """
+        if dx is None:
+            dx = self.dx
+        else:
+            if dx.ndim == 1:
+                dx = jnp.stack([dx, dx])
+            assert_rank(dx, 2)  # dx should have shape (2, C) here
+        if shape is None:
+            shape = self.spatial_shape
+        else:
+            assert len(shape) == len(self.spatial_shape)
+        return self.replace(
+            u=jnp.empty(
+                (1, *shape, self.spectrum.size, self.u.shape[-1]), dtype=self.u.dtype
+            ),
+            _dx=dx,
+        )
 
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
@@ -307,6 +366,7 @@ class ScalarField(Field):
         spectral_density: Union[float, Array],
         u: Optional[Array] = None,
         shape: Optional[Tuple[int, int]] = None,
+        shift_yx: Union[float, Array] = None,
     ) -> Field:
         """
         Create a scalar approximation ``Field`` object in a convenient way.
@@ -339,6 +399,8 @@ class ScalarField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
+            shift_yx: If provided, defines a shift in the destination plane.
+                Should be an array of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -356,7 +418,16 @@ class ScalarField(Field):
         if dx.ndim == 1:
             dx = jnp.stack([dx, dx])
         assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+        if shift_yx is None:
+            shift_yx = jnp.zeros((2, 1))
+        elif isinstance(shift_yx, Tuple):
+            shift_yx = jnp.array(shift_yx)
+        elif isinstance(shift_yx, Number):
+            shift_yx = jnp.array([shift_yx, shift_yx])
+        if shift_yx.ndim == 1:
+            shift_yx = shift_yx[:, None]
+        assert_rank(shift_yx, 2)  # shift_yx should have shape (2, C) here
+        return cls(u, dx, spectrum, spectral_density, shift_yx)
 
 
 class VectorField(Field):
@@ -368,6 +439,7 @@ class VectorField(Field):
         spectral_density: Union[float, Array],
         u: Optional[Array] = None,
         shape: Optional[Tuple[int, int]] = None,
+        shift_yx: Union[float, Array] = None,
     ) -> Field:
         """
         Create a vectorial ``Field`` object in a convenient way.
@@ -400,6 +472,8 @@ class VectorField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
+            shift_yx: If provided, defines a shift in the destination plane.
+                Should be an array of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -417,7 +491,11 @@ class VectorField(Field):
         if dx.ndim == 1:
             dx = jnp.stack([dx, dx])
         assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+        if shift_yx is None:
+            shift_yx = jnp.zeros((2, 1))
+        assert_rank(shift_yx, 2)  # shift_yx should have shape (2, C) here
+        assert shift_yx.shape[0] == 2
+        return cls(u, dx, spectrum, spectral_density, shift_yx)
 
     @property
     def jones_vector(self) -> Array:
