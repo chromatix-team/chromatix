@@ -137,9 +137,9 @@ class Field(struct.PyTreeNode):
     @property
     def shift_yx(self) -> Array:
         """
-        The shift in microns of the field in the destination plane. Defined as
-        an array of shape ``(2 1... 1 1 C 1)`` specifying the shift in the y
-        and x directions respectively.
+        The shift of the field in the destination plane. Defined as an array of
+        shape ``(2 1... 1 1 C 1)`` specifying the shift in the y and x
+        directions respectively.
         """
         return _broadcast_2d_to_grid(self._shift_yx, self.ndim)
 
@@ -159,8 +159,8 @@ class Field(struct.PyTreeNode):
     @property
     def surface_area(self) -> Array:
         """
-        The surface area of the field in microns. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
+        The surface area of the field. Defined as an array of shape
+        ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
         dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
@@ -237,7 +237,9 @@ class Field(struct.PyTreeNode):
 
     @property
     def spatial_limits(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
-        """Return the spatial limits of the field in microns: (y_min, y_max), (x_min, x_max)."""
+        """
+        Return the spatial limits of the field: (y_min, y_max), (x_min, x_max).
+        """
         return (float(self.grid[0].min()), float(self.grid[0].max())), (
             float(self.grid[1].min()),
             float(self.grid[1].max()),
@@ -358,8 +360,8 @@ class ScalarField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
-            shift_yx: If provided, defines a shift in microns in the destination
-                plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+            shift_yx: If provided, defines a shift in the destination plane.
+                Should be an array of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -426,8 +428,8 @@ class VectorField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
-            shift_yx: If provided, defines a shift in microns in the destination
-                plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+            shift_yx: If provided, defines a shift in the destination plane.
+                Should be an array of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
