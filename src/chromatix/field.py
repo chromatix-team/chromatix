@@ -279,7 +279,7 @@ class Field(struct.PyTreeNode):
             assert len(shape) == len(self.spatial_shape)
         return self.replace(
             u=jnp.empty(
-                (1, *shape, self.spectrum.size, self.u.shape[-1]), dtype=jnp.complex64
+                (1, *shape, self.spectrum.size, self.u.shape[-1]), dtype=self.u.dtype
             ),
             _dx=dx,
         )
