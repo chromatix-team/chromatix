@@ -113,16 +113,24 @@ def test_transfer_propagation(shape, N_pad):
     ("shape", "N_pad"),
     [((256, 256), (512, 512)), ((1024, 256), (256, 512))],
 )
-def test_exact_propagation(shape, N_pad):
+def test_asm_without_evanescent_propagation(shape, N_pad):
     dxi = D / np.array(shape)
     spacing = dxi[..., np.newaxis]
+    remove_evanescent = True
+    bandlimit = False
 
     # Input field
     field = cf.plane_wave(
         shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
     )
     out_field = cf.asm_propagate(
-        field, z, n, N_pad=N_pad, mode="same", remove_evanescent=True
+        field,
+        z,
+        n,
+        N_pad=N_pad,
+        mode="same",
+        remove_evanescent=remove_evanescent,
+        bandlimit=bandlimit,
     )
     I_numerical = out_field.intensity.squeeze()
 
@@ -139,10 +147,22 @@ def test_exact_propagation(shape, N_pad):
     field = cf.plane_wave(shape, spacing, 0.532, 1.0)
     field = cf.square_pupil(field, w)  # Pupil after plane wave to lose some power
     out_field = cf.asm_propagate(
-        field, z, n, N_pad=0, mode="same", remove_evanescent=True
+        field,
+        z,
+        n,
+        N_pad=0,
+        mode="same",
+        remove_evanescent=remove_evanescent,
+        bandlimit=bandlimit,
     )
     back_field = cf.asm_propagate(
-        out_field, -z, n, N_pad=0, mode="same", remove_evanescent=True
+        out_field,
+        -z,
+        n,
+        N_pad=0,
+        mode="same",
+        remove_evanescent=remove_evanescent,
+        bandlimit=bandlimit,
     )
     assert jnp.allclose(back_field.u, field.u, rtol=2e-5)
 
@@ -154,12 +174,43 @@ def test_exact_propagation(shape, N_pad):
 def test_asm_propagation(shape, N_pad):
     dxi = D / np.array(shape)
     spacing = dxi[..., np.newaxis]
+    bandlimit = False
 
     # Input field
     field = cf.plane_wave(
         shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
     )
-    out_field = cf.asm_propagate(field, z, n, N_pad=N_pad, mode="same")
+    out_field = cf.asm_propagate(
+        field, z, n, N_pad=N_pad, mode="same", bandlimit=bandlimit
+    )
+    I_numerical = out_field.intensity.squeeze()
+
+    # Analytical
+    xi = np.array(out_field.grid.squeeze())
+    U_analytical = analytical_result_square_aperture(xi, z, D, spectrum, n)
+    I_analytical = jnp.abs(U_analytical) ** 2
+    rel_error = jnp.mean((I_analytical - I_numerical) ** 2) / jnp.mean(I_analytical**2)
+    # Exact is a bit worse here since it requires a lot of padding.
+    # TODO: Find better test case.
+    assert rel_error < 2e-2
+
+
+@pytest.mark.parametrize(
+    ("shape", "N_pad"),
+    [((256, 256), (512, 512)), ((1024, 256), (256, 512))],
+)
+def test_blas_propagation(shape, N_pad):
+    dxi = D / np.array(shape)
+    spacing = dxi[..., np.newaxis]
+    bandlimit = True
+
+    # Input field
+    field = cf.plane_wave(
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+    )
+    out_field = cf.asm_propagate(
+        field, z, n, N_pad=N_pad, mode="same", bandlimit=bandlimit
+    )
     I_numerical = out_field.intensity.squeeze()
 
     # Analytical
