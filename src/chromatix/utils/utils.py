@@ -173,3 +173,29 @@ def bounding_box(ax, x_bounds, y_bounds, surface_area, shift_yx=None, **kwargs):
         xmax=0.5 + (x_bounds[1] + shift_yx[1]) / float(surface_area[0]),
         **kwargs,
     )
+
+
+def plot_field(
+    field, quantity="amplitude", ax=None, cmap="gray", flipud=True, **kwargs
+):
+    if ax is None:
+        import matplotlib.pyplot as plt
+
+        _, ax = plt.subplots(1, 1)
+
+    if quantity == "amplitude":
+        u = field.amplitude.squeeze()
+    elif quantity == "phase":
+        u = field.phase.squeeze()
+    elif quantity == "intensity":
+        u = field.intensity.squeeze()
+    elif quantity == "power":
+        u = field.power.squeeze()
+    else:
+        raise ValueError(f"Unknown quantity {quantity}")
+    if flipud:
+        # flip up-down as y-axis goes from top to bottom
+        u = jnp.flipud(u)
+    ylim, xlim = field.spatial_limits
+    ax.imshow(u, cmap=cmap, extent=[*xlim, *ylim], **kwargs)
+    return ax
