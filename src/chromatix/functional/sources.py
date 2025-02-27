@@ -71,6 +71,63 @@ def point_source(
     return field * jnp.sqrt(power / field.power)
 
 
+def gaussian_source(
+    shape: Tuple[int, int],
+    dx: Union[float, Array],
+    spectrum: Union[float, Array],
+    spectral_density: Union[float, Array],
+    z: float,
+    f: float,
+    n: float,
+    NA: float,
+    power: float = 1.0,
+    amplitude: Union[float, Array] = 1.0,
+    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    scalar: bool = True,
+    envelope_waist: float = 1.0,
+) -> Field:
+    """
+    Generates field due to a point source defocused by an amount ``z`` away from
+    the focal plane, just after passing through a lens with focal length ``f``
+    and numerical aperture ``NA``.
+
+    Args:
+        shape: The shape (height and width) of the ``Field`` to be created.
+        dx: The spacing of the samples of the ``Field``.
+        spectrum: The wavelengths included in the ``Field`` to be created.
+        spectral_density: The weights of each wavelength in the ``Field`` to
+            be created.
+        z: The distance of the point source.
+        f: Focal length of the objective lens.
+        n: Refractive index.
+        NA: The numerical aperture of the objective lens.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        amplitude: The amplitude of the electric field. For ``ScalarField`` this
+            doesnt do anything, but it is required for ``VectorField`` to set
+            the polarization.
+        offset: The offset of the point source in the plane. Should be an array
+            of shape `[2,]` in the format `[y, x]`.
+        scalar: Whether the result should be ``ScalarField`` (if True) or
+            ``VectorField`` (if False). Defaults to True.
+    """
+    create = ScalarField.create if scalar else VectorField.create
+    field = create(dx, spectrum, spectral_density, shape=shape)
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
+    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
+    offset = _broadcast_1d_to_grid(offset, field.ndim)
+    L = jnp.sqrt(field.spectrum * f / n)
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2
+    gaussian_envelope = jnp.exp(
+        -l2_sq_norm(field.grid - offset) / (2 * L**2 * envelope_waist**2)
+    )
+    u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
+    field = field.replace(u=u)
+    D = 2 * f * NA / n
+    field = circular_pupil(field, D)
+    return field * jnp.sqrt(power / field.power)
+
+
 def objective_point_source(
     shape: Tuple[int, int],
     dx: Union[float, Array],
