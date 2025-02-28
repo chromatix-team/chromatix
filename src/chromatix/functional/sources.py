@@ -122,6 +122,7 @@ def gaussian_source(
         -l2_sq_norm(field.grid - offset) / (2 * L**2 * envelope_waist**2)
     )
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
+    u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
     D = 2 * f * NA / n
     field = circular_pupil(field, D)
