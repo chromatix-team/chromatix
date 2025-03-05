@@ -16,6 +16,7 @@ from .pupils import circular_pupil
 
 __all__ = [
     "point_source",
+    "gaussian_source",
     "objective_point_source",
     "plane_wave",
     "generic_field",

@@ -14,7 +14,13 @@ from chromatix.functional.sources import (
     point_source,
 )
 
-__all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
+__all__ = [
+    "PointSource",
+    "GaussianSource",
+    "ObjectivePointSource",
+    "PlaneWave",
+    "GenericField",
+]
 
 
 class PointSource(nn.Module):
