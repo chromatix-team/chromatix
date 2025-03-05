@@ -114,8 +114,38 @@ def gaussian_source(
     """
     create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
+
+    factor = 1 / field.grid.max(axis=0) ** 2 * NA**2 / n**2
+    sin_theta2 = factor * jnp.sum(field.grid**2, axis=0)
+    cos_theta = jnp.sqrt(1 - sin_theta2)
+    sin_theta = jnp.sqrt(sin_theta2)
+
+    phi = jnp.arctan(field.grid[0] / field.grid[1])  # y, and [1] is x
+    cos_phi = jnp.cos(phi)
+    sin_phi = jnp.sin(phi)
+    sin_2phi = 2 * sin_phi * cos_phi
+    cos_2phi = cos_phi**2 - sin_phi**2
+
+    field_x = amplitude[2]
+    field_y = amplitude[1]
+
+    e_inf_x = ((cos_theta + 1.0) + (cos_theta - 1.0) * cos_2phi) * field_x + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_y
+    e_inf_y = ((cos_theta + 1.0) - (cos_theta - 1.0) * cos_2phi) * field_y + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_x
+    e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
+    print(e_inf_x.shape)
+
+    amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2)
+    # amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1)
+
+    print(amplitude.shape)
+
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
+    # amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
+
     offset = _broadcast_1d_to_grid(offset, field.ndim)
     L = jnp.sqrt(field.spectrum * f / n)
     phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2
@@ -123,6 +153,7 @@ def gaussian_source(
         -l2_sq_norm(field.grid - offset) / (2 * L**2 * envelope_waist**2)
     )
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
+    print(field.shape)
     u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
     D = 2 * f * NA / n
