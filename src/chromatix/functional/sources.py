@@ -138,11 +138,8 @@ def gaussian_source(
         cos_theta - 1.0
     ) * sin_2phi * field_x
     e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
-    print(e_inf_x.shape)
 
     amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2
-
-    print(amplitude.shape)
 
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     # amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
@@ -154,7 +151,6 @@ def gaussian_source(
         -l2_sq_norm(field.grid - offset) / (2 * L**2 * envelope_waist**2)
     )
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
-    print(field.shape)
     u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
     D = 2 * f * NA / n
