@@ -113,12 +113,15 @@ def gaussian_source(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
-    field = create(dx, spectrum, spectral_density, shape=shape)
+    fourier_spacing = 2 / shape[0]
+    field = create(fourier_spacing, spectrum, spectral_density, shape=shape)
+    # field = create(dx, spectrum, spectral_density, shape=shape)
 
-    # factor = (2/field.surface_area[0])** 2 * NA**2 / n**2
-    factor = 1.2e-6
+    mask = l2_sq_norm(field.grid) <= 1
 
-    sin_theta2 = factor * jnp.sum(field.grid**2, axis=0)
+    factor = NA**2 / n**2
+
+    sin_theta2 = factor * jnp.sum(field.grid**2 * mask, axis=0)
     cos_theta = jnp.sqrt(1 - sin_theta2)
     sin_theta = jnp.sqrt(sin_theta2)
 
@@ -153,7 +156,7 @@ def gaussian_source(
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
     u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
-    D = 2 * f * NA / n
+    D = 2
     field = circular_pupil(field, D)
     return field * jnp.sqrt(power / field.power)
 
