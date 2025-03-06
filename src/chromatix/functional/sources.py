@@ -115,12 +115,14 @@ def gaussian_source(
     create = ScalarField.create if scalar else VectorField.create
     field = create(dx, spectrum, spectral_density, shape=shape)
 
-    factor = 1 / field.grid.max(axis=0) ** 2 * NA**2 / n**2
+    # factor = (2/field.surface_area[0])** 2 * NA**2 / n**2
+    factor = 1.2e-6
+
     sin_theta2 = factor * jnp.sum(field.grid**2, axis=0)
     cos_theta = jnp.sqrt(1 - sin_theta2)
     sin_theta = jnp.sqrt(sin_theta2)
 
-    phi = jnp.arctan(field.grid[0] / field.grid[1])  # y, and [1] is x
+    phi = jnp.arctan2(field.grid[0], field.grid[1])  # y, and [1] is x
     cos_phi = jnp.cos(phi)
     sin_phi = jnp.sin(phi)
     sin_2phi = 2 * sin_phi * cos_phi
@@ -138,8 +140,7 @@ def gaussian_source(
     e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
     print(e_inf_x.shape)
 
-    amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2)
-    # amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1)
+    amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2
 
     print(amplitude.shape)
 
