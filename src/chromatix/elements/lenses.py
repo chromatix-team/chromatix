@@ -103,7 +103,7 @@ class FFLens2(nn.Module):
         camera_shape = register(self, "camera_shape")
         camera_pixel_pitch = register(self, "camera_pixel_pitch")
         wavelength = register(self, "wavelength")
-        return cf.ff_lens2(
+        return cf.lenses.ff_lens2(
             field=field,
             NA=NA,
             camera_shape=camera_shape,

@@ -104,13 +104,13 @@ def ff_lens2(
     # Compute w
     end = zoom_factor * jnp.pi
     start = -zoom_factor * jnp.pi
-    K = camera_shape[0]
-    w_phase = (end - start) / (K - 1)
-    # w = jnp.exp(1j * w_phase)
+    m = jnp.array(field.spatial_shape)
+    w_phase = (end - start) / (m - 1)
+    w = jnp.exp(1j * w_phase)
 
     # Compute a
     a_phase = zoom_factor * jnp.pi
-    # a = jnp.exp(1j * a_phase)
+    a = jnp.exp(1j * a_phase)
 
     correction_factor = 1
     # N = field.u.shape[1]
@@ -120,13 +120,14 @@ def ff_lens2(
     # correction_factor = jnp.expand_dims(correction_factor, axis=(0, 3, 4))
     # print(correction_factor.shape)
 
-    return cztn(
-        # x=jnp.fft.fftshift(field.u),
-        x=field.u * correction_factor,
-        m=camera_shape,
-        a=(a_phase, a_phase),
-        w=(w_phase, w_phase),
-        axes=(1, 2),
+    return field.replace(
+        u=cztn(
+            x=field.u * correction_factor,
+            m=m,
+            a=(a, a),
+            w=w,
+            axes=field.spatial_dims,
+        )
     )
 
 

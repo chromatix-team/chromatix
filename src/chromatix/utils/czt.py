@@ -40,8 +40,10 @@ def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
     n = x.shape[axis]
     n_czt = m + n - 1
     k = jnp.arange(n_czt)
-    wk2 = jnp.exp(1j * w * k**2 / 2)
-    Awk2 = jnp.exp(1j * a * -k[:n]) * wk2[:n]
+    # wk2 = jnp.exp(1j * w * k**2 / 2)
+    # Awk2 = jnp.exp(1j * a * -k[:n]) * wk2[:n]
+    wk2 = w ** (k**2 / 2)
+    Awk2 = a ** -k[:n] * wk2[:n]
     Fwk2 = jnp.fft.fft(1 / jnp.hstack((wk2[n - 1 : 0 : -1], wk2[:m])), n_czt)
     wk2 = wk2[:m]
 
