@@ -55,7 +55,7 @@ def define_problem(grid_shape = (128, ) * 2):
     return grid, k0, permittivity, current_density
 
 def display(grid, permittivity, current_density, E):
-    """Display the input and output."""
+    """Display the input and output, including absorbing boundaries for clarity."""
     log.debug('Preparing the display...')
     fig, axs = plt.subplots(2, 3, sharex='all', sharey='all')
     structure = np.sqrt(permittivity) - 1
@@ -88,11 +88,11 @@ def solve(grid_k, k0, permittivity, current_density):
 
     log.debug('Defining some functions to work only on the polarization or only on the spatial dimensions...')
     if isotropic:
-        def norm(_):
+        def matrix_norm(_):
             return jnp.abs(_)
     else:
-        def norm(_):
-            return jnp.linalg.norm(_, axis=(0, 1))  # This can probably be faster by a custom implementation (see macromax)
+        def matrix_norm(_):
+            return jnp.linalg.norm(_, axis=(0, 1))  # The latter can probably be faster by a custom implementation (see macromax)
 
     def ft(x):
         """Fourier transform of the spatial dimensions."""
@@ -105,7 +105,7 @@ def solve(grid_k, k0, permittivity, current_density):
     # The actual work is done here:
     log.debug('Scaling and shifting problem...')
     permittivity_bias = 1.2  # This can be chosen more optimally to minimize the following scaling factor, and maximize the convergence rate.
-    scale = 1.1j * jnp.amax(norm(permittivity - permittivity_bias))  # Must be strictly larger than the norm in the polarization dimension
+    scale = 1.1j * jnp.amax(matrix_norm(permittivity - permittivity_bias))  # Must be strictly larger than the norm in the polarization dimension
     assert jnp.amax((permittivity - permittivity_bias) / scale) < 1, f'Incorrect scale.'
 
     y = current_density / (k0 ** 2) / scale  # Use units so that k0 == 1 to avoid under/overflow
@@ -123,14 +123,12 @@ def solve(grid_k, k0, permittivity, current_density):
         return x_trans_ft, x_long_ft
 
     def forward(x):
-        """The forward problem (for reference and testing)."""
+        """The non-scaled forward problem (for reference and testing)."""
         x_trans_ft, x_long_ft = split_trans_long_ft(ft(x))
-        return (ift(x_trans_ft * (-k2 + permittivity_bias) + x_long_ft * permittivity_bias) +
-                (permittivity - permittivity_bias) * x
-                ) / scale
+        return ift(x_trans_ft * (-k2 + permittivity_bias) + x_long_ft * permittivity_bias) + (permittivity - permittivity_bias) * x
 
     def shifted_approx_inv(y):
-        """The inverse of the scaled and shifted-by-1 approximation to the forward problem."""
+        """The inverse of the scaled and shifted-by-1 approximation to the scaled forward problem."""
         y_trans_ft, y_long_ft = split_trans_long_ft(ft(y))
         return ift(y_trans_ft / ((-k2 + permittivity_bias) / scale + 1) +
                      y_long_ft / (permittivity_bias / scale + 1)
@@ -138,27 +136,27 @@ def solve(grid_k, k0, permittivity, current_density):
 
     if isotropic:
         def shifted_discrepancy(x):
-            """The scaled discrepancy, shifted by -1."""
+            """The discrepancy of the scaled isotropic problem, shifted by -1."""
             return ((permittivity - permittivity_bias) / scale - 1) * x
     else:
         def shifted_discrepancy(x):
-            """The scaled discrepancy, shifted by -1."""
+            """The discrepancy of the scaled anisotropic problem, shifted by -1."""
             return jnp.einsum('ij...,j...,i...', (permittivity - permittivity_bias) / scale - 1, x)
 
     log.info('Executing the preconditioned fixed point interation...')
     norm_y = jnp.linalg.norm(y)
     E = jnp.zeros_like(y)
-    for iteration in range(1000):
+    for iteration in range(1000):  # The maximum number of iteration should be higher for large/highly-scattering problems.
         # The following tests are relatively slow, but these should not be executed in deployment
-        assert jnp.amax(norm(shifted_discrepancy(E) + E)) < 1, f'The scaled discrepancy >= 1 !'
-        assert jnp.vdot(E, forward(E)).real >= 0, 'Problem should not be dissipative!'
+        assert jnp.amax(matrix_norm(shifted_discrepancy(E) + E)) < 1, f'The scaled discrepancy should be contrative!'
+        assert jnp.vdot(E, forward(E) / scale).real >= 0, 'The scaled problem should not be dissipative!'
 
         dE = shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(E) - y) + E)
         E = E + dE
         residue = jnp.linalg.norm(dE) / norm_y
         if iteration % 10 == 0:  # Report progress
             log.info(f'{iteration}: {residue:0.6f}')
-        if residue < 1e-3:  # Stop criterion
+        if residue < 1e-3:  # Stop criterion. Relatively early stop for testing.
             return E
 
 def main():
