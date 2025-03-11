@@ -1,9 +1,18 @@
 #!/usr/bin/python3
 """
-An example that computes the scattering of polarized waves off of an anisotropic material.
+An example that computes the scattering of polarized waves off of an isotropic material in 2D. Extending this to 3D
+should be trivial, bar the display code perhaps.
+
+Some utility functions are imported from macromax. These are NumPy based, though these can be kept outside the core iteration.
+
+There is already some code to handle anisotropy, though this remains untested and its initialization may be inefficient.
+
+Magnetic and cross terms as used for chiral materials are not implemented as these add significantly more complexity.
 """
 import matplotlib.pyplot as plt
 import numpy as np
+import jax
+import jax.numpy as jnp
 
 from macromax.bound import LinearBound
 from macromax.utils import Grid
@@ -60,57 +69,70 @@ def display(grid, permittivity, current_density, E):
             ax.imshow(complex2rgb(field_component), extent=grid2extent(grid / 1e-6))
             ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$')
 
-def solve(grid, k0, permittivity, current_density):
-    isotropic = permittivity.ndim < grid.ndim + 2 or permittivity.shape[0] == 1
+def solve(grid_k, k0, permittivity, current_density):
+    """
+    Solve for the electromagnetic field.
+
+    :param grid_k: A tuple with the (ifftshifted) k_space grid, corresponding to the wavevectors after FFT.
+    :param k0: The vacuum wavenumber.
+    :param permittivity: The (relative) permittivity distribution can either have the spatial dimensions, or it can have
+        a 3x3 matrix in the first (left-most) axes, for each point in space.
+    :param current_density: The current density, with the first (left-most) axis the polarization vector, while the
+        remaining axes are spatial dimensions.
+
+    :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
+        axes are spatial dimensions.
+    """
+    isotropic = permittivity.ndim < len(grid_k) + 2 or permittivity.shape[0] == 1
     log.info(f"Solving for an {'' if isotropic else 'an'}isotropic material...")
 
     log.debug('Defining some functions to work only on the polarization or only on the spatial dimensions...')
     if isotropic:
         def norm(_):
-            return np.abs(_)
+            return jnp.abs(_)
     else:
         def norm(_):
-            return np.linalg.norm(_, axis=(0, 1))  # This can probably be faster by a custom implementation (see macromax)
+            return jnp.linalg.norm(_, axis=(0, 1))  # This can probably be faster by a custom implementation (see macromax)
 
-    def fftn(x):
+    def ft(x):
         """Fourier transform of the spatial dimensions."""
-        return np.fft.fftn(x, axes=tuple(range(-grid.ndim, 0)))
+        return jnp.fft.fftn(x, axes=tuple(range(-len(grid_k), 0)))
 
-    def ifftn(x):
+    def ift(x):
         """Inverse Fourier transform of the spatial dimensions."""
-        return np.fft.ifftn(x, axes=tuple(range(-grid.ndim, 0)))
+        return jnp.fft.ifftn(x, axes=tuple(range(-len(grid_k), 0)))
 
     # The actual work is done here:
     log.debug('Scaling and shifting problem...')
     permittivity_bias = 1.2  # This can be chosen more optimally to minimize the following scaling factor, and maximize the convergence rate.
-    scale = 1.1j * np.amax(norm(permittivity - permittivity_bias))  # Must be strictly larger than the norm in the polarization dimension
-    assert np.amax((permittivity - permittivity_bias) / scale) < 1, f'Incorrect scale.'
+    scale = 1.1j * jnp.amax(norm(permittivity - permittivity_bias))  # Must be strictly larger than the norm in the polarization dimension
+    assert jnp.amax((permittivity - permittivity_bias) / scale) < 1, f'Incorrect scale.'
 
     y = current_density / (k0 ** 2) / scale  # Use units so that k0 == 1 to avoid under/overflow
     log.debug(f'Using permittivity bias {permittivity_bias}, and scaling the whole problem by {scale}.')
 
-    k2 = sum((_ / k0) ** 2 for _ in grid.k)  # Use units so that k0 == 1
+    k2 = sum((_ / k0) ** 2 for _ in grid_k)  # Use units so that k0 == 1
 
     def split_trans_long_ft(x_ft):
         """Split a k-space vector field into its transverse and longitudinal components."""
         dc = k2 == 0  # to avoid division by 0
-        projection_coefficient = sum(k * c for k, c in zip(grid.k, x_ft)) / (k2 + dc)
-        x_long_ft = sum(k * projection_coefficient for k in grid.k) * dc
+        projection_coefficient = sum(k * c for k, c in zip(grid_k, x_ft)) / (k2 + dc)
+        x_long_ft = sum(k * projection_coefficient for k in grid_k) * dc
         x_trans_ft = x_ft - x_long_ft
         assert np.allclose(x_trans_ft + x_long_ft, x_ft), 'Transverse-longitudinal splitting failed!'
         return x_trans_ft, x_long_ft
 
     def forward(x):
         """The forward problem (for reference and testing)."""
-        x_trans_ft, x_long_ft = split_trans_long_ft(fftn(x))
-        return (ifftn(x_trans_ft * (-k2 + permittivity_bias) + x_long_ft * permittivity_bias) +
+        x_trans_ft, x_long_ft = split_trans_long_ft(ft(x))
+        return (ift(x_trans_ft * (-k2 + permittivity_bias) + x_long_ft * permittivity_bias) +
                 (permittivity - permittivity_bias) * x
                 ) / scale
 
     def shifted_approx_inv(y):
         """The inverse of the scaled and shifted-by-1 approximation to the forward problem."""
-        y_trans_ft, y_long_ft = split_trans_long_ft(fftn(y))
-        return ifftn(y_trans_ft / ((-k2 + permittivity_bias) / scale + 1) +
+        y_trans_ft, y_long_ft = split_trans_long_ft(ft(y))
+        return ift(y_trans_ft / ((-k2 + permittivity_bias) / scale + 1) +
                      y_long_ft / (permittivity_bias / scale + 1)
                      )
 
@@ -121,18 +143,19 @@ def solve(grid, k0, permittivity, current_density):
     else:
         def shifted_discrepancy(x):
             """The scaled discrepancy, shifted by -1."""
-            return np.einsum('ij...,j...,i...', (permittivity - permittivity_bias) / scale - 1, x)
+            return jnp.einsum('ij...,j...,i...', (permittivity - permittivity_bias) / scale - 1, x)
 
     log.info('Executing the preconditioned fixed point interation...')
-    E = np.zeros((3, *grid.shape))
+    norm_y = jnp.linalg.norm(y)
+    E = jnp.zeros_like(y)
     for iteration in range(1000):
         # The following tests are relatively slow, but these should not be executed in deployment
-        assert np.amax(norm(shifted_discrepancy(E) + E)) < 1, f'The scaled discrepancy >= 1 !'
-        assert np.vdot(E, forward(E)).real >= 0, 'Problem should not be dissipative!'
+        assert jnp.amax(norm(shifted_discrepancy(E) + E)) < 1, f'The scaled discrepancy >= 1 !'
+        assert jnp.vdot(E, forward(E)).real >= 0, 'Problem should not be dissipative!'
 
         dE = shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(E) - y) + E)
         E = E + dE
-        residue = np.linalg.norm(dE) / np.linalg.norm(y)
+        residue = jnp.linalg.norm(dE) / norm_y
         if iteration % 10 == 0:  # Report progress
             log.info(f'{iteration}: {residue:0.6f}')
         if residue < 1e-3:  # Stop criterion
@@ -140,13 +163,22 @@ def solve(grid, k0, permittivity, current_density):
 
 def main():
     log.info(f'Starting {__name__} ...')
+
     grid, k0, permittivity, current_density = define_problem([256, 256])
-    E = solve(grid, k0, permittivity, current_density)
+
+    log.info('Transfer to GPU and solve...')
+    dtype_float = jnp.float32
+    dtype_complex = jnp.complex64
+    grid_k = tuple(jnp.array(_, dtype_float) for _ in grid.k)
+    permittivity = jnp.array(permittivity, dtype=dtype_complex)
+    current_density = jnp.array(current_density, dtype=dtype_complex)
+    E = solve(grid_k, k0, permittivity, current_density)
+
     display(grid, permittivity, current_density, E)
 
-    log.info('Done, close figure window to exit.')
+    log.info('Solved, close figure window to exit.')
     plt.show()
-    log.debug('Done!')
+    log.debug('Exiting!')
 
 if __name__ == '__main__':
     main()
