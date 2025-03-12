@@ -73,7 +73,7 @@ def display(grid, permittivity, current_density, E):
             ax.imshow(complex2rgb(field_component), extent=grid2extent(grid / 1e-6))
             ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$')
 
-def solve(grid_k, k0, permittivity, current_density):
+def solve(grid_k, k0, permittivity, current_density, initial_E = None):
     """
     Solve for the electromagnetic field.
 
@@ -83,6 +83,7 @@ def solve(grid_k, k0, permittivity, current_density):
         a 3x3 matrix in the first (left-most) axes, for each point in space.
     :param current_density: The current density, with the first (left-most) axis the polarization vector, while the
         remaining axes are spatial dimensions.
+    :param initial_E: An optional starting point for the solver.
 
     :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
         axes are spatial dimensions.
@@ -192,46 +193,15 @@ def solve(grid_k, k0, permittivity, current_density):
 
     log.info('Executing the preconditioned fixed point interation...')
 
-    maxiter = 1000
-    tol = 1e-3
-    nb_update_per_iteration = 10
-
-    E = jnp.zeros_like(y)
-
     prec_y = prec(y)
 
     @jax.jit
     def fixed_point_function(x):
         return prec_y - prec_forward(x) + x
 
-    norm_y = jnp.linalg.norm(y)
-
-    relative_residues = []
-    @partial(jax.jit, static_argnames=['maxiter'])
-    def fixed_point_update(E, maxiter: int = 1):
-        for _ in range(maxiter):
-            dE = prec_y - prec_forward(E)
-            E += dE
-            relative_residue = jnp.linalg.norm(dE) / norm_y
-            relative_residues.append(relative_residue)
-        return E, relative_residues
-
-    E = jnp.zeros_like(y)
-    for iteration in range(0, maxiter, nb_update_per_iteration):  # The maximum number of iteration should be higher for large/highly-scattering problems.
-        # The following tests are relatively slow, but these should not be executed in deployment
-        # assert jnp.amax(matrix_norm(shifted_discrepancy(E) + E)) < 1, f'The scaled discrepancy should be contractive!'
-        # assert jnp.vdot(E, forward(E) / scale).real >= 0, 'The scaled problem should not be dissipative!'
-
-        E, relative_residues = fixed_point_update(E, nb_update_per_iteration)
-        relative_residue = relative_residues[-1]
-        # if iteration % 50 == 0:  # Report progress
-        #     log.info(f'{iteration}: {relative_residue:0.6f}')
-        if relative_residue < tol:  # Stop criterion. Relatively early stop for testing.
-            break
-
-    # solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=maxiter, tol=1e-3, jit=True, implicit_diff=False)
-    # E = jnp.zeros_like(y)
-    # E, state = solver.run(E)
+    solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=1000, tol=1e-3, jit=True, implicit_diff=False)
+    E = prec_y if initial_E is None else initial_E
+    E, state = solver.run(E)
 
     E *= numerical_scale  # undo the initial scaling
 
