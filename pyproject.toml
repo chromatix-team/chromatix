@@ -10,8 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = ["jax >= 0.4.1", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.5", "optax >=0.1.4", "scipy >= 1.10.0",
-    "coloredlogs >= 15.0.1", "macromax >= 0.2.2",
-]
+    "coloredlogs >= 15.0.1", "macromax >= 0.2.2", "jaxopt >= 0.8.3"]
 version = "0.3.0"
 
 [project.optional-dependencies]
