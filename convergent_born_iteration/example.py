@@ -118,7 +118,7 @@ def solve(grid_k, k0, permittivity, current_density):
 
     rhs = -1j * k0 * const.c * const.mu_0 * current_density
     numerical_scale = jnp.amax(jnp.abs(rhs))  # To avoid overflow or underflow with our machine precision
-    y = rhs / numerical_scale / scale
+    y = rhs / numerical_scale
 
     log.debug(f'Using permittivity bias {permittivity_bias}, and scaling the whole problem by {scale}.')
 
@@ -135,31 +135,6 @@ def solve(grid_k, k0, permittivity, current_density):
         return x_trans_ft, x_long_ft
 
     @jax.jit
-    def approximation(x):
-        """The approximation to the forward problem (see below)."""
-        y_trans_ft, y_long_ft = split_trans_long_ft(ft(y))
-        return ift(y_trans_ft * (-k2 + permittivity_bias) + y_long_ft * permittivity_bias)
-
-    @jax.jit
-    def discrepancy(x):
-        """The discrepancy = forward - approximation."""
-        return (permittivity - permittivity_bias) * x
-
-    @jax.jit
-    def forward(x):
-        r"""
-        The forward problem (for reference and testing).
-
-        .. math::
-
-            \frac{1}{-i k_0 c \mu_0} \left[F^{-1}\left(-|k|^2 F\left(E_T\right)\right) + \epsilon E\right] = j
-
-        """
-        x_trans_ft, _ = split_trans_long_ft(ft(x))
-        return ift(-k2 * x_trans_ft) + permittivity * x
-        # return approximation(x) + discrepancy(x)
-
-    @jax.jit
     def shifted_approx_inv(y):
         """The inverse of the scaled and shifted-by-1 approximation to the scaled forward problem."""
         y_trans_ft, y_long_ft = split_trans_long_ft(ft(y))
@@ -170,12 +145,12 @@ def solve(grid_k, k0, permittivity, current_density):
     if isotropic:
         @jax.jit
         def shifted_discrepancy(x):
-            """The discrepancy of the scaled isotropic problem, shifted by -1."""
+            """The discrepancy after approximation of the scaled isotropic problem, shifted by -1."""
             return ((permittivity - permittivity_bias) / scale - 1) * x
     else:
         @jax.jit
         def shifted_discrepancy(x):
-            """The discrepancy of the scaled anisotropic problem, shifted by -1."""
+            """The discrepancy after approximation of the scaled anisotropic problem, shifted by -1."""
             id = jnp.eye(3).reshape(3, 3, *([1] * len(grid_k)))  # The identity matrix in the polarization axes
             return jnp.einsum('ij...,j...,i...', (permittivity - (permittivity_bias / scale + 1) * id), x)
 
@@ -194,44 +169,73 @@ def solve(grid_k, k0, permittivity, current_density):
         """
         return -shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(x)) + x)
 
-    prec_y = prec(y * scale)
+    def approximation(x):
+        """
+        The approximation to the forward problem (see below).
+
+        This is only required for verification and instructive purposes.
+        """
+        x_trans_ft, x_long_ft = split_trans_long_ft(ft(x))
+        return ift((-k2 + permittivity_bias) * x_trans_ft + permittivity_bias * x_long_ft)
+
+    def forward(x):
+        r"""
+        The forward problem (for reference and testing).
+
+        .. math::
+
+            \frac{1}{-i k_0 c \mu_0} \left[F^{-1}\left(-|k|^2 F\left(E_T\right)\right) + \epsilon E\right] = j
+
+        This is only required for verification and instructive purposes.
+        """
+        return approximation(x) + (shifted_discrepancy(x) + x) * scale
+
+    log.info('Executing the preconditioned fixed point interation...')
+
+    maxiter = 1000
+    tol = 1e-3
+    nb_update_per_iteration = 10
+
+    E = jnp.zeros_like(y)
+
+    prec_y = prec(y)
 
     @jax.jit
     def fixed_point_function(x):
         return prec_y - prec_forward(x) + x
 
-    log.info('Executing the preconditioned fixed point interation...')
+    norm_y = jnp.linalg.norm(y)
 
-    maxiter = 1000
-    nb_update_per_iteration = 10
-
-    @partial(jax.jit, static_argnames='nb_update_per_iteration')
-    def fixed_point_update(E, nb_update_per_iteration: int = 1):
-        for _ in range(nb_update_per_iteration):
+    relative_residues = []
+    @partial(jax.jit, static_argnames=['maxiter'])
+    def fixed_point_update(E, maxiter: int = 1):
+        for _ in range(maxiter):
             dE = prec_y - prec_forward(E)
             E += dE
-        relative_residue = jnp.linalg.norm(dE) / norm_y
-        return E, relative_residue
-
-    ## TODO: I cannot get the jaxopt.FixedPointIteration to approach the same execution speed as the explicit loop below.
-    # solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=maxiter, tol=1e-3, jit=True)
-    # E, state = solver.run(prec_y)
+            relative_residue = jnp.linalg.norm(dE) / norm_y
+            relative_residues.append(relative_residue)
+        return E, relative_residues
 
     E = jnp.zeros_like(y)
-    norm_y = jnp.linalg.norm(y)
     for iteration in range(0, maxiter, nb_update_per_iteration):  # The maximum number of iteration should be higher for large/highly-scattering problems.
         # The following tests are relatively slow, but these should not be executed in deployment
         # assert jnp.amax(matrix_norm(shifted_discrepancy(E) + E)) < 1, f'The scaled discrepancy should be contractive!'
         # assert jnp.vdot(E, forward(E) / scale).real >= 0, 'The scaled problem should not be dissipative!'
 
-        # dE = shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(E)) + E) + prec_y
-        E, relative_residue = fixed_point_update(E, nb_update_per_iteration)
-        if iteration % 50 == 0:  # Report progress
-            log.info(f'{iteration}: {relative_residue:0.6f}')
-        if relative_residue < 1e-3:  # Stop criterion. Relatively early stop for testing.
+        E, relative_residues = fixed_point_update(E, nb_update_per_iteration)
+        relative_residue = relative_residues[-1]
+        # if iteration % 50 == 0:  # Report progress
+        #     log.info(f'{iteration}: {relative_residue:0.6f}')
+        if relative_residue < tol:  # Stop criterion. Relatively early stop for testing.
             break
 
-    E *= numerical_scale
+    # solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=maxiter, tol=1e-3, jit=True, implicit_diff=False)
+    # E = jnp.zeros_like(y)
+    # E, state = solver.run(E)
+
+    E *= numerical_scale  # undo the initial scaling
+
+    log.info('Checking the result...')
 
     relative_residue_nonprec = jnp.linalg.norm(forward(E) - rhs) / jnp.linalg.norm(rhs)
     log.info(f'The relative residue of E for the non-preconditioned problem is {relative_residue_nonprec}.')
