@@ -17,6 +17,7 @@ import scipy.constants as const
 import jax
 import jax.numpy as jnp
 import jaxopt
+import jaxopt.linear_solve
 
 from macromax.bound import LinearBound
 from macromax.utils import Grid
@@ -191,22 +192,29 @@ def solve(grid_k, k0, permittivity, current_density, initial_E = None):
         """
         return approximation(x) + (shifted_discrepancy(x) + x) * scale
 
-    log.info('Executing the preconditioned fixed point interation...')
-
     prec_y = prec(y)
 
     @jax.jit
     def fixed_point_function(x):
         return prec_y - prec_forward(x) + x
 
-    solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=1000, tol=1e-3, jit=True, implicit_diff=False)
     E = prec_y if initial_E is None else initial_E
+
+    log.info('Optimizing the solver itself by just-in-time compilation...')
+    solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=1000, tol=1e-3, jit=True, implicit_diff=False)
+    bicgstab_solver = jax.jit(lambda: jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=1000, tol=1e-3))
+
+    log.info('Solving...')
     E, state = solver.run(E)
+    # E = bicgstab_solver()  # Takes about 4/3 the time as the fixed point run for simple problems.
+
+    # Checking the intermediate, preconditioned, result...
+    relative_residue_prec = jnp.linalg.norm(prec_forward(E) - prec_y) / jnp.linalg.norm(prec_y)
+    log.info(f'The relative residue of E for the preconditioned problem is {relative_residue_prec}.')
 
     E *= numerical_scale  # undo the initial scaling
 
-    log.info('Checking the result...')
-
+    log.info('Checking the final result...')
     relative_residue_nonprec = jnp.linalg.norm(forward(E) - rhs) / jnp.linalg.norm(rhs)
     log.info(f'The relative residue of E for the non-preconditioned problem is {relative_residue_nonprec}.')
 
@@ -221,6 +229,7 @@ def main():
     grid_k = tuple(jnp.array(_) for _ in grid.k)
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
+
     E = solve(grid_k, k0, permittivity, current_density)
 
     display(grid, permittivity, current_density, E)
