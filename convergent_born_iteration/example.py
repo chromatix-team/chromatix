@@ -74,20 +74,18 @@ def display(grid, permittivity, current_density, E):
             ax.imshow(complex2rgb(field_component), extent=grid2extent(grid / 1e-6))
             ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$')
 
-def solve(grid_k, k0, permittivity, current_density, initial_E = None):
+def precondition(grid_k, k0: float, permittivity, current_density):
     """
-    Solve for the electromagnetic field.
+    Preconditions the electromagnetic problem.
 
-    :param grid_k: A tuple with the (ifftshifted) k_space grid, corresponding to the wavevectors after FFT.
-    :param k0: The vacuum wavenumber.
-    :param permittivity: The (relative) permittivity distribution can either have the spatial dimensions, or it can have
-        a 3x3 matrix in the first (left-most) axes, for each point in space.
-    :param current_density: The current density, with the first (left-most) axis the polarization vector, while the
-        remaining axes are spatial dimensions.
-    :param initial_E: An optional starting point for the solver.
+    :param grid_k: A sequence with broadcastable ifftshifted k-space ranges.
+    :param k0: The wavenumber in vacuum.
+    :param permittivity: The relative permittivity of the material. Anisotropic materials have two extra axis on the left with shape (3, 3).
+    :param current_density: The current density as a vector function of space. The polarization is the left-most axis.
 
-    :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
-        axes are spatial dimensions.
+    :return: The tuple (prec_forward, prec_y) with:
+        # a function to compute the preconditioned forward problem
+        # the preconditioned right hand side.
     """
     isotropic = permittivity.ndim < len(grid_k) + 2 or permittivity.shape[0] == 1
     log.info(f"Solving for an {'' if isotropic else 'an'}isotropic material...")
@@ -102,15 +100,17 @@ def solve(grid_k, k0, permittivity, current_density, initial_E = None):
         def matrix_norm(_):
             return jnp.linalg.norm(_, axis=(0, 1))  # The latter can probably be faster by a custom implementation (see macromax)
 
+    ft_kwargs = dict(axes=tuple(range(-len(grid_k), 0)), norm='ortho')
+
     @jax.jit
     def ft(x):
         """Fourier transform of the spatial dimensions."""
-        return jnp.fft.fftn(x, axes=tuple(range(-len(grid_k), 0)))
+        return jnp.fft.fftn(x, **ft_kwargs)
 
     @jax.jit
     def ift(x):
         """Inverse Fourier transform of the spatial dimensions."""
-        return jnp.fft.ifftn(x, axes=tuple(range(-len(grid_k), 0)))
+        return jnp.fft.ifftn(x, **ft_kwargs)
 
     # The actual work is done here:
     log.debug('Scaling and shifting problem...')
@@ -118,9 +118,7 @@ def solve(grid_k, k0, permittivity, current_density, initial_E = None):
     scale = 1.1j * jnp.amax(matrix_norm(permittivity - permittivity_bias))  # Must be strictly larger than the norm in the polarization dimension
     # assert jnp.amax(jnp.abs((permittivity - permittivity_bias) / scale)) < 1, f'Incorrect scale.'
 
-    rhs = -1j * k0 * const.c * const.mu_0 * current_density
-    numerical_scale = jnp.amax(jnp.abs(rhs))  # To avoid overflow or underflow with our machine precision
-    y = rhs / numerical_scale
+    y = -1j * k0 * const.c * const.mu_0 * current_density
 
     log.debug(f'Using permittivity bias {permittivity_bias}, and scaling the whole problem by {scale}.')
 
@@ -164,59 +162,58 @@ def solve(grid_k, k0, permittivity, current_density, initial_E = None):
 
     @jax.jit
     def prec_forward(x):
-        """
-        The preconditioned problem does not actually require execution of the forward problem!
-
-        I.e. prec_forard(x) == prec(forward(x))
-        """
+        """The preconditioned problem does not actually require execution of the forward problem."""
         return -shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(x)) + x)
 
-    def approximation(x):
-        """
-        The approximation to the forward problem (see below).
+    return prec_forward, prec(y)
 
-        This is only required for verification and instructive purposes.
-        """
-        x_trans_ft, x_long_ft = split_trans_long_ft(ft(x))
-        return ift((-k2 + permittivity_bias) * x_trans_ft + permittivity_bias * x_long_ft)
+def solve(grid_k, k0, permittivity, current_density, initial_E = None):
+    """
+    Solve for the electromagnetic field.
 
-    def forward(x):
-        r"""
-        The forward problem (for reference and testing).
+    :param grid_k: A tuple with the (ifftshifted) k_space grid, corresponding to the wavevectors after FFT.
+    :param k0: The vacuum wavenumber.
+    :param permittivity: The (relative) permittivity distribution can either have the spatial dimensions, or it can have
+        a 3x3 matrix in the first (left-most) axes, for each point in space.
+    :param current_density: The current density, with the first (left-most) axis the polarization vector, while the
+        remaining axes are spatial dimensions.
+    :param initial_E: An optional starting point for the solver.
 
-        .. math::
-
-            \frac{1}{-i k_0 c \mu_0} \left[F^{-1}\left(-|k|^2 F\left(E_T\right)\right) + \epsilon E\right] = j
-
-        This is only required for verification and instructive purposes.
-        """
-        return approximation(x) + (shifted_discrepancy(x) + x) * scale
-
-    prec_y = prec(y)
-
-    @jax.jit
-    def fixed_point_function(x):
-        return prec_y - prec_forward(x) + x
-
-    E = prec_y if initial_E is None else initial_E
+    :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
+        axes are spatial dimensions.
+    """
+    prec_forward, prec_y = precondition(grid_k, k0, permittivity, current_density)
+    numerical_scale = jnp.amax(jnp.abs(prec_y))  # To avoid overflow or underflow with our machine precision
+    prec_y /= numerical_scale
+    x = prec_y if initial_E is None else initial_E / numerical_scale
 
     log.info('Optimizing the solver itself by just-in-time compilation...')
-    solver = jaxopt.FixedPointIteration(fixed_point_function, maxiter=1000, tol=1e-3, jit=True, implicit_diff=False)
-    bicgstab_solver = jax.jit(lambda: jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=1000, tol=1e-3))
+    solver = jaxopt.FixedPointIteration(lambda _: prec_y - prec_forward(_) + _, maxiter=1000, tol=1e-3, jit=True, implicit_diff=False)
+    # bicgstab_solver = jax.jit(lambda: jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=1000, tol=1e-3))
+
+    # log.info('Differentiating...')
+    # g = jax.grad(solver.run, holomorphic=True)(E)
+    # print(repr(g))
 
     log.info('Solving...')
-    E, state = solver.run(E)
+    x, state = solver.run(x)
     # E = bicgstab_solver()  # Takes about 4/3 the time as the fixed point run for simple problems.
+    import time
+    for _ in range(5):
+        start_time = time.perf_counter()
+        for _ in range(100):
+            solver.run(x)
+        log.warning(f'Fixed-point total time: {time.perf_counter() - start_time:0.3f}s.')
+        # start_time = time.perf_counter()
+        # for _ in range(10):
+        #     E2 = bicgstab_solver(prec_y)
+        # log.error(f'bicgstab time: {time.perf_counter() - start_time:0.3f}s.')
 
     # Checking the intermediate, preconditioned, result...
-    relative_residue_prec = jnp.linalg.norm(prec_forward(E) - prec_y) / jnp.linalg.norm(prec_y)
-    log.info(f'The relative residue of E for the preconditioned problem is {relative_residue_prec}.')
+    relative_residue_prec = jnp.linalg.norm(prec_forward(x) - prec_y) / jnp.linalg.norm(prec_y)
+    log.info(f'Preconditioned relative residue of E: {relative_residue_prec:0.3e}.')
 
-    E *= numerical_scale  # undo the initial scaling
-
-    log.info('Checking the final result...')
-    relative_residue_nonprec = jnp.linalg.norm(forward(E) - rhs) / jnp.linalg.norm(rhs)
-    log.info(f'The relative residue of E for the non-preconditioned problem is {relative_residue_nonprec}.')
+    E = x * numerical_scale
 
     return E
 
