@@ -11,16 +11,13 @@ Magnetic and cross terms as used for chiral materials are not implemented as the
 """
 import matplotlib.pyplot as plt
 import numpy as np
-import jax
 import jax.numpy as jnp
-import jaxopt
-import jaxopt.linear_solve
 
 from macromax.bound import LinearBound
 from macromax.utils import Grid
 from macromax.utils.display import complex2rgb, grid2extent
 
-from convergent_born_iteration import log, electro
+from convergent_born_iteration import log, electro_solver
 
 log.getChild(__name__)
 
@@ -54,12 +51,12 @@ def define_problem(grid_shape = (256, 256)):
     refractive_index = 1 + (plate_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < plate_thickness/2)
     permittivity = refractive_index ** 2 + bound.electric_susceptibility  # just for clarity, macromax actually does this implicitly
 
-    target_radius = min(grid.extent) / 20
+    target_radius = max(min(grid.extent) / 64, min(grid.step))
     target_area = sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + grid.extent[0] - bound.thickness[0, 1], 0))) < target_radius ** 2
 
     return grid, k0, permittivity, current_density, target_area
 
-def display(grid, permittivity, current_density, target_area, E):
+def display(grid, permittivity, current_density, target_area=0.0, E=0.0):
     """Display the input and output, including absorbing boundaries for clarity."""
     log.debug('Preparing the display...')
     fig, axs = plt.subplots(2, 3, sharex='all', sharey='all')
@@ -75,22 +72,23 @@ def display(grid, permittivity, current_density, target_area, E):
             ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$')
 
 def main():
-    log.info(f'Starting {__name__} ...')
+    log.debug(f'Starting {__name__} ...')
 
-    grid, k0, permittivity, current_density, target_area = define_problem([480, 640])
+    log.info('Defining the problem.')
+    grid, k0, permittivity, current_density, _ = define_problem([480, 640])
 
-    log.info('Converting to JAX and solving...')
+    log.info('Converting to JAX.')
     grid_k = tuple(jnp.array(_) for _ in grid.k)
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
-    target_area = jnp.array(target_area)
 
     log.info('Solving...')
-    E = electro.solve(grid_k, k0, permittivity, current_density, implicit_diff=True)
+    E = electro_solver.solve(grid_k, k0, permittivity, current_density, implicit_diff=True)
 
-    display(grid, permittivity, current_density, target_area, E)
+    log.info('Displaying...')
+    display(grid, permittivity, current_density, E=E)
 
-    log.info('Solved, close figure window to exit.')
+    log.info('Done. Close figure window to exit.')
     plt.show()
     log.debug('Exiting!')
 
