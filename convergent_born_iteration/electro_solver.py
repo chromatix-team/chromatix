@@ -101,7 +101,7 @@ def precondition(grid_k, k0: float, permittivity, current_density):
 
     return prec_forward, prec(-1j * k0 * const.c * const.mu_0 * current_density)
 
-@partial(jax.jit, static_argnames=['implicit_diff'])
+@partial(jax.jit, static_argnames=['maxiter', 'implicit_diff'])
 def solve(grid_k, k0, permittivity, current_density, initial_E = None,
           maxiter: int = 1000, tol: float = 1e-3,
           implicit_diff: bool = True,

@@ -46,6 +46,7 @@ def define_problem(grid_shape = (256, 256)):
     current_density[source_pixel+1:, :] = 0
     current_density = current_density * np.exp(-0.5*((grid[1] - grid[1].ravel()[grid.shape[1]//3])/(beam_diameter/2))**2)  # beam aperture
     current_density = source_polarization * current_density  # Make it vectorial by tagging on the polarization dimension on the left.
+    current_density /= 1e10  # TODO: pick a reasonable scale for light waves
 
     log.debug('Defining the sample...')
     refractive_index = 1 + (plate_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < plate_thickness/2)
@@ -77,13 +78,13 @@ def main():
     log.info('Defining the problem.')
     grid, k0, permittivity, current_density, _ = define_problem([480, 640])
 
-    log.info('Converting to JAX.')
+    log.info(f'Converting problem of shape {grid.shape} to JAX.')
     grid_k = tuple(jnp.array(_) for _ in grid.k)
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
 
     log.info('Solving...')
-    E = electro_solver.solve(grid_k, k0, permittivity, current_density, implicit_diff=True)
+    E = electro_solver.solve(grid_k, k0, permittivity, current_density)
 
     log.info('Displaying...')
     display(grid, permittivity, current_density, E=E)
