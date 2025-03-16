@@ -2,7 +2,8 @@
 """
 An example of inverse design that simply optimizes the scattering of a glass mask towards a target behind it.
 
-The starting point is the same as example_solve2D, though refractive index can be varied between 1 and that in the example.
+The script optimizes the refractive index to deposit as much light as possible into a target area. The starting point
+is the same as example_solve2D, though refractive index can be varied between 1 and that in the example.
 """
 import matplotlib.pyplot as plt
 import jax

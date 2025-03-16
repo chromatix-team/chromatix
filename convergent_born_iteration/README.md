@@ -20,3 +20,5 @@ complex boundary procedures.
 ### benchmark_solve2d.py
 Script to quantify the execution speed of the solver by running the example_solve2d multiple times.
 
+### example_inverse_design2d.py
+This script optimizes the refractive index to deposit as much light as possible into a target area.
