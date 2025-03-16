@@ -44,7 +44,7 @@ def define_problem(grid_shape = (256, 256)):
     source_pixel = int(bound.thickness[0, 0] / grid.step[0])
     current_density[:source_pixel, :] = 0
     current_density[source_pixel+1:, :] = 0
-    current_density = current_density * np.exp(-0.5*((grid[1] - grid[1].ravel()[grid.shape[0]//3])/(beam_diameter/2))**2)  # beam aperture
+    current_density = current_density * np.exp(-0.5*((grid[1] - grid[1].ravel()[grid.shape[1]//3])/(beam_diameter/2))**2)  # beam aperture
     current_density = source_polarization * current_density  # Make it vectorial by tagging on the polarization dimension on the left.
 
     log.debug('Defining the sample...')

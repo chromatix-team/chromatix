@@ -3,6 +3,8 @@ A module with functions to solve electro-magnetic problems.
 
 See example_solve2d.py for an example.
 """
+from functools import partial
+
 import scipy.constants as const
 import jax
 import jax.numpy as jnp
@@ -12,6 +14,31 @@ import jaxopt.linear_solve
 from convergent_born_iteration import log
 
 log.getChild(__name__)
+
+@partial(jax.jit, static_argnames=['isotropic'])
+def get_shift_and_scale(permittivity, isotropic: bool):
+    """
+    Determine an appropriate shift and scale, so that:
+
+        * max |permittivity - shift| is small,
+
+        * max |permittivity - shift| < |scale|, and
+
+        * forward / scale is accretive (non-symmetric positive definite).
+
+    Ideally, the shift should be optimized to minimize the scale,
+    as that is approximately inversely proportional to the convergence rate.
+
+    :param permittivity: The relative permittivity of the material. Anisotropic materials have two extra axis on the left with shape (3, 3).
+    :param isotropic: Indicates whether the permittivity is isotropic. If not, it should have 2 extra axes on the left.
+    :return: The complex tuple (shift, scale)
+    """
+    matrix_norm = jnp.abs if isotropic else lambda _: jnp.linalg.norm(_, axis=(0, 1))  # The latter may be faster by using a custom implementation (see macromax)
+
+    shift = 1.3  # This can be chosen more optimally to minimize the below scale factor, and maximize the convergence rate.
+    scale = 1.1j * jnp.amax(matrix_norm(permittivity - shift))  # Must be strictly larger than the norm in the polarization dimension
+
+    return shift, scale
 
 def precondition(grid_k, k0: float, permittivity, current_density):
     """
@@ -30,59 +57,39 @@ def precondition(grid_k, k0: float, permittivity, current_density):
 
     """
     isotropic = permittivity.ndim < len(grid_k) + 2 or permittivity.shape[0] == 1
-    log.info(f"Preconditioning for an {'' if isotropic else 'an'}isotropic material...")
-
-    log.debug('Scaling and shifting the problem...')
-    permittivity_bias = 1.3  # This can be chosen more optimally to minimize the below scale factor, and maximize the convergence rate.
-    matrix_norm = jnp.abs if isotropic else lambda _: jnp.linalg.norm(_, axis=(0, 1))  # The latter can probably be faster by a custom implementation (see macromax)
-    scale = 1.1j * jnp.amax(matrix_norm(permittivity - permittivity_bias))  # Must be strictly larger than the norm in the polarization dimension
-    # assert jnp.amax(jnp.abs((permittivity - permittivity_bias) / scale)) < 1, f'Incorrect scale.'
-
-    log.debug(f'Using permittivity bias {permittivity_bias}, and scaling the whole problem by {scale}.')
+    permittivity_bias, scale = get_shift_and_scale(permittivity, isotropic)
 
     grid_k = [_ / k0 for _ in grid_k]  # Use units so that k0 == 1.
-    k2 = sum(_ ** 2 for _ in grid_k)  # This could be more efficiently when computed on-the-fly every time
+    k2 = sum(_ ** 2 for _ in grid_k)  # This may be more efficiently when computed on-the-fly every time
 
-    ft_kwargs = dict(axes=tuple(range(-len(grid_k), 0)), norm='ortho')
-
-    def ft(_):
-        """Fourier transform of the spatial dimensions."""
-        return jnp.fft.fftn(_, **ft_kwargs)
-
-    def ift(_):
-        """Inverse Fourier transform of the spatial dimensions."""
-        return jnp.fft.ifftn(_, **ft_kwargs)
-
-    def split_trans_long_ft(x_ft):
+    def split_trans_long_ft(y_ft):
         """Split a k-space vector field into its transverse and longitudinal components."""
         dc = k2 == 0  # just to avoid division by 0
-        projection_coefficient_div_norm_k = sum(k * x_ft_c for k, x_ft_c in zip(grid_k, x_ft)) / (k2 + dc)  # dot-product with over-normalized k-vector
-        grid_k_3d = [*grid_k, *([0] * (x_ft.shape[0] - len(grid_k)))]  # 0-pad sequence of vectors
-        x_long_ft = jnp.stack([k * projection_coefficient_div_norm_k for k in grid_k_3d])
-        x_trans_ft = x_ft - x_long_ft
-        return x_trans_ft, x_long_ft
+        projection_coefficient_div_norm_k = sum(k * y_ft_c for k, y_ft_c in zip(grid_k, y_ft)) / (k2 + dc)  # dot-product with over-normalized k-vector
+        grid_k_3d = [*grid_k, *([0] * (y_ft.shape[0] - len(grid_k)))]  # 0-pad sequence of vectors
+        y_long_ft = jnp.stack([k * projection_coefficient_div_norm_k for k in grid_k_3d])
+        y_trans_ft = y_ft - y_long_ft
+        return y_trans_ft, y_long_ft
 
-    @jax.jit
     def shifted_approx_inv(y):
         """The inverse of the scaled and shifted-by-1 approximation to the scaled forward problem."""
-        y_trans_ft, y_long_ft = split_trans_long_ft(ft(y))
-        return ift(y_trans_ft / ((-k2 + permittivity_bias) / scale + 1) +
-                   y_long_ft / (permittivity_bias / scale + 1)
-                   )
+        ft_kwargs = dict(axes=tuple(range(-len(grid_k), 0)))  # use , norm='ortho' to avoid numerical problems with low numerical precision.
+        y_trans_ft, y_long_ft = split_trans_long_ft(jnp.fft.fftn(y, **ft_kwargs))
+        return jnp.fft.ifftn(y_trans_ft / ((-k2 + permittivity_bias) / scale + 1) +
+                             y_long_ft / (permittivity_bias / scale + 1),
+                             **ft_kwargs
+                             )
 
     if isotropic:
-        @jax.jit
         def shifted_discrepancy(x):
             """The discrepancy after approximation of the scaled isotropic problem, shifted by -1."""
             return ((permittivity - permittivity_bias) / scale - 1) * x
     else:
-        @jax.jit
         def shifted_discrepancy(x):
             """The discrepancy after approximation of the scaled anisotropic problem, shifted by -1."""
-            id = jnp.eye(3).reshape(3, 3, *([1] * len(grid_k)))  # The identity matrix in the polarization axes
-            return jnp.einsum('ij...,j...,i...', (permittivity - (permittivity_bias / scale + 1) * id), x)
+            identity = jnp.eye(3).reshape(3, 3, *([1] * len(grid_k)))  # The identity matrix in the polarization axes
+            return jnp.einsum('ij...,j...,i...', (permittivity - (permittivity_bias / scale + 1) * identity), x)
 
-    @jax.jit
     def prec(y):
         """The preconditioner for accretive problem."""
         return -shifted_discrepancy(shifted_approx_inv(y / scale))
@@ -94,7 +101,11 @@ def precondition(grid_k, k0: float, permittivity, current_density):
 
     return prec_forward, prec(-1j * k0 * const.c * const.mu_0 * current_density)
 
-def solve(grid_k, k0, permittivity, current_density, initial_E = None, implicit_diff: bool = True):
+@partial(jax.jit, static_argnames=['implicit_diff'])
+def solve(grid_k, k0, permittivity, current_density, initial_E = None,
+          maxiter: int = 1000, tol: float = 1e-3,
+          implicit_diff: bool = True,
+          ):
     """
     Solve for the electromagnetic field.
 
@@ -105,6 +116,8 @@ def solve(grid_k, k0, permittivity, current_density, initial_E = None, implicit_
     :param current_density: The current density, with the first (left-most) axis the polarization vector, while the
         remaining axes are spatial dimensions.
     :param initial_E: An optional starting point for the solver.
+    :param maxiter: The maximum number of iterations.
+    :param tol: The tolerance for the convergence criterion.
     :param implicit_diff: Whether to compute implicit gradients during the fixed point iteration. Default: True.
 
     :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
@@ -115,14 +128,16 @@ def solve(grid_k, k0, permittivity, current_density, initial_E = None, implicit_
     prec_y /= numerical_scale
     x = prec_y if initial_E is None else initial_E / numerical_scale
 
-    solver = jaxopt.FixedPointIteration(lambda _: prec_y - prec_forward(_) + _, maxiter=1000, tol=1e-3, jit=True, implicit_diff=implicit_diff)
-    # bicgstab_solver = jax.jit(lambda: jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=1000, tol=1e-3))
+    solver = jaxopt.FixedPointIteration(lambda _: prec_y - prec_forward(_) + _,
+                                        maxiter=maxiter, tol=tol, implicit_diff=implicit_diff,
+                                        )
+    x, optim_state = solver.run(x)
 
-    x = solver.run(x)[0]
+    # bicgstab_solver = jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=maxiter, tol=tol)
     # x = bicgstab_solver()  # Takes about 4/3 the time as the fixed point run for simple problems.
 
-    # Checking the intermediate, preconditioned, result...
-    relative_residue_prec = jnp.linalg.norm(prec_forward(x) - prec_y) / jnp.linalg.norm(prec_y)
-    log.info(f'Preconditioned relative residue of E: {relative_residue_prec:0.3e}.')
+    # # Checking the intermediate, preconditioned, result...
+    # relative_residue_prec = jnp.linalg.norm(prec_forward(x) - prec_y) / jnp.linalg.norm(prec_y)
+    # log.info(f'Preconditioned relative residue of E: {relative_residue_prec:0.3e}.')
 
     return x * numerical_scale  # E
