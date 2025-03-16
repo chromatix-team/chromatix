@@ -25,7 +25,7 @@ def define_problem(grid_shape = (256, 256)):
     """Define the electro-magnetic problem."""
     log.debug('Defining the top-level constants...')
     wavelength = 500e-9  # in meters
-    plate_refractive_index = 1.5  # try making this negative (prepare to be patient though and avoid over sampling!)
+    material_refractive_index = 1.5  # try making this negative (prepare to be patient though and avoid over sampling!)
 
     k0 = 2 * np.pi / wavelength
     grid = Grid(grid_shape, step=wavelength / 10)  # Dense sampling for a nicer display
@@ -44,12 +44,12 @@ def define_problem(grid_shape = (256, 256)):
     source_pixel = int(bound.thickness[0, 0] / grid.step[0])
     current_density[:source_pixel, :] = 0
     current_density[source_pixel+1:, :] = 0
-    current_density = current_density * np.exp(-0.5*((grid[1] - grid[1].ravel()[grid.shape[1]//3])/(beam_diameter/2))**2)  # beam aperture
+    current_density = current_density * np.exp(-0.5*((grid[1] - grid[1].ravel()[grid.shape[1]//3]) / (beam_diameter/2)) ** 2)  # beam aperture
     current_density = source_polarization * current_density  # Make it vectorial by tagging on the polarization dimension on the left.
-    current_density /= 1e10  # TODO: pick a reasonable scale for light waves
 
     log.debug('Defining the sample...')
-    refractive_index = 1 + (plate_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < plate_thickness/2)
+    refractive_index = 1 + (material_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < plate_thickness/2)
+    # refractive_index = 1 + (material_refractive_index - 1) * (sum(_ ** 2 for _ in grid) ** 0.5 < min(grid.extent) / 3 / 2)
     permittivity = refractive_index ** 2 + bound.electric_susceptibility  # just for clarity, macromax actually does this implicitly
 
     target_radius = max(min(grid.extent) / 64, min(grid.step))
@@ -57,20 +57,24 @@ def define_problem(grid_shape = (256, 256)):
 
     return grid, k0, permittivity, current_density, target_area
 
-def display(grid, permittivity, current_density, target_area=0.0, E=0.0):
+def display(grid, permittivity, current_density, E, labels=None, target_area=0.0):
     """Display the input and output, including absorbing boundaries for clarity."""
-    log.debug('Preparing the display...')
-    fig, axs = plt.subplots(2, 3, sharex='all', sharey='all')
+    if E.ndim <= current_density.ndim:
+        E = E[np.newaxis]
+    labels = ('' for _ in range(len(E))) if labels is None else (_ + ' | ' for _ in labels)
+    fig, axs = plt.subplots(1 + E.shape[0], 3, sharex='all', sharey='all')
     structure = np.sqrt(permittivity) - 1 - 0.5j * target_area
     structure /= np.amax(np.abs(structure))
 
-    for axs_row, fields, label_pre in zip(axs,
-                                          (structure + current_density / np.amax(np.abs(current_density)), E / np.amax(np.abs(E))),
-                                          ('structure + $J_', '$E_'),
-                                          ):
-        for ax, field_component, ax_label in zip(axs_row, fields, 'xyz'):
-            ax.imshow(complex2rgb(field_component), extent=grid2extent(grid / 1e-6))
-            ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$')
+    for axs_row, fld, label_pre in zip(axs,
+                                       (structure + current_density / np.amax(np.abs(current_density)),
+                                        *(_ / np.amax(np.abs(_)) for _ in E),
+                                        ),
+                                       ('structure + $J_', *(_ + '$E_' for _ in labels)),
+                                       ):
+        for ax, fld_component, ax_label in zip(axs_row, fld, 'xyz'):
+            ax.imshow(complex2rgb(fld_component), extent=grid2extent(grid / 1e-6))
+            ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$ ')
 
 def main():
     log.debug(f'Starting {__name__} ...')

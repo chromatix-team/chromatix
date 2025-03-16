@@ -31,7 +31,7 @@ def main():
 
     def measure_intensity(x):
         E = electro_solver.solve(grid_k, k0, get_updated_permittivity(x), current_density, implicit_diff=False)  # TODO: implement implicit differentiation of the preconditioner.
-        I = jnp.linalg.norm(E, axis=0) ** 2
+        I = jnp.linalg.norm(E / 1e10, axis=0) ** 2  # TODO: pick a reasonable scale for light waves
         return jnp.vdot(target_area, I)
 
     @jax.jit
@@ -40,7 +40,7 @@ def main():
         return -measure_intensity(x)
 
     random_key = jax.random.key(0)
-    x0 = jax.random.normal(random_key, current_density.shape)  # use shape[-1:] to optimize in 1D, and have enough memory for LBFGS and NonLinearCG
+    x0 = jax.random.normal(random_key, permittivity.shape)  # use shape[-1:] to optimize in 1D, and have enough memory for LBFGS and NonLinearCG
     x0 = x0 / jnp.linalg.norm(x0)
 
     initial_loss = loss(x0)
@@ -56,7 +56,7 @@ def main():
     E = electro_solver.solve(grid_k, k0, get_updated_permittivity(x), current_density, implicit_diff=False)
 
     log.info('Displaying...')
-    example_solve2d.display(grid, get_updated_permittivity(x), current_density, target_area, E=E)
+    example_solve2d.display(grid, get_updated_permittivity(x), current_density, E, target_area=target_area)
 
     log.info('Done. Close figure window to exit.')
     plt.show()
