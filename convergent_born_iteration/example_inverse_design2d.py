@@ -5,11 +5,12 @@ An example of inverse design that simply optimizes the scattering of a glass mas
 The script optimizes the refractive index to deposit as much light as possible into a target area. The starting point
 is the same as example_solve2D, though refractive index can be varied between 1 and that in the example.
 """
-import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
 import jaxopt
 import jaxopt.linear_solve
+import matplotlib.pyplot as plt
+# import optax
 
 from convergent_born_iteration import log, electro_solver, example_solve2d
 
@@ -21,7 +22,6 @@ def main():
     grid, k0, permittivity, current_density, target_area = example_solve2d.define_problem([128, 128])
 
     log.info(f'Converting problem of shape {grid.shape} to JAX.')
-    grid_k = tuple(jnp.array(_) for _ in grid.k)
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
     target_area = jnp.array(target_area)
@@ -30,7 +30,7 @@ def main():
         return 1j * permittivity.imag + 1 + (permittivity.real - 1) * jax.nn.sigmoid(x)
 
     def measure_intensity(x):
-        E = electro_solver.solve(grid_k, k0, get_updated_permittivity(x), current_density, implicit_diff=False)  # TODO: implement implicit differentiation of the preconditioner.
+        E = electro_solver.solve(grid, k0, get_updated_permittivity(x), current_density, implicit_diff=False)  # TODO: implement implicit differentiation of the preconditioner.
         I = jnp.linalg.norm(E / 1e10, axis=0) ** 2  # TODO: pick a reasonable scale for light waves
         return jnp.vdot(target_area, I)
 
@@ -50,10 +50,18 @@ def main():
     # x, opt_state = jaxopt.LBFGS(loss, value_and_grad=False, jit=True, verbose=verbose).run(x0)
     # x, opt_state = jaxopt.NonlinearCG(loss, value_and_grad=False, jit=True, max_stepsize=1, verbose=verbose).run(x0)
     # log.info(f'Executed {opt_state.num_fun_eval} function and {opt_state.num_grad_eval} evaluations.')
+
+    # solver = optax.adam(learning_rate=1, eps=0.01)
+    # x = x0.copy()
+    # opt_state = solver.init(x)
+    # for _ in range(15):
+    #     updates, opt_state = solver.update(jax.grad(loss)(x), opt_state, x)
+    #     x = optax.apply_updates(x, updates)
+
     log.info(f'Minimized loss from {initial_loss:0.3f} to {loss(x):0.3f}.')
 
     log.info('Solving optimized system...')
-    E = electro_solver.solve(grid_k, k0, get_updated_permittivity(x), current_density, implicit_diff=False)
+    E = electro_solver.solve(grid, k0, get_updated_permittivity(x), current_density, implicit_diff=False)
 
     log.info('Displaying...')
     example_solve2d.display(grid, get_updated_permittivity(x), current_density, E, target_area=target_area)

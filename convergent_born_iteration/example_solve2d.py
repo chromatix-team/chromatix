@@ -28,7 +28,7 @@ def define_problem(grid_shape = (256, 256)):
     material_refractive_index = 1.5  # try making this negative (prepare to be patient though and avoid over sampling!)
 
     k0 = 2 * np.pi / wavelength
-    grid = Grid(grid_shape, step=wavelength / 10)  # Dense sampling for a nicer display
+    grid = Grid(grid_shape, step=wavelength / 10)  # Overly dense sampling for a nicer display
     beam_diameter = grid.extent[1] / 4
     plate_thickness = grid.extent[0] / 4
 
@@ -39,8 +39,8 @@ def define_problem(grid_shape = (256, 256)):
     incident_angle = 30 * np.pi / 180
     def rot_Z(a): return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]])
     incident_k = rot_Z(incident_angle) * k0 @ np.array([1, 0, 0])
-    source_polarization = (rot_Z(incident_angle) @ np.array([0, 1, 1j]) / np.sqrt(2))[:, np.newaxis, np.newaxis]  # Add 2 dims on the right for a 2D grid
-    current_density = np.exp(1j * (incident_k[0]*grid[0] + incident_k[1]*grid[1]))
+    source_polarization = (rot_Z(incident_angle) @ np.array([0, 1, 1j]) / np.sqrt(2)).reshape(3, *([1] * grid.ndim))  # Add dims on the right
+    current_density = np.exp(1j * sum(k * g for k, g in zip(incident_k, grid)))
     source_pixel = int(bound.thickness[0, 0] / grid.step[0])
     current_density[:source_pixel, :] = 0
     current_density[source_pixel+1:, :] = 0
@@ -51,6 +51,9 @@ def define_problem(grid_shape = (256, 256)):
     refractive_index = 1 + (material_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < plate_thickness/2)
     # refractive_index = 1 + (material_refractive_index - 1) * (sum(_ ** 2 for _ in grid) ** 0.5 < min(grid.extent) / 3 / 2)
     permittivity = refractive_index ** 2 + bound.electric_susceptibility  # just for clarity, macromax actually does this implicitly
+
+    # identity = jnp.eye(3).reshape(3, 3, *([1] * grid.ndim))  # A simple test of anisotropy
+    # permittivity = identity * permittivity
 
     target_radius = max(min(grid.extent) / 64, min(grid.step))
     target_area = sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + grid.extent[0] - bound.thickness[0, 1], 0))) < target_radius ** 2
@@ -73,6 +76,10 @@ def display(grid, permittivity, current_density, E, labels=None, target_area=0.0
                                        ('structure + $J_', *(_ + '$E_' for _ in labels)),
                                        ):
         for ax, fld_component, ax_label in zip(axs_row, fld, 'xyz'):
+            if fld_component.ndim > 2:
+                fld_component = fld_component[..., fld_component.shape[-1] // 2]
+            if grid.ndim > 2:
+                grid = grid.project(axes_to_remove=-1)
             ax.imshow(complex2rgb(fld_component), extent=grid2extent(grid / 1e-6))
             ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$ ')
 
@@ -83,12 +90,11 @@ def main():
     grid, k0, permittivity, current_density, _ = define_problem([480, 640])
 
     log.info(f'Converting problem of shape {grid.shape} to JAX.')
-    grid_k = tuple(jnp.array(_) for _ in grid.k)
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
 
     log.info('Solving...')
-    E = electro_solver.solve(grid_k, k0, permittivity, current_density)
+    E = electro_solver.solve(grid, k0, permittivity, current_density)
 
     log.info('Displaying...')
     display(grid, permittivity, current_density, E=E)

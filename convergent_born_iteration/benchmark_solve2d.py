@@ -17,13 +17,12 @@ def main():
     grid, k0, permittivity, current_density, _ = example_solve2d.define_problem([480, 640])
 
     log.info(f'Converting problem of shape {grid.shape} to JAX.')
-    grid_k = tuple(jnp.array(_) for _ in grid.k)
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
 
     log.info('Solving repeatedly...')
     times = timeit.repeat(
-        lambda: electro_solver.solve(grid_k, k0, permittivity, current_density, maxiter=1000, tol=0),
+        lambda: electro_solver.solve(grid, k0, permittivity, current_density, maxiter=1000, tol=0).block_until_ready(),
         repeat=10,
         number=1,
     )
