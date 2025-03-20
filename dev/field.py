@@ -70,6 +70,8 @@ class AbstractField(eqx.Module):
         # TODO: Add replace method?
         return self.replace(u=jnp.conj(self.u))
 
+    # These are standardised grids without empty dimensions;
+    # and they should be reshaped in the actual field
     @property
     def _grid(self) -> Array:
      N_y, N_x = self.spatial_shape
@@ -106,8 +108,15 @@ class Vectorial(eqx.Module):
         pass
 
 
+# These two don't do anything yet.
+class Coherent(eqx.Module):
+    pass
+
+class PartiallyCOherent(eqx.Module):
+    pass
+
 # Actual field
-class CoherentScalarField(AbstractField, Scalar):
+class CoherentScalarField(AbstractField, Scalar, Coherent):
     u: Complex[Array, "*b y x"]
     dx: Float[Array, "*b 2"]
     spectrum: Float[Array, "*b 1"]
@@ -131,6 +140,8 @@ class CoherentScalarField(AbstractField, Scalar):
         # Parsing spectrum
         self.spectrum = jnp.asarray(spectrum)
 
+    # The only functions that need to be implemented are intensity, grid, and k_grid
+
     @property
     def intensity(self) -> Float[Array, "*b y x"]:
         return jnp.abs(self.u)**2
@@ -147,7 +158,7 @@ class CoherentScalarField(AbstractField, Scalar):
     
 
 
-class SpectralCoherentScalarField(AbstractField, Scalar, Spectral):
+class SpectralCoherentScalarField(AbstractField, Scalar, Spectral, Coherent):
     u: Complex[Array, "*b y x l"]
     dx: Float[Array, "*b #l 2"]
     spectrum: Float[Array, "*b l"]
@@ -186,13 +197,15 @@ class SpectralCoherentScalarField(AbstractField, Scalar, Spectral):
 
     @property
     def k_grid(self) -> Array:
+        # TODO: Technically we're missing a factor 2 pi here!
+        # This should be called fx
         return rearrange(self._freq_grid, "... l y x d-> ... y x l d")
         
     
-class CoherentVectorField(AbstractField, Vectorial):
+class CoherentVectorField(AbstractField, Vectorial, Coherent):
     pass
 
-class SpectralCoherentVectorField(AbstractField, Vectorial, Spectral):
+class SpectralCoherentVectorField(AbstractField, Vectorial, Spectral, Coherent):
     pass
 
 
