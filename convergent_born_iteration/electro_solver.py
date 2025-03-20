@@ -58,11 +58,12 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
 
     """
     permittivity_bias, scale = get_shift_and_scale(permittivity)
-    scale = scale * (1 - 2 * adjoint)
+    scale_inv = 1 / (scale * (1 - 2 * adjoint))
 
     subscripts = 'ij...,...->...' if permittivity.shape[0] == 1 else 'ij...,j...->i...'
-    scaled_permittivity = permittivity / scale
-    scaled_and_shifted_permittivity_bias = permittivity_bias / scale + 1
+    scaled_permittivity = permittivity * scale_inv
+    del permittivity
+    scaled_and_shifted_permittivity_bias = permittivity_bias * scale_inv + 1
     def shifted_discrepancy(x):
         """The discrepancy after approximation of the scaled isotropic problem, shifted by -1."""
         return jnp.einsum(subscripts, scaled_permittivity, x) - scaled_and_shifted_permittivity_bias * x
@@ -83,7 +84,9 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
         """The inverse of the scaled and shifted-by-1 approximation to the scaled forward problem."""
         k2 = sum(_ ** 2 for _ in grid_k)  # This is more memory & computationally efficient when computed on-the-fly every time
         ft_kwargs = dict(axes=tuple(range(-len(grid_k), 0)))  # use , norm='ortho' to avoid numerical problems with low numerical precision.
-        y_trans_ft, y_long_ft = split_trans_long_ft(jnp.fft.fftn(y, **ft_kwargs))
+
+        y_ft = jnp.fft.fftn(y, **ft_kwargs)
+        y_trans_ft, y_long_ft = split_trans_long_ft(y_ft)
         return jnp.fft.ifftn(y_trans_ft / (-k2 / scale + scaled_and_shifted_permittivity_bias) +
                              y_long_ft / scaled_and_shifted_permittivity_bias,
                              **ft_kwargs
@@ -91,9 +94,9 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
 
     def prec(y):
         """The preconditioner for accretive problem."""
+        # jax.debug.print('y {s}GiB {d}', s=y.nbytes / 1024 ** 3, d=y.dtype)
         return -shifted_discrepancy(shifted_approx_inv(y / scale))
 
-    @jax.jit
     def prec_forward(x):
         """The preconditioned problem does not actually require execution of the forward problem."""
         return -shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(x)) + x)
@@ -124,10 +127,11 @@ def solve(grid: Grid, k0, permittivity, current_density, initial_E = None,
     :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
         axes are spatial dimensions.
     """
-    # jax.profiler.save_device_memory_profile('memory_init.prof')
     permittivity = permittivity.reshape(-1, round((permittivity.size // grid.size) ** 0.5), *grid.shape)
     if adjoint:
         permittivity = permittivity.transpose(0, 1).conj()
+    # jax.debug.print('permittivity {s}G {d}', s=permittivity.nbytes / 1024 ** 3, d=permittivity.dtype)
+    # jax.debug.print('current_density {s}G {d}', s=current_density.nbytes / 1024 ** 3, d=current_density.dtype)
     prec_forward, prec_y = precondition(grid, k0, permittivity, current_density, adjoint=adjoint)
     numerical_scale = jnp.amax(jnp.abs(prec_y))  # To avoid overflow or underflow with our machine precision
     prec_y /= numerical_scale
@@ -140,9 +144,5 @@ def solve(grid: Grid, k0, permittivity, current_density, initial_E = None,
 
     # bicgstab_solver = jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=maxiter, tol=tol)
     # x = bicgstab_solver()  # Takes about 4/3 the time as the fixed point run for simple problems.
-
-    # # Checking the intermediate, preconditioned, result...
-    # relative_residue_prec = jnp.linalg.norm(prec_forward(x) - prec_y) / jnp.linalg.norm(prec_y)
-    # log.info(f'Preconditioned relative residue of E: {relative_residue_prec:0.3e}.')
 
     return x * numerical_scale  # E

@@ -9,6 +9,12 @@ There is already some code to handle anisotropy, though this remains untested an
 
 Magnetic and cross terms as used for chiral materials are not implemented as these add significantly more complexity.
 """
+import os
+
+# os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'False'
+# os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '1.0'
+# os.environ['JAX_TRACEBACK_FILTERING'] = 'off'
+
 import matplotlib.pyplot as plt
 import numpy as np
 import jax.numpy as jnp
@@ -28,28 +34,28 @@ def define_problem(grid_shape = (256, 256)):
     material_refractive_index = 1.5  # try making this negative (prepare to be patient though and avoid over sampling!)
 
     k0 = 2 * np.pi / wavelength
-    grid = Grid(grid_shape, step=wavelength / 10)  # Overly dense sampling for a nicer display
-    beam_diameter = grid.extent[1] / 4
-    plate_thickness = grid.extent[0] / 4
+    grid = Grid(grid_shape, step=wavelength / 8)  # Overly-dense sampling for a nicer display
+    beam_diameter = grid.extent[0] / 16
+    object_diameter = grid.extent[0] / 2
 
     log.debug('Defining the boundary...')
     bound = LinearBound(grid, thickness=2e-6, max_extinction_coefficient=0.25)
 
     log.debug('Defining the incident wave...')
-    incident_angle = 30 * np.pi / 180
+    incident_angle = (0 + 90) * np.pi / 180
     def rot_Z(a): return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]])
     incident_k = rot_Z(incident_angle) * k0 @ np.array([1, 0, 0])
     source_polarization = (rot_Z(incident_angle) @ np.array([0, 1, 1j]) / np.sqrt(2)).reshape(3, *([1] * grid.ndim))  # Add dims on the right
     current_density = np.exp(1j * sum(k * g for k, g in zip(incident_k, grid)))
-    source_pixel = int(bound.thickness[0, 0] / grid.step[0])
-    current_density[:source_pixel, :] = 0
-    current_density[source_pixel+1:, :] = 0
-    current_density = current_density * np.exp(-0.5*((grid[1] - grid[1].ravel()[grid.shape[1]//3]) / (beam_diameter/2)) ** 2)  # beam aperture
+    source_pixel = int(bound.thickness[1, 0] / grid.step[1])
+    current_density[:, :source_pixel] = 0
+    current_density[:, source_pixel+1:] = 0
+    current_density = current_density * np.exp(-0.5* ((grid[0] - object_diameter / 2) / (beam_diameter/2)) ** 2)  # beam aperture
     current_density = source_polarization * current_density  # Make it vectorial by tagging on the polarization dimension on the left.
 
     log.debug('Defining the sample...')
-    refractive_index = 1 + (material_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < plate_thickness/2)
-    # refractive_index = 1 + (material_refractive_index - 1) * (sum(_ ** 2 for _ in grid) ** 0.5 < min(grid.extent) / 3 / 2)
+    # refractive_index = 1 + (material_refractive_index - 1) * np.ones(grid[1].shape) * (np.abs(grid[0]) < object_diameter/2)
+    refractive_index = 1 + (material_refractive_index - 1) * (sum(_ ** 2 for _ in grid) ** 0.5 < object_diameter / 2)
     permittivity = refractive_index ** 2 + bound.electric_susceptibility  # just for clarity, macromax actually does this implicitly
 
     # identity = jnp.eye(3).reshape(3, 3, *([1] * grid.ndim))  # A simple test of anisotropy
@@ -80,21 +86,22 @@ def display(grid, permittivity, current_density, E, labels=None, target_area=0.0
                 fld_component = fld_component[..., fld_component.shape[-1] // 2]
             if grid.ndim > 2:
                 grid = grid.project(axes_to_remove=-1)
-            ax.imshow(complex2rgb(fld_component), extent=grid2extent(grid / 1e-6))
+            ax.imshow(complex2rgb(fld_component, normalization=1.5), extent=grid2extent(grid / 1e-6))
             ax.set(xlabel=r'x  [$\mu$m]', ylabel=r'y  [$\mu$m]', title=label_pre + ax_label + '$ ')
 
 def main():
     log.debug(f'Starting {__name__} ...')
 
     log.info('Defining the problem.')
-    grid, k0, permittivity, current_density, _ = define_problem([480, 640])
+    grid, k0, permittivity, current_density, _ = define_problem([256, 256 * 4 // 3])
 
     log.info(f'Converting problem of shape {grid.shape} to JAX.')
     permittivity = jnp.array(permittivity)
     current_density = jnp.array(current_density)
+    E = jnp.zeros_like(current_density)
 
     log.info('Solving...')
-    E = electro_solver.solve(grid, k0, permittivity, current_density)
+    E = electro_solver.solve(grid, k0, permittivity, current_density, initial_E=E)
 
     log.info('Displaying...')
     display(grid, permittivity, current_density, E=E)
