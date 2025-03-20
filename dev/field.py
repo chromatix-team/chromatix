@@ -5,7 +5,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from einops import rearrange
 from jaxtyping import Array, Complex, Float, Real
-
+import jax
 
 # Abstract fields
 class AbstractField(eqx.Module):
@@ -73,7 +73,7 @@ class AbstractField(eqx.Module):
     # These are standardised grids without empty dimensions;
     # and they should be reshaped in the actual field
     @property
-    def _grid(self) -> Array:
+    def _grid(self) -> Float[Array, "*b y x d"]:
      N_y, N_x = self.spatial_shape
      dx = rearrange(self.dx, "... d -> ... 1 1 d")
      grid = jnp.meshgrid(
@@ -84,7 +84,7 @@ class AbstractField(eqx.Module):
      return dx * jnp.stack(grid, axis=-1)
     
     @property
-    def _freq_grid(self) -> Array:
+    def _freq_grid(self) -> Float[Array, "*b y x d"]:
         N_y, N_x = self.spatial_shape
         dk = rearrange( 1/ self.dx, "... d -> ... 1 1 d")
         grid = jnp.meshgrid(
@@ -93,6 +93,13 @@ class AbstractField(eqx.Module):
             indexing="ij"
         )
         return dk * jnp.stack(grid, axis=-1)
+
+
+    def replace(self, **kwargs):
+        for key, value in kwargs.items():
+            where_fn = lambda tree: getattr(tree, key)
+            result = eqx.tree_at(where_fn, self, value)
+        return result
 
 class Spectral(eqx.Module):
     spectral_density: eqx.AbstractVar[Array] # TODO: is this the right name?
