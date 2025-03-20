@@ -12,9 +12,8 @@ from ..field import ScalarField, VectorField
 from ..utils import _broadcast_2d_to_spatial, center_pad
 from .polarizers import polarizer
 from .propagation import (
+    asm_propagate,
     compute_asm_propagator,
-    compute_exact_propagator,
-    exact_propagate,
     kernel_propagate,
 )
 
@@ -108,6 +107,8 @@ def multislice_thick_sample(
     propagator: Optional[Array] = None,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     reverse_propagate_distance: Optional[float] = None,
+    remove_evanescent: bool = False,
+    bandlimit: bool = False,
 ) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
@@ -123,6 +124,10 @@ def multislice_thick_sample(
     ``reverse_propagate_distance`` if provided.
 
     Returns a ``ScalarField`` with the result of the perturbation.
+
+    !!! warning
+        The underlying propagation method now defaults to the angular spectrum
+        method (ASM) with ``bandlimit=False`` and ``remove_evanescent=False``.
 
     Args:
         field: The complex field to be perturbed.
@@ -142,13 +147,24 @@ def multislice_thick_sample(
         reverse_propagate_distance: If provided, propagates field at the end
             backwards by this amount from the top of the stack. By default,
             field is propagated backwards to the middle of the sample.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            ``False``.
+        bandlimit: Whether to bandlimit the field before propagation. Defaults
+            to ``False``.
     """
     assert_equal_shape([absorption_stack, dn_stack])
     field = pad(field, N_pad)
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator is None:
-        propagator = compute_exact_propagator(field, thickness_per_slice, n, kykx)
+        propagator = compute_asm_propagator(
+            field,
+            thickness_per_slice,
+            n,
+            kykx,
+            remove_evanescent=remove_evanescent,
+            bandlimit=bandlimit,
+        )
     # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
     for absorption, dn in zip(absorption_stack, dn_stack):
         absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
@@ -158,8 +174,14 @@ def multislice_thick_sample(
     # Propagate field backwards to the middle (or chosen distance) of the stack
     if reverse_propagate_distance is None:
         reverse_propagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
-    field = exact_propagate(
-        field, z=-reverse_propagate_distance, n=n, kykx=kykx, N_pad=0
+    field = asm_propagate(
+        field,
+        z=-reverse_propagate_distance,
+        n=n,
+        kykx=kykx,
+        N_pad=0,
+        remove_evanescent=remove_evanescent,
+        bandlimit=bandlimit,
     )
     return crop(field, N_pad)
 
@@ -175,6 +197,8 @@ def fluorescent_multislice_thick_sample(
     num_samples: int = 1,
     propagator_forward: Optional[Array] = None,
     propagator_backward: Optional[Array] = None,
+    remove_evanescent: bool = False,
+    bandlimit: bool = False,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
@@ -200,6 +224,10 @@ def fluorescent_multislice_thick_sample(
 
     Returns an ``Array`` with the result of the scattered fluorescence volume.
 
+    !!! warning
+        The underlying propagation method now defaults to the angular spectrum
+        method (ASM) with ``bandlimit=False`` and ``remove_evanescent=False`.
+
     Args:
         field: The complex field to be perturbed.
         fluorescence_stack: The sample fluorescence amplitude for each slice
@@ -221,6 +249,10 @@ def fluorescent_multislice_thick_sample(
             through the sample.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `(2,)` in the format ``[ky, kx]``.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            ``False``.
+        bandlimit: Whether to bandlimit the field before propagation. Defaults
+            to ``False``.
     """
     keys = jax.random.split(key, num=num_samples)
     original_field_shape = field.shape
@@ -229,10 +261,22 @@ def fluorescent_multislice_thick_sample(
     field = pad(field, N_pad)
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator_forward is None:
-        propagator_forward = compute_asm_propagator(field, thickness_per_slice, n, kykx)
+        propagator_forward = compute_asm_propagator(
+            field,
+            thickness_per_slice,
+            n,
+            kykx,
+            remove_evanescent=remove_evanescent,
+            bandlimit=bandlimit,
+        )
     if propagator_backward is None:
         propagator_backward = compute_asm_propagator(
-            field, -thickness_per_slice, n, kykx
+            field,
+            -thickness_per_slice,
+            n,
+            kykx,
+            remove_evanescent=remove_evanescent,
+            bandlimit=bandlimit,
         )
 
     def _forward(i, field_and_fluorescence_stack):
