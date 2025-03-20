@@ -6,12 +6,10 @@ import numpy as np
 from chex import Array
 from jax.scipy.signal import fftconvolve
 
-from chromatix.field import crop, pad
 from chromatix.functional.convenience import optical_fft
 from chromatix.utils.czt import czt
-from chromatix.utils.fft import fft, ifft
 
-from ..field import Field
+from ..field import Field, crop, pad, shift_grid
 from ..utils import _broadcast_1d_to_grid, _broadcast_1d_to_innermost_batch, l2_sq_norm
 
 __all__ = [
@@ -310,8 +308,9 @@ def kernel_propagate(
     """
     axes = field.spatial_dims
     if dx is None and N_out is None and not use_czt:
-        u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
-        field = field.shift(shift_yx)
+        # shifting accounted for in `propagator`
+        u = jnp.fft.ifft2(jnp.fft.fft2(field.u, axes=axes) * propagator, axes=axes)
+        field = shift_grid(field, shift_yx)
     else:
         if N_out is None:
             N_out = field.spatial_shape
@@ -321,8 +320,8 @@ def kernel_propagate(
         in_field_dk = field.dk
         in_field_k_grid = field.k_grid
         in_field_surface_area = field.surface_area.squeeze()
-        field = field.shift(shift_yx)
-        field = field.set_sampling(dx=dx, shape=N_out)
+        field = shift_grid(field, shift_yx)
+        field = Field.empty_like(field, dx=dx, shape=N_out)
 
         # Scaling factor in Eq 7 of "Band-limited angular spectrum numerical
         # propagation method with selective scaling of observation window size
@@ -330,7 +329,12 @@ def kernel_propagate(
         alpha = field.dx / in_field_dk
 
         # output field in k-space
-        u = fft(in_field, axes=axes, shift=True) * jnp.fft.fftshift(propagator)
+        # u = fft(in_field, axes=axes, shift=True) * jnp.fft.fftshift(propagator, axes=axes)
+        u = jnp.fft.fftshift(
+            propagator
+            * jnp.fft.fft2(jnp.fft.ifftshift(in_field, axes=axes), axes=axes),
+            axes=axes,
+        )
 
         if use_czt:
             (y_min, y_max), (x_min, x_max) = field.spatial_limits

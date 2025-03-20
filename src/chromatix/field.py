@@ -86,6 +86,53 @@ class Field(struct.PyTreeNode):
     _spectral_density: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
     _shift_yx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
 
+    @classmethod
+    def empty_like(
+        cls,
+        field: Field,
+        dx: Union[float, Array] = None,
+        shape: Tuple[int, int] = None,
+        spectrum: Union[float, Array] = None,
+        spectral_density: Union[float, Array] = None,
+        shift_yx: Union[float, Array] = None,
+    ) -> Field:
+        """
+        Copy over attributes of ``field`` to a new ``Field`` object, with the
+        option of changing some attributes.
+
+        Note that this function overwrites the field `u` with a new empty field.
+        """
+        if dx is None:
+            dx = field.dx
+        else:
+            if dx.ndim == 1:
+                dx = jnp.stack([dx, dx])
+            assert_rank(dx, 2)  # dx should have shape (2, C) here
+        if shape is None:
+            shape = field.spatial_shape
+        else:
+            assert len(shape) == 2
+        if spectrum is None:
+            spectrum = field.spectrum
+        else:
+            spectrum = jnp.atleast_1d(spectrum)
+        if spectral_density is None:
+            spectral_density = field.spectral_density
+        else:
+            spectral_density = jnp.atleast_1d(spectral_density)
+        if shift_yx is None:
+            shift_yx = field.shift_yx.squeeze()
+        else:
+            if isinstance(shift_yx, Number):
+                shift_yx = jnp.array([shift_yx, shift_yx])
+            shift_yx = jnp.array(shift_yx)
+        shift_yx = shift_yx[:, None]
+        assert_rank(shift_yx, 2)
+        u = jnp.empty(
+            (1, *shape, spectrum.size, field.u.shape[-1]), dtype=field.u.dtype
+        )
+        return cls(u, dx, spectrum, spectral_density, shift_yx)
+
     @property
     def grid(self) -> Array:
         """
@@ -137,9 +184,9 @@ class Field(struct.PyTreeNode):
     @property
     def shift_yx(self) -> Array:
         """
-        The shift of the field in the destination plane. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the shift in the y and x
-        directions respectively.
+        The shift of the sampling place, such that it is no longer centered at
+        the origin. Defined as an array of shape ``(2 1... 1 1 C 1)``
+        specifying the shift in the y and x directions respectively.
         """
         return _broadcast_2d_to_grid(self._shift_yx, self.ndim)
 
@@ -243,45 +290,6 @@ class Field(struct.PyTreeNode):
         return (float(self.grid[0].min()), float(self.grid[0].max())), (
             float(self.grid[1].min()),
             float(self.grid[1].max()),
-        )
-
-    def shift(self, shift_yx: Union[float, Array]) -> Field:
-        """
-        Shift the field in the destination plane.
-
-        Args:
-            shift_yx: The shift in the destination plane. Should be an array of
-                shape `[2,]` in the format `[y, x]`.
-        """
-        if isinstance(shift_yx, Number):
-            shift_yx = jnp.array([shift_yx, shift_yx])
-        shift_yx = jnp.array(shift_yx)  # Ensure it is an array
-        if shift_yx.ndim == 1:
-            shift_yx = shift_yx[:, None]
-        assert_rank(shift_yx, 2)
-        return self.replace(_shift_yx=shift_yx)
-
-    def set_sampling(
-        self, dx: Union[float, Array] = None, shape: Tuple[int, int] = None
-    ) -> Field:
-        """
-        Note that this function overwrites the field `u` with a new empty field.
-        """
-        if dx is None:
-            dx = self.dx
-        else:
-            if dx.ndim == 1:
-                dx = jnp.stack([dx, dx])
-            assert_rank(dx, 2)  # dx should have shape (2, C) here
-        if shape is None:
-            shape = self.spatial_shape
-        else:
-            assert len(shape) == len(self.spatial_shape)
-        return self.replace(
-            u=jnp.empty(
-                (1, *shape, self.spectrum.size, self.u.shape[-1]), dtype=self.u.dtype
-            ),
-            _dx=dx,
         )
 
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
@@ -399,8 +407,9 @@ class ScalarField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
-            shift_yx: If provided, defines a shift in the destination plane.
-                Should be an array of shape `[2,]` in the format `[y, x]`.
+            shift_yx: If provided, defines a shift in the sampling plane such
+                that is is no longer centered at the origin. Should be an array
+                of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -472,8 +481,9 @@ class VectorField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
-            shift_yx: If provided, defines a shift in the destination plane.
-                Should be an array of shape `[2,]` in the format `[y, x]`.
+            shift_yx: If provided, defines a shift in the sampling plane such
+                that is is no longer centered at the origin. Should be an array
+                of shape `[2,]` in the format `[y, x]`.
         """
         dx: Array = jnp.atleast_1d(dx)
         spectrum: Array = jnp.atleast_1d(spectrum)
@@ -539,9 +549,11 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
     return field.replace(u=field.u[tuple(crop)])
 
 
-def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
+def shift_field(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
     """
-    Shift the `field` by an integer number of pixels in one or two dimensions.
+    Shift `field` by an integer number of pixels in one or two dimensions,
+    while keeping the sampling grid centered at the origin.
+
     Args:
         field: The field to shift.
         shiftby: The number of pixels to shift the field by.
@@ -563,3 +575,20 @@ def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
     u = jnp.pad(field.u[tuple(crop)], pads)
 
     return field.replace(u=u)
+
+
+def shift_grid(field: Field, shift_yx: Union[float, Array]) -> Field:
+    """
+    Shift the sampling grid by an arbitrary amount in y and x directions.
+
+    Args:
+        shift_yx: The shift in y and x directions. Should be an array of
+            shape `[2,]` in the format `[y, x]`.
+    """
+    if isinstance(shift_yx, Number):
+        shift_yx = jnp.array([shift_yx, shift_yx])
+    shift_yx = jnp.array(shift_yx)  # Ensure it is an array
+    if shift_yx.ndim == 1:
+        shift_yx = shift_yx[:, None]
+    assert_rank(shift_yx, 2)
+    return field.replace(_shift_yx=shift_yx)
