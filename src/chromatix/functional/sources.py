@@ -132,8 +132,9 @@ def gaussian_source(
     sin_2phi = 2 * sin_phi * cos_phi
     cos_2phi = cos_phi**2 - sin_phi**2
 
-    field_x = amplitude[2]
-    field_y = amplitude[1]
+    single_field = field.grid[0] ** 2 + field.grid[1] ** 2 <= 1
+    field_x = amplitude[2] * single_field
+    field_y = amplitude[1] * single_field
 
     e_inf_x = ((cos_theta + 1.0) + (cos_theta - 1.0) * cos_2phi) * field_x + (
         cos_theta - 1.0
@@ -157,7 +158,7 @@ def gaussian_source(
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
     u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
-    field = circular_pupil(field, D)
+    # field = circular_pupil(field, D)
     return field * jnp.sqrt(power / field.power)
 
 

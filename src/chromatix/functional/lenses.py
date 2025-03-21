@@ -88,16 +88,16 @@ def ff_lens2(
         The ``Field`` propagated a distance ``f`` after the lens.
     """
     # return optical_fft(field, 100, 1.3).u
-    # zoom_factor = (
-    #     2
-    #     * NA  # 1.3
-    #     * camera_shape[0]  # 256
-    #     * camera_pixel_pitch  # 0.125
-    #     / wavelength  # 0.532
-    #     / (field.shape[1] - 1)  # 255
-    # )
-    zoom_factor = 1 / 40
-    # print(zoom_factor)
+    zoom_factor = (
+        2
+        * NA  # 1.3
+        * camera_shape[0]  # 256
+        * camera_pixel_pitch  # 0.125
+        / wavelength  # 0.532
+        / (field.shape[1] - 1)  # 255
+    )
+    # zoom_factor = 1 / 40
+    print(zoom_factor)
     # print(field.u.max())
     # print(field.u[0, :, :, 0, 0])
 
