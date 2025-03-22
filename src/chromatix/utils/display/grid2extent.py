@@ -1,9 +1,13 @@
-import numpy as np
-import logging
+"""
+Code ported from
+[this file in MacroMax](https://github.com/tttom/MacroMax/blob/master/python/macromax/utils/display/grid2extent.py)
+and adapted for JAX.
+"""
+import warnings
 
-from macromax.utils.ft import Grid
+import jax.numpy as jnp
 
-log = logging.getLogger(__name__)
+from chromatix.utils.grid import Grid
 
 
 def grid2extent(*args, origin_lower: bool = False):
@@ -14,17 +18,17 @@ def grid2extent(*args, origin_lower: bool = False):
     :param origin_lower: (default: False) Set this to True when imshow has the origin set to 'lower' to have the
         vertical axis increasing upwards.
 
-    :return: An nd-array with 4 numbers indicating the extent of the displayed data.
+    :return: An array with 4 numbers indicating the extent of the displayed data.
     """
     if isinstance(args[0], Grid):
         ranges = args[0]
     else:
         ranges = args
     if len(ranges) > 2:
-        log.warning(f"Only using the last two axes in grid2extent(...)!")
+        warnings.warn(f'Only using the last two axes in grid2extent(...)!')
     extent = []
     for idx, rng in enumerate(ranges[:-3:-1]):
-        rng = np.array(rng).ravel()
+        rng = jnp.array(rng).ravel()
         if len(rng) < 2:
             raise ValueError('The function grid2extent requires a grid with 2 dimensions greater than 1.')
         step = rng[1] - rng[0]
@@ -34,4 +38,4 @@ def grid2extent(*args, origin_lower: bool = False):
         extent.append(first)
         extent.append(last)
 
-    return np.asarray(extent)
+    return jnp.asarray(extent)

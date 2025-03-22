@@ -1,12 +1,22 @@
+"""
+Code ported from [this file in MacroMax](https://github.com/tttom/MacroMax/blob/master/python/macromax/utils/ft/grid.py)
+to work with JAX. For simplicity, only multidimensional Grids have been kept, which required substantial changes to
+`test_grid.py`. Removed several checks to get it to JIT.
+"""
 from __future__ import annotations
 
 from typing import Union, Sequence
-import numpy as np
-import warnings
 
-from macromax.utils import dim
+import jax
+import jax.numpy as jnp
+from jax import tree_util
+
+from chromatix.utils import dim
+
+__all__ = ['Grid', 'MutableGrid']
 
 
+@tree_util.register_pytree_node_class
 class Grid(Sequence):
     """
     A class representing an immutable uniformly-spaced plaid Cartesian grid and its Fourier Transform.
@@ -16,9 +26,9 @@ class Grid(Sequence):
     """
     def __init__(self, shape=None, step=None, *, extent=None, first=None, center=None, last=None, include_last=False,
                  ndim: int = None,
-                 flat: Union[bool, Sequence, np.ndarray] = False,
-                 origin_at_center: Union[bool, Sequence, np.ndarray] = True,
-                 center_at_index: Union[bool, Sequence, np.ndarray] = True):
+                 flat: Union[bool, Sequence, jax.Array] = False,
+                 origin_at_center: Union[bool, Sequence, jax.Array] = True,
+                 center_at_index: Union[bool, Sequence, jax.Array] = True):
         """
         Construct an immutable `Grid` object.
 
@@ -65,52 +75,35 @@ class Grid(Sequence):
             elements in the corresponding dimension is even, then the center value is not included, only its preceding
             and following elements.
         """
-        # Figure out what dimension is required
-        if ndim is None:
-            ndim = 0
-            if shape is not None:
-                ndim = np.maximum(ndim, np.array(shape).size)
-            if step is not None:
-                ndim = np.maximum(ndim, np.array(step).size)
-            if extent is not None:
-                ndim = np.maximum(ndim, np.array(extent).size)
-            if first is not None:
-                ndim = np.maximum(ndim, np.array(first).size)
-            if center is not None:
-                ndim = np.maximum(ndim, np.array(center).size)
-            if last is not None:
-                ndim = np.maximum(ndim, np.array(last).size)
-        self.__ndim = ndim
-
-        def is_vector(value):
-            return value is not None and not np.isscalar(value)
-        self.__multidimensional = is_vector(shape) or is_vector(step) or is_vector(extent) or \
-                                  is_vector(first) or is_vector(center) or is_vector(last)
-
         # Convert all input arguments to vectors of length ndim
-        shape, step, extent, first, center, last, flat, origin_at_center, include_last, center_at_index = \
+        if ndim is None:
+            ndim = 1
+        shape, step, extent, first, center, last, flat, origin_at_center, include_last, center_at_index, _ = \
             self.__all_to_ndim(shape, step, extent, first, center, last, flat, origin_at_center,
-                               include_last, center_at_index)
+                               include_last, center_at_index, jnp.zeros(ndim))
 
-        if shape is None:
-            if extent is None:
-                if step is None:
-                    step = 1
+        def isdef(_):
+            return jnp.isnan(_[0])
+
+        if isdef(shape):
+            if isdef(extent):
+                if isdef(step):
+                    step = jnp.ones(shape=shape.shape)
                 # step is known
-                if last is None:
-                    if first is None:
-                        if center is None:
-                            center = self._to_ndim(0)
+                if isdef(last):
+                    if isdef(first):
+                        if isdef(1):
+                            center = jnp.zeros(shape=shape.shape)
                         # only center and step are known, assume shape == 1
                         first = center
                     # first and step are known
-                    if center is None:
+                    if isdef(center):
                         center = (first + 1 / step) % step - step / 2  # Pick the step that is closest to 0
                     # center, first, and step are known
                     shape = 2 * (center - first) / step - (1 - center_at_index)  # Round up to even shape in case of center_at_index
                 else:  # last and step are known
-                    if first is None:
-                        if center is None:
+                    if isdef(first):
+                        if isdef(center):
                             center = (last + 1 / step) % step - step / 2  # Pick the step that is closest to 0
                         # center, last, and step are known
                         shape = 2 * (last - center) / step + include_last - (1 - center_at_index)  # Round up to even shape if center_at_index
@@ -118,80 +111,68 @@ class Grid(Sequence):
                         shape = (last - first) / step + include_last
                 # shape is known
             else:  # extent is known
-                if step is None:
+                if isdef(step):
                     step = extent
                 # step is known
-                extent = np.sign(step) * np.abs(extent)  # Fix sign of extent if it does not agree with that of step
+                extent = jnp.sign(step) * jnp.abs(extent)  # Fix sign of extent if it does not agree with that of step
                 shape = extent / step
             # shape is known
         # The shape is known
-        shape = np.maximum(1, np.ceil(shape).astype(int))  # Make sure that the shape is integer and at least 1
+        shape = jnp.maximum(1, jnp.ceil(shape).astype(int))  # Make sure that the shape is integer and at least 1
 
-        if step is None:
-            if extent is None:
-                if last is None:
-                    if first is None:  # Only (potentially) center and shape are known, assume step = 1
-                        step = self._to_ndim(1)
+        if isdef(step):
+            if isdef(extent):
+                if isdef(last):
+                    if isdef(first):  # Only (potentially) center and shape are known, assume step = 1
+                        step = jnp.ones(shape=shape.shape)
                     else:
                         # first and shape are known
-                        if center is None:  # assume step == 1
-                            step = self._to_ndim(1)
+                        if isdef(center):  # assume step == 1
+                            step = jnp.ones(shape=shape.shape)
                         else:  # center, first, and shape are known
                             step = (center - first) / (shape // 2 * center_at_index + (shape - 1) / 2 * (1 - center_at_index))
-                            if (center - first).dtype != step.dtype and np.allclose(step, np.round(step)):
+                            if (center - first).dtype != step.dtype and jnp.allclose(step, jnp.round(step)):
                                 step = step.astype(center.dtype)
                         # step is known
                     # step is known
                 else:  # last and shape are known
-                    if first is None:
-                        if center is None:  # assume step == 1
-                            step = self._to_ndim(1)
+                    if isdef(first):
+                        if isdef(center):  # assume step == 1
+                            step = jnp.ones(shape=shape.shape)
                         else:
                             # center is known
                             step = (last - center) / (shape - include_last - shape // 2 * center_at_index - (shape - 1) / 2 * (1 - center_at_index))
-                            if (last - center).dtype != step.dtype and np.allclose(step, np.round(step)):
+                            if (last - center).dtype != step.dtype and jnp.allclose(step, jnp.round(step)):
                                 step = step.astype(center.dtype)
                         # step is known
                     else:  # first, last, and shape are known
-                        step = (last - first) / (shape - include_last) if np.all(shape > include_last) else np.ones(1)
-                        if (last - first).dtype != step.dtype and np.allclose(step, np.round(step)):
+                        step = (last - first) / (shape - include_last) if jnp.all(shape > include_last) else jnp.ones(1)
+                        if (last - first).dtype != step.dtype and jnp.allclose(step, jnp.round(step)):
                             step = step.astype(first.dtype)
                     # step is known
             else:  # extent is known
                 step = extent / shape
-            if np.all(step == step.astype(int)):
+            if jnp.all(step == step.astype(int)):
                 step = step.astype(int)
         # step and shape are known
 
-        if center is None:
-            if first is None:
-                if last is None:
-                    center = self._to_ndim(0)
+        if isdef(center):
+            if isdef(first):
+                if isdef(last):
+                    center = jnp.zeros(shape=shape.shape)
                 else:  # last is known
                     center = last - step * (shape - include_last - shape // 2 * center_at_index - (shape - 1) / 2 * (1 - center_at_index))
-                    if (last - step).dtype != center.dtype and np.allclose(center, np.round(center)):
+                    if (last - step).dtype != center.dtype and jnp.allclose(center, jnp.round(center)):
                         center = center.astype(step.dtype)
                 # center is known
             else:  # first is known
                 center = first + (shape // 2 * center_at_index + (shape - 1) / 2 * (1 - center_at_index)) * step
-                if (first + step).dtype != center.dtype and np.allclose(center, np.round(center)):
+                if (first + step).dtype != center.dtype and jnp.allclose(center, jnp.round(center)):
                     center = center.astype(step.dtype)
-        # center, step, and shape are known now
-
-        # Some sanity checks
-        if extent is not None and not np.allclose(extent / step, shape) and np.any(np.maximum(1, np.ceil(extent / step)) != shape):
-            raise ValueError(f"Extent {extent} and step {step} are not compatible with shape {shape} because extent / step = {extent / step} != {shape} = shape.")
-        if last is not None and first is not None and np.any(shape * step != last + step * include_last - first):
-            raise ValueError(f"First={first} and last={last} (include_last={include_last}) do not correspond to a step {step} and shape {shape}.")
-        if center is not None and first is not None and np.any(center != first + (shape // 2 * center_at_index + (shape - 1) / 2 * (1 - center_at_index)) * step):
-            raise ValueError(f"First={first} and center={center} do not correspond to a step {step} and shape {shape} (center_at_index={center_at_index}).")
-
-        if np.any(shape < 1):
-            warnings.warn(f'shape = {shape}. All input ranges should have at least one element.')
-            shape = np.maximum(1, shape)
+        # At this point center, step, and shape are known
 
         self._shape = shape
-        dtype = (step[0] + center[0]).dtype if self.ndim > 0 else float
+        dtype = (step[0] + center[0]).dtype
         self._step = step.astype(dtype)
         self._center = center.astype(dtype)
         self._flat = flat
@@ -199,7 +180,7 @@ class Grid(Sequence):
         self.__center_at_index = center_at_index
 
     @staticmethod
-    def from_ranges(*ranges: Union[int, float, complex, Sequence, np.ndarray]) -> Grid:
+    def from_ranges(*ranges: Union[int, float, complex, Sequence, jax.Array]) -> Grid:
         """
         Converts one or more ranges of numbers to a single Grid object representation.
         The ranges can be specified as separate parameters or as a tuple.
@@ -209,25 +190,25 @@ class Grid(Sequence):
         :return: A Grid object that represents the same ranges.
         """
         # Convert slices to range vectors. This won't work with infinite slices
-        ranges = [(np.arange(rng.start, rng.stop, rng.step) if isinstance(rng, slice) else rng) for rng in ranges]
-        ranges = [np.array([rng] if np.isscalar(rng) else rng) for rng in ranges]  # Treat a scalar as a singleton vector
+        ranges = [(jnp.arange(rng.start, rng.stop, rng.step) if isinstance(rng, slice) else rng) for rng in ranges]
+        ranges = [jnp.array([rng] if jnp.isscalar(rng) else rng) for rng in ranges]  # Treat a scalar as a singleton vector
         if any(_.size < 1 for _ in ranges):
             raise AttributeError('All input ranges should have at least one element.')
         ranges = [(rng.swapaxes(0, axis).reshape(rng.shape[axis], -1)[:, 0] if rng.ndim > 1 else rng)
                   for axis, rng in zip(range(-len(ranges), 0), ranges)]
         # Work out some properties about the shape and the size of each dimension
-        shape = np.array([rng.size for rng in ranges])
+        shape = jnp.array([rng.size for rng in ranges])
         singleton = shape <= 1
-        odd = np.mod(shape, 2) == 1
+        odd = jnp.mod(shape, 2) == 1
         # Work our what are the first and last elements, which could be at the center
-        first = np.array([rng[0] for rng in ranges])  # first when fftshifted, center+ otherwise
-        before_center = np.array([rng[int((rng.size - 1) / 2)] for rng in ranges])  # last when ifftshifted, center+ otherwise
-        after_center = np.array([rng[-int(rng.size / 2)] for rng in ranges])  # first when ifftshifted, center- otherwise
-        last = np.array([rng[-1] for rng in ranges])  # last when fftshifted, center- otherwise
+        first = jnp.array([rng[0] for rng in ranges])  # first when fftshifted, center+ otherwise
+        before_center = jnp.array([rng[int((rng.size - 1) / 2)] for rng in ranges])  # last when ifftshifted, center+ otherwise
+        after_center = jnp.array([rng[-int(rng.size / 2)] for rng in ranges])  # first when ifftshifted, center- otherwise
+        last = jnp.array([rng[-1] for rng in ranges])  # last when fftshifted, center- otherwise
         # The last value is included!
 
         # If it is not monotonous, it is ifftshifted
-        origin_at_center = np.abs(last - first) >= np.abs(before_center - after_center)
+        origin_at_center = jnp.abs(last - first) >= jnp.abs(before_center - after_center)
         # Figure out what is the step size and the center element
         extent_m1 = origin_at_center * (last - first) + (1 - origin_at_center) * (before_center - after_center)
         step = extent_m1 / (shape - 1 + singleton)  # Note that the step can be a complex number
@@ -241,45 +222,45 @@ class Grid(Sequence):
     @property
     def ndim(self) -> int:
         """The number of dimensions of the space this grid spans."""
-        return self.__ndim
+        return self.shape.size
 
     @property
-    def shape(self) -> np.array:
+    def shape(self) -> jax.Array:
         """The number of sample points along each axis of the grid."""
-        return self._shape.copy()
+        return self._shape
 
     @property
-    def step(self) -> np.ndarray:
+    def step(self) -> jax.Array:
         """The sample spacing along each axis of the grid."""
-        return self._step.copy()
+        return self._step
 
     @property
-    def center(self) -> np.ndarray:
+    def center(self) -> jax.Array:
         """The central coordinate of the grid."""
-        return self._center.copy()
+        return self._center
 
     @property
-    def center_at_index(self) -> np.array:
+    def center_at_index(self) -> jax.Array:
         """
         Boolean vector indicating whether the central coordinate is aligned with a grid point when the number
         of points is even along the associated axis. This has no effect when the the number of sample points is odd.
         """
-        return self.__center_at_index.copy()
+        return self.__center_at_index
 
     @property
-    def flat(self) -> np.array:
+    def flat(self) -> jax.Array:
         """
         Boolean vector indicating whether self[axis] returns flattened (raveled) vectors (True) or not (False).
         """
-        return self._flat.copy()
+        return self._flat
 
     @property
-    def origin_at_center(self) -> np.array:
+    def origin_at_center(self) -> jax.Array:
         """
         Boolean vector indicating whether self[axis] returns ranges that are monotonous (True) or
         ifftshifted so that the central index is the first element of the sequence (False).
         """
-        return self._origin_at_center.copy()
+        return self._origin_at_center
 
     #
     # Conversion methods
@@ -292,9 +273,6 @@ class Grid(Sequence):
         """
         shape, step, center, center_at_index, origin_at_center = \
             self.shape, self.step, self.center, self.center_at_index, self.origin_at_center
-        if not self.multidimensional:
-            shape, step, center, center_at_index, origin_at_center = \
-                shape[0], step[0], center[0], center_at_index[0], origin_at_center[0]
         return Grid(shape=shape, step=step, center=center, center_at_index=center_at_index,
                     flat=True, origin_at_center=origin_at_center)
 
@@ -305,9 +283,6 @@ class Grid(Sequence):
         """
         shape, step, center, center_at_index, origin_at_center = \
             self.shape, self.step, self.center, self.center_at_index, self.origin_at_center
-        if not self.multidimensional:
-            shape, step, center, center_at_index, origin_at_center = \
-                shape[0], step[0], center[0], center_at_index[0], origin_at_center[0]
         return Grid(shape=shape, step=step, center=center, center_at_index=center_at_index,
                     flat=False, origin_at_center=origin_at_center)
 
@@ -317,8 +292,6 @@ class Grid(Sequence):
         :return: A new Grid object where all the ranges are ifftshifted so that the origin as at index 0.
         """
         shape, step, center, center_at_index, flat = self.shape, self.step, self.center, self.center_at_index, self.flat
-        if not self.multidimensional:
-            shape, step, center, center_at_index, flat = shape[0], step[0], center[0], center_at_index[0], flat[0]
         return Grid(shape=shape, step=step, center=center, center_at_index=center_at_index,
                     flat=flat, origin_at_center=False)
 
@@ -328,26 +301,24 @@ class Grid(Sequence):
         :return: A new Grid object where all the ranges have the origin at the center index, even when the number of elements is odd.
         """
         shape, step, center, center_at_index, flat = self.shape, self.step, self.center, self.center_at_index, self.flat
-        if not self.multidimensional:
-            shape, step, center, center_at_index, flat = shape[0], step[0], center[0], center_at_index[0], flat[0]
         return Grid(shape=shape, step=step, center=center, center_at_index=center_at_index,
                     flat=flat, origin_at_center=True)
 
-    def swapaxes(self, axes: Union[slice, Sequence, np.array]) -> Grid:
+    def swapaxes(self, axes: Union[slice, Sequence, jax.Array]) -> Grid:
         """Reverses the order of the specified axes."""
-        axes = np.array(axes).flatten()
-        all_axes = np.arange(self.ndim)
+        axes = jnp.array(axes).flatten()
+        all_axes = jnp.arange(self.ndim)
         all_axes[axes] = axes[::-1]
         return self.transpose(all_axes)
 
-    def transpose(self, axes: Union[None, slice, Sequence, np.array]=None) -> Grid:
+    def transpose(self, axes: Union[None, slice, Sequence, jax.Array]=None) -> Grid:
         """Reverses the order of all axes."""
         if axes is None:
-            axes = np.arange(self.ndim-1, -1, -1)
+            axes = jnp.arange(self.ndim-1, -1, -1)
         return self.project(axes)
 
-    def project(self, axes_to_keep: Union[int, slice, Sequence, np.array, None] = None,
-                axes_to_remove: Union[int, slice, Sequence, np.array, None] = None) -> Grid:
+    def project(self, axes_to_keep: Union[int, slice, Sequence, jax.Array, None] = None,
+                axes_to_remove: Union[int, slice, Sequence, jax.Array, None] = None) -> Grid:
         """
         Removes all but the specified axes and reduces the dimensions to the number of specified axes.
 
@@ -357,25 +328,25 @@ class Grid(Sequence):
         :return: A Grid object with ndim == len(axes) and shape == shape[axes].
         """
         if axes_to_keep is None:
-            axes_to_keep = np.arange(self.ndim)
+            axes_to_keep = jnp.arange(self.ndim)
         elif isinstance(axes_to_keep, slice):
-            axes_to_keep = np.arange(self.ndim)[axes_to_keep]
-        if np.isscalar(axes_to_keep):
+            axes_to_keep = jnp.arange(self.ndim)[axes_to_keep]
+        if jnp.isscalar(axes_to_keep):
             axes_to_keep = [axes_to_keep]
-        axes_to_keep = np.array(axes_to_keep)
+        axes_to_keep = jnp.array(axes_to_keep)
         if axes_to_remove is None:
             axes_to_remove = []
         elif isinstance(axes_to_remove, slice):
-            axes_to_remove = np.arange(self.ndim)[axes_to_remove]
-        if np.isscalar(axes_to_remove):
+            axes_to_remove = jnp.arange(self.ndim)[axes_to_remove]
+        if jnp.isscalar(axes_to_remove):
             axes_to_remove = [axes_to_remove]
         # Do some checks
-        if np.any(axes_to_keep >= self.ndim) or np.any(axes_to_keep < -self.ndim):
+        if jnp.any(axes_to_keep >= self.ndim) or jnp.any(axes_to_keep < -self.ndim):
             raise IndexError(f"Axis range {axes_to_keep} requested from a Grid of dimension {self.ndim}.")
         # Make sure that the axes are non-negative
         axes_to_keep = [_ % self.ndim for _ in axes_to_keep]
         axes_to_remove = [_ % self.ndim for _ in axes_to_remove]
-        axes_to_keep = np.array([_ for _ in axes_to_keep if _ not in axes_to_remove])
+        axes_to_keep = jnp.array([_ for _ in axes_to_keep if _ not in axes_to_remove])
 
         if len(axes_to_keep) > 0:
             return Grid(shape=self.shape[axes_to_keep], step=self.step[axes_to_keep], center=self.center[axes_to_keep],
@@ -391,17 +362,17 @@ class Grid(Sequence):
     #
 
     @property
-    def first(self) -> np.ndarray:
+    def first(self) -> jnp.ndarray:
         """A vector with the first element of each range."""
         center_is_not_at_index = ~self.center_at_index & (self.shape % 2 == 0)
         result = self._center - self.step * (self.shape // 2)
-        if np.any(center_is_not_at_index):
-            half_step = self.step // 2 if np.all(self.step % 2 == 0) else self.step / 2
+        if jnp.any(center_is_not_at_index):
+            half_step = self.step // 2 if jnp.all(self.step % 2 == 0) else self.step / 2
             result = result + center_is_not_at_index * half_step
         return result
 
     @property
-    def extent(self) -> np.ndarray:
+    def extent(self) -> jnp.ndarray:
         """ The spatial extent of the sampling grid."""
         return self.shape * self.step
 
@@ -410,14 +381,14 @@ class Grid(Sequence):
     #
 
     @property
-    def size(self) -> int:
+    def size(self) -> jax.Array:
         """ The total number of sampling points as an integer scalar. """
-        return int(np.prod(self.shape))
+        return jnp.prod(self.shape)
 
     @property
     def dtype(self):
         """ The numeric data type for the coordinates. """
-        return (self.step[0] + self.center[0]).dtype if self.ndim > 0 else float
+        return (self.step[0] + self.center[0]).dtype
 
     #
     # Frequency grids
@@ -426,17 +397,14 @@ class Grid(Sequence):
     @property
     def f(self) -> Grid:
         """ The equivalent frequency Grid. """
-        with np.errstate(divide='ignore'):
-            shape, step, flat = self.shape, 1 / self.extent, self.flat
-        if not self.multidimensional:
-            shape, step, flat = shape[0], step[0], flat[0]
+        shape, step, flat = self.shape, 1 / self.extent, self.flat
 
         return Grid(shape=shape, step=step, flat=flat, origin_at_center=False, center_at_index=True)
 
     @property
     def k(self) -> Grid:
         """ The equivalent k-space Grid. """
-        return self.f * (2 * np.pi)
+        return self.f * (2 * jnp.pi)
 
     #
     # Arithmetic methods
@@ -444,13 +412,11 @@ class Grid(Sequence):
     def __add__(self, term) -> Grid:
         """ Add a scalar or vector offset to the Grid coordinates. """
         d = self.__dict__
-        new_center = self.center + np.asarray(term)
-        if not self.multidimensional:
-            new_center = new_center[0]
+        new_center = self.center + jnp.asarray(term)
         d['center'] = new_center
         return Grid(**d)
 
-    def __mul__(self, factor: Union[int, float, complex, Sequence, np.array]) -> Grid:
+    def __mul__(self, factor: Union[int, float, complex, Sequence, jax.Array]) -> Grid:
         """
         Scales all ranges with a factor.
 
@@ -462,17 +428,14 @@ class Grid(Sequence):
             raise TypeError("A Grid object can't be multiplied with a Grid object."
                             + "Use matmul @ to determine the tensor space.")
         d = self.__dict__
-        factor = np.asarray(factor)
+        factor = jnp.asarray(factor)
         new_step = self.step * factor
         new_center = self.center * factor
-        if not self.multidimensional:
-            new_step = new_step[0]
-            new_center = new_center[0]
         d['step'] = new_step
         d['center'] = new_center
         return Grid(**d)
 
-    def __rmul__(self, factor: Union[int, float, complex, Sequence, np.array]) -> Grid:
+    def __rmul__(self, factor: Union[int, float, complex, Sequence, jax.Array]) -> Grid:
         """
         Scales all ranges with a factor.
 
@@ -497,11 +460,11 @@ class Grid(Sequence):
                     center_at_index=(*self.center_at_index, *other.center_at_index)
                     )
 
-    def __sub__(self, term: Union[int, float, complex, Sequence, np.ndarray]) -> Grid:
+    def __sub__(self, term: Union[int, float, complex, Sequence, jnp.ndarray]) -> Grid:
         """ Subtract a (scalar) value from all Grid coordinates. """
         return self + (- term)
 
-    def __truediv__(self, denominator: Union[int, float, complex, Sequence, np.ndarray]) -> Grid:
+    def __truediv__(self, denominator: Union[int, float, complex, Sequence, jnp.ndarray]) -> Grid:
         """
         Divide the grid coordinates by a value.
 
@@ -522,48 +485,40 @@ class Grid(Sequence):
     def __len__(self) -> int:
         """
         The number of axes in this sampling grid.
-        Or, the number of elements when this object is not multi-dimensional.
         """
-        if self.multidimensional:
-            return self.ndim
-        else:
-            return self.shape[0]  # Behave as a single Sequence
+        return self.ndim
 
     def __getitem__(self, key: Union[int, slice, Sequence]):
         """
-        Select one or more axes from a multi-dimensional grid,
-        or select elements from a single-dimensional object.
+        Select one or more axes from a multi-dimensional grid.
         """
-        scalar_key = np.isscalar(key)
-        indices = np.atleast_1d(np.arange(self.ndim if self.multidimensional else self.shape[0])[key])
+        scalar_key = jnp.isscalar(key)
+        indices = jnp.atleast_1d(jnp.arange(self.ndim)[key])
         result = []
-        for idx in indices.ravel():
-            axis = idx if self.multidimensional else 0  # Behave as a single Sequence
-
+        for axis in indices.ravel():
             try:
                 c, st, sh = self.center[axis], self.step[axis], self.shape[axis]
-            except IndexError as err:
+            except IndexError:
                 raise IndexError(f"Axis range {axis} requested from a Grid of dimension {self.ndim}.")
-            rng = np.arange(sh) - (sh // 2)
-            if sh > 1:  # Define the center as 0 to avoid trouble with * np.inf when this is a singleton dimension.
+            rng = jnp.arange(sh) - (sh // 2)
+            if sh > 1:  # Define the center as 0 to avoid trouble with * jnp.inf when this is a singleton dimension.
                 rng = rng * st
             rng = rng + c
             if not self.__center_at_index[axis] and (sh % 2 == 0):
                 rng = rng + st / 2
             if not self._origin_at_center[axis]:
-                rng = np.fft.ifftshift(rng)  # Not loading the whole fft library just for this!
+                rng = jnp.fft.ifftshift(rng)
             if not self.flat[axis]:
                 rng = dim.to_axis(rng, axis=axis, ndim=self.ndim)
 
-            result.append(rng if self.multidimensional else rng[idx])
+            result.append(rng)
 
         if scalar_key:
-            result = result[0]  # Unpack again
-
-        return result
+            return result[0]  # Unpack again
+        return tuple(result)
 
     def __iter__(self):
-        for idx in range(len(self)):
+        for idx in range(self.ndim):
             yield self[idx]
 
     #
@@ -574,9 +529,6 @@ class Grid(Sequence):
     def __dict__(self):
         shape, step, center, flat, center_at_index, origin_at_center = \
             self.shape, self.step, self.center, self.flat, self.center_at_index, self.origin_at_center
-        if not self.multidimensional:
-            shape, step, center, flat, center_at_index, origin_at_center = \
-                shape[0], step[0], center[0], flat[0], center_at_index[0], origin_at_center[0]
         return dict(shape=shape, step=step, center=center, flat=flat,
                     center_at_index=center_at_index, origin_at_center=origin_at_center)
 
@@ -598,55 +550,49 @@ class Grid(Sequence):
     def __repr__(self) -> str:
         core_props = self.__dict__.copy()
         core_props['dtype'] = self.dtype
-        # core_props['multidimensional'] = self.multidimensional
         arg_desc = ','.join([f'{k}={repr(v)}' for k, v in core_props.items()])
         return f"{type(self).__name__}({arg_desc:s})"
 
-    # def __format__(self, format_spec: str = "") -> str:
-    #     return f"{type(self).__name__}({tuple(self.shape)}, ({', '.join(format(_, format_spec) for _ in self.step)}), ({', '.join(format(_, format_spec) for _ in self.center)}))"
-    #
     def __eq__(self, other: Grid) -> bool:
         """ Compares two Grid objects. """
-        return type(self) == type(other) and np.all(self.shape == other.shape) and np.all(self.step == other.step) \
-            and np.all(self.center == other.center) and np.all(self.flat == other.flat) \
-            and np.all(self.center_at_index == other.center_at_index) \
-            and np.all(self.origin_at_center == other.origin_at_center) and self.dtype == other.dtype
+        result = (
+                type(self) == type(other) and
+                (self.shape == other.shape).all() and
+                (self.step == other.step).all() and
+                (self.center == other.center).all() and
+                (self.flat == other.flat).all() and
+                (self.center_at_index == other.center_at_index).all() and
+                (self.origin_at_center == other.origin_at_center).all() and
+                self.dtype == other.dtype
+        )
+        return result
 
     def __hash__(self) -> int:
         return hash(repr(self))
 
     #
-    # Assorted property
-    #
-    @property
-    def multidimensional(self) -> bool:
-        """Single-dimensional grids behave as Sequences, multi-dimensional behave as a Sequence of vectors.
-        TODO: Remove this feature? It tends to be a source of bugs.
-        """
-        return self.__multidimensional
-
-    #
     # Protected and private methods
     #
 
-    def _to_ndim(self, arg) -> np.array:
-        """
-        Helper method to ensure that all arguments are all numpy vectors of the same length, self.ndim.
-        """
-        if arg is not None:
-            arg = np.array(arg).flatten()
-            if np.isscalar(arg) or arg.size == 1:
-                arg = np.repeat(arg, repeats=self.ndim)
-            elif arg.size != self.ndim:
-                raise ValueError(
-                    f"All input arguments should be scalar or of length {self.ndim}, not {arg.size} as {arg}.")
-        return arg
-
-    def __all_to_ndim(self, *args):
+    @staticmethod
+    def __all_to_ndim(*args):
         """
         Helper method to ensures that all arguments are all numpy vectors of the same length, self.ndim.
         """
-        return tuple([self._to_ndim(arg) for arg in args])
+        return jnp.broadcast_arrays(*(jnp.nan if _ is None else jnp.array(_).ravel() for _ in args))
+
+    def _to_ndim(self, arg) -> jax.Array:
+        """Helper method to ensure that all arguments are all jax.numpy vectors of the same length, self.ndim."""
+        return self.__all_to_ndim(self.shape, arg)[-1]
+
+    def tree_flatten(self):
+        """Method required for JAX serialization."""
+        return self.__dict__.items(), None
+
+    @classmethod
+    def tree_unflatten(cls, aux_data, children):
+        """Method required for JAX deserialization."""
+        return cls(**dict(children))
 
 
 class MutableGrid(Grid):
@@ -657,9 +603,9 @@ class MutableGrid(Grid):
     """
     def __init__(self, shape=None, step=None, extent=None, first=None, center=None, last=None, include_last=False,
                  ndim: int = None,
-                 flat: Union[bool, Sequence, np.ndarray] = False,
-                 origin_at_center: Union[bool, Sequence, np.ndarray] = True,
-                 center_at_index: Union[bool, Sequence, np.ndarray] = True):
+                 flat: Union[bool, Sequence, jnp.ndarray] = False,
+                 origin_at_center: Union[bool, Sequence, jax.Array] = True,
+                 center_at_index: Union[bool, Sequence, jax.Array] = True):
         """
         Construct a mutable Grid object.
 
@@ -688,56 +634,56 @@ class MutableGrid(Grid):
                          center_at_index=center_at_index)
 
     @property
-    def shape(self) -> np.array:
+    def shape(self) -> jax.Array:
         return super().shape
 
     @shape.setter
-    def shape(self, new_shape: Union[int, Sequence, np.array]):
+    def shape(self, new_shape: Union[int, Sequence, jax.Array]):
         if new_shape is not None:
             self._shape = self._to_ndim(new_shape)
 
     @property
-    def step(self) -> np.ndarray:
+    def step(self) -> jax.Array:
         return super().step
 
     @step.setter
-    def step(self, new_step: Union[int, float, Sequence, np.array]):
+    def step(self, new_step: Union[int, float, Sequence, jax.Array]):
         self._step = self._to_ndim(new_step)
         self._center = self._center.astype(self.dtype)
 
     @property
-    def center(self) -> np.ndarray:
+    def center(self) -> jax.Array:
         return super().center
 
     @center.setter
-    def center(self, new_center: Union[int, float, Sequence, np.array]):
+    def center(self, new_center: Union[int, float, Sequence, jax.Array]):
         self._center = self._to_ndim(new_center).astype(self.dtype)
 
     @property
-    def flat(self) -> np.array:
+    def flat(self) -> jax.Array:
         return super().flat
 
     @flat.setter
-    def flat(self, value: Union[bool, Sequence, np.array]):
+    def flat(self, value: Union[bool, Sequence, jax.Array]):
         self._flat = self._to_ndim(value)
 
     @property
-    def origin_at_center(self) -> np.array:
+    def origin_at_center(self) -> jax.Array:
         return super().origin_at_center
 
     @origin_at_center.setter
-    def origin_at_center(self, value: Union[bool, Sequence, np.array]):
+    def origin_at_center(self, value: Union[bool, Sequence, jax.Array]):
         self._origin_at_center = self._to_ndim(value)
 
     @property
-    def first(self) -> np.ndarray:
+    def first(self) -> jax.Array:
         """
         :return: A vector with the first element of each range
         """
         return super().first
 
     @first.setter
-    def first(self, new_first: Union[int, float, Sequence, np.ndarray]):
+    def first(self, new_first: Union[int, float, Sequence, jax.Array]):
         self._center = super().center + self._to_ndim(new_first) - self.first
 
     @property
@@ -751,16 +697,16 @@ class MutableGrid(Grid):
         self._step = self._step.astype(new_type)
         self._center = self._center.astype(new_type)
 
-    def __iadd__(self, number: Union[int, float, complex, Sequence, np.ndarray]):
-        self.center += np.asarray(number)
+    def __iadd__(self, number: Union[int, float, complex, Sequence, jax.Array]):
+        self.center += jnp.asarray(number)
 
-    def __imul__(self, number: Union[int, float, complex, Sequence, np.ndarray]):
-        self.step *= np.asarray(number)
-        self.center *= np.asarray(number)
+    def __imul__(self, number: Union[int, float, complex, Sequence, jax.Array]):
+        self.step *= jnp.asarray(number)
+        self.center *= jnp.asarray(number)
 
-    def __isub__(self, number: Union[int, float, complex, Sequence, np.ndarray]):
-        self.center -= np.asarray(number)
+    def __isub__(self, number: Union[int, float, complex, Sequence, jax.Array]):
+        self.center -= jnp.asarray(number)
 
-    def __idiv__(self, number: Union[int, float, complex, Sequence, np.ndarray]):
-        self.step /= np.asarray(number)
-        self.center /= np.asarray(number)
+    def __idiv__(self, number: Union[int, float, complex, Sequence, jax.Array]):
+        self.step /= jnp.asarray(number)
+        self.center /= jnp.asarray(number)

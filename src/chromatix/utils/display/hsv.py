@@ -1,12 +1,19 @@
-import numpy as np
+"""
+Code ported from
+[this file in MacroMax](https://github.com/tttom/MacroMax/blob/master/python/macromax/utils/display/hsv.py)
+and adapted for JAX.
+"""
 from typing import Union, Sequence
 
+import jax
+import jax.numpy as jnp
 
-def hsv2rgb(hue: Union[float, Sequence, np.ndarray] = None,
-            saturation: Union[float, Sequence, np.ndarray] = None,
-            value: Union[float, Sequence, np.ndarray] = None,
-            alpha: Union[float, Sequence, np.ndarray] = None,
-            axis: int = -1) -> np.ndarray:
+
+def hsv2rgb(hue: Union[float, Sequence, jax.Array] = None,
+            saturation: Union[float, Sequence, jax.Array] = None,
+            value: Union[float, Sequence, jax.Array] = None,
+            alpha: Union[float, Sequence, jax.Array] = None,
+            axis: int = -1) -> jax.Array:
     """
     Converts a hue-saturation-intensity value image to a red-green-blue image.
 
@@ -21,19 +28,19 @@ def hsv2rgb(hue: Union[float, Sequence, np.ndarray] = None,
     :return: rgb_image: a 3D numpy.array with the RGB image, the channel in the final right-hand dimension, or axis if provided.
     """
     if saturation is None and value is None:
-        hsv_image = np.moveaxis(hue, axis, 0)
+        hsv_image = jnp.moveaxis(jnp.array(hue), axis, 0)
         if alpha is None and hsv_image.shape[0] > 3:
             alpha = hsv_image[3]
         value = hsv_image[2]
         saturation = hsv_image[1]
         hue = hsv_image[0]
     else:
-        hue = np.asarray(hue)
-        saturation = np.asarray(saturation)
-        value = np.asarray(value)
+        hue = jnp.asarray(hue)
+        saturation = jnp.asarray(saturation)
+        value = jnp.asarray(value)
 
     hue = 6.0 * hue
-    i = hue.astype(np.int8)  # integer level
+    i = hue.astype(jnp.int8)  # integer level
     f = hue - i  # fractional level
     i %= 6
 
@@ -45,18 +52,18 @@ def hsv2rgb(hue: Union[float, Sequence, np.ndarray] = None,
     g = (i == 0) * t + ((i == 1) | (i == 2)) * value + (i == 3) * q + (i >= 4) * p
     b = (i <= 1) * p + (i == 2) * t + ((i == 3) | (i == 4)) * value + (i == 5) * q
     if alpha is None:
-        rgb_image = np.stack(np.broadcast_arrays(r, g, b))
+        rgb_image = jnp.stack((r, g, b))
     else:
-        rgb_image = np.stack(np.broadcast_arrays(r, g, b, alpha))
+        rgb_image = jnp.stack((r, g, b, alpha))
 
-    return np.moveaxis(rgb_image, 0, axis)
+    return jnp.moveaxis(rgb_image, 0, axis)
 
 
-def rgb2hsv(red: Union[float, Sequence, np.ndarray],
-            green: Union[float, Sequence, np.ndarray] = None,
-            blue: Union[float, Sequence, np.ndarray] = None,
-            alpha: Union[float, Sequence, np.ndarray] = None,
-            axis=-1) -> np.ndarray:
+def rgb2hsv(red: Union[float, Sequence, jax.Array],
+            green: Union[float, Sequence, jax.Array] = None,
+            blue: Union[float, Sequence, jax.Array] = None,
+            alpha: Union[float, Sequence, jax.Array] = None,
+            axis=-1) -> jax.Array:
     """
     Converts a red-green-blue value image to a hue-saturation-intensity image.
 
@@ -71,30 +78,30 @@ def rgb2hsv(red: Union[float, Sequence, np.ndarray],
     :return: hsv_image: a 3D numpy.array with the HSV image
     """
     if green is None and blue is None:
-        rgb_image = np.moveaxis(red, axis, 0)
+        rgb_image = jnp.moveaxis(jnp.array(red), axis, 0)
     elif alpha is None:
-        rgb_image = np.stack(np.broadcast_arrays(red, green, blue))
+        rgb_image = jnp.array((red, green, blue))
     else:
-        rgb_image = np.stack(np.broadcast_arrays(red, green, blue, alpha))
+        rgb_image = jnp.array((red, green, blue, alpha))
 
-    v = np.amax(rgb_image, axis=0)
-    s_x_v = v - np.amin(rgb_image, axis=0)
+    v = jnp.amax(rgb_image, axis=0)
+    s_x_v = v - jnp.amin(rgb_image, axis=0)
 
     def per_pixel_select(arr, idx):
-        selection = np.zeros(arr.shape[1:], dtype=arr.dtype)
+        selection = jnp.zeros(arr.shape[1:], dtype=arr.dtype)
         for channel in range(rgb_image.shape[0]):
             selection += arr[channel] * (idx == channel)
         return selection
 
     ch1 = (rgb_image[0] < rgb_image[1]) * (rgb_image[0] <= rgb_image[2])
     ch2 = (rgb_image[1] < rgb_image[2]) * (rgb_image[1] <= rgb_image[0])
-    channel = np.array(ch1 + 2 * ch2)   # dominant channel
+    channel = jnp.array(ch1 + 2 * ch2)   # dominant channel
     dominant = per_pixel_select(rgb_image, channel)  # mix from channel,
-    after = per_pixel_select(rgb_image, np.mod(channel + 1, 3))  # to channel,
-    before = per_pixel_select(rgb_image, np.mod(channel - 1, 3))  # and the other channel
-    i = 2 * channel + (dominant <= after) * (1 - np.isclose(after, before))  # interval index in range(6)
+    after = per_pixel_select(rgb_image, jnp.mod(channel + 1, 3))  # to channel,
+    before = per_pixel_select(rgb_image, jnp.mod(channel - 1, 3))  # and the other channel
+    i = 2 * channel + (dominant <= after) * (1 - jnp.isclose(after, before))  # interval index in range(6)
 
-    f = np.mod((dominant - after) / (s_x_v + np.isclose(s_x_v, 0)), 1)  # fraction in interval
+    f = jnp.mod((dominant - after) / (s_x_v + jnp.isclose(s_x_v, 0)), 1)  # fraction in interval
     # 1 0 0   0/6  2
     # 1 1 0   1/6  2
     # 0 1 0   2/6  0
@@ -104,11 +111,11 @@ def rgb2hsv(red: Union[float, Sequence, np.ndarray],
     # 1 0 0   6/6
     h = (i + f) / 6
 
-    s = s_x_v / (v + np.isclose(v, 0))
+    s = s_x_v / (v + jnp.isclose(v, 0))
 
     if alpha is None:
-        hsv_image = np.stack((h, s, v))
+        hsv_image = jnp.stack((h, s, v))
     else:
-        hsv_image = np.stack((h, s, v, alpha))
+        hsv_image = jnp.stack((h, s, v, alpha))
 
-    return np.moveaxis(hsv_image, 0, axis)
+    return jnp.moveaxis(hsv_image, 0, axis)
