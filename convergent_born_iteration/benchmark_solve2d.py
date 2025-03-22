@@ -6,7 +6,8 @@ import timeit
 
 import jax.numpy as jnp
 
-from convergent_born_iteration import log, electro_solver, example_solve2d
+from convergent_born_iteration import log, electro_solver
+import example_solve2d
 
 log.getChild(__name__)
 

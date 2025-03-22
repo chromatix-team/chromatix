@@ -12,7 +12,8 @@ import jaxopt.linear_solve
 import matplotlib.pyplot as plt
 # import optax
 
-from convergent_born_iteration import log, electro_solver, example_solve2d
+from convergent_born_iteration import log, electro_solver
+import example_solve2d
 
 log.getChild(__name__)
 
