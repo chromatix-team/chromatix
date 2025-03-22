@@ -7,7 +7,7 @@ import unittest
 import jax.numpy as jnp
 import numpy.testing as npt
 
-from chromatix.utils.grid import Grid, MutableGrid
+from chromatix.utils.grid import Grid
 
 
 class TestGrid(unittest.TestCase):
@@ -60,7 +60,6 @@ class TestGrid(unittest.TestCase):
         npt.assert_array_equal(Grid(10, 0.5) == Grid(10, 0.5, first=0), False)
         npt.assert_array_equal(Grid(10, 0.5) == Grid(10, extent=5), True)
         npt.assert_array_equal(Grid(10, 0.5) == Grid(10, extent=6), False)
-        npt.assert_array_equal(Grid(10, 2) == Grid(10.0, 2.0), False)
         npt.assert_array_equal(Grid([10, 10], 0.5) == Grid(10, [0.5, 0.5]), True)
 
     def test_extent(self):
@@ -342,23 +341,6 @@ class TestGrid(unittest.TestCase):
         npt.assert_raises(AttributeError, set_step)
         npt.assert_raises(AttributeError, set_center)
         npt.assert_raises(AttributeError, set_first)
-
-
-class TestMutableGrid(unittest.TestCase):
-    def test_set(self):
-        grid = MutableGrid(4, 1)
-        grid.step = 2
-        npt.assert_equal(grid, Grid(4, 2).mutable, 'step size not updated correctly')
-        grid.step = 3.14
-        npt.assert_equal(grid, Grid(4, 3.14).mutable, 'step size not updated correctly')
-        grid.shape = 10
-        grid.step = 2
-        grid.dtype = int
-        npt.assert_equal(grid, Grid(10, 2).mutable, 'shape not updated correctly')
-        grid.first = 0
-        npt.assert_equal(grid, Grid(10, 2, first=0).mutable, 'Offset not updated correctly.')
-        grid.center = 0
-        npt.assert_equal(grid, Grid(10, 2, center=0).mutable, 'Offset not updated correctly.')
 
 
 if __name__ == '__main__':

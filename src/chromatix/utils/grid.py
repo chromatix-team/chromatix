@@ -1,7 +1,7 @@
 """
 Code ported from [this file in MacroMax](https://github.com/tttom/MacroMax/blob/master/python/macromax/utils/ft/grid.py)
 to work with JAX. For simplicity, only multidimensional Grids have been kept, which required substantial changes to
-`test_grid.py`. Removed several checks to get it to JIT.
+`test_grid.py`. Removed several checks to get it to JIT. Removed the MutableGrid class.
 """
 from __future__ import annotations
 
@@ -13,16 +13,13 @@ from jax import tree_util
 
 from chromatix.utils import dim
 
-__all__ = ['Grid', 'MutableGrid']
+__all__ = ['Grid']
 
 
 @tree_util.register_pytree_node_class
 class Grid(Sequence):
     """
     A class representing an immutable uniformly-spaced plaid Cartesian grid and its Fourier Transform.
-    Unlike the MutableGrid, objects of this class cannot be changed after creation.
-
-    See also :class:`MutableGrid`
     """
     def __init__(self, shape=None, step=None, *, extent=None, first=None, center=None, last=None, include_last=False,
                  ndim: int = None,
@@ -537,11 +534,6 @@ class Grid(Sequence):
         """Return a new immutable Grid object. """
         return Grid(**self.__dict__)
 
-    @property
-    def mutable(self) -> MutableGrid:
-        """Return a new MutableGrid object. """
-        return MutableGrid(**self.__dict__)
-
     def __str__(self) -> str:
         core_props = self.__dict__.copy()
         arg_desc = ','.join([f'{k}={str(v)}' for k, v in core_props.items()])
@@ -593,120 +585,3 @@ class Grid(Sequence):
     def tree_unflatten(cls, aux_data, children):
         """Method required for JAX deserialization."""
         return cls(**dict(children))
-
-
-class MutableGrid(Grid):
-    """
-    A class representing a mutable uniformly-spaced plaid Cartesian grid and its Fourier Transform.
-
-    See also :class:`Grid`
-    """
-    def __init__(self, shape=None, step=None, extent=None, first=None, center=None, last=None, include_last=False,
-                 ndim: int = None,
-                 flat: Union[bool, Sequence, jnp.ndarray] = False,
-                 origin_at_center: Union[bool, Sequence, jax.Array] = True,
-                 center_at_index: Union[bool, Sequence, jax.Array] = True):
-        """
-        Construct a mutable Grid object.
-
-        :param shape: An integer vector array with the shape of the sampling grid.
-        :param step: A vector array with the spacing of the sampling grid.
-        :param extent: The extent of the sampling grid as shape * step
-        :param first: A vector array with the first element for each dimension.
-            The first element is the smallest element if step is positive, and the largest when step is negative.
-        :param center: A vector array with the center element for each dimension. The center position in the grid is
-            rounded to the next integer index unless center_at_index is set to False for that partical axis.
-        :param last: A vector array with the last element for each dimension. Unless include_last is set to True for
-            the associated dimension, all but the last element is returned when calling self[axis].
-        :param include_last: A boolean vector array indicating whether the returned vectors, self[axis], should include
-            the last element (True) or all-but-the-last (False)
-        :param ndim: A scalar integer indicating the number of dimensions of the sampling space.
-        :param flat: A boolean vector array indicating whether the returned vectors, self[axis], should be
-            flattened (True) or returned as an open grid (False)
-        :param origin_at_center: A boolean vector array indicating whether the origin should be fft-shifted (True)
-            or be ifftshifted to the front (False) of the returned vectors for self[axis].
-        :param center_at_index: A boolean vector array indicating whether the center of the grid should be rounded to an
-            integer index for each dimension. If False and the shape has an even number of elements, the next index is
-            used as the center, (self.shape / 2).astype(int).
-        """
-        super().__init__(shape=shape, step=step, extent=extent, first=first, center=center, last=last,
-                         include_last=include_last, ndim=ndim, flat=flat, origin_at_center=origin_at_center,
-                         center_at_index=center_at_index)
-
-    @property
-    def shape(self) -> jax.Array:
-        return super().shape
-
-    @shape.setter
-    def shape(self, new_shape: Union[int, Sequence, jax.Array]):
-        if new_shape is not None:
-            self._shape = self._to_ndim(new_shape)
-
-    @property
-    def step(self) -> jax.Array:
-        return super().step
-
-    @step.setter
-    def step(self, new_step: Union[int, float, Sequence, jax.Array]):
-        self._step = self._to_ndim(new_step)
-        self._center = self._center.astype(self.dtype)
-
-    @property
-    def center(self) -> jax.Array:
-        return super().center
-
-    @center.setter
-    def center(self, new_center: Union[int, float, Sequence, jax.Array]):
-        self._center = self._to_ndim(new_center).astype(self.dtype)
-
-    @property
-    def flat(self) -> jax.Array:
-        return super().flat
-
-    @flat.setter
-    def flat(self, value: Union[bool, Sequence, jax.Array]):
-        self._flat = self._to_ndim(value)
-
-    @property
-    def origin_at_center(self) -> jax.Array:
-        return super().origin_at_center
-
-    @origin_at_center.setter
-    def origin_at_center(self, value: Union[bool, Sequence, jax.Array]):
-        self._origin_at_center = self._to_ndim(value)
-
-    @property
-    def first(self) -> jax.Array:
-        """
-        :return: A vector with the first element of each range
-        """
-        return super().first
-
-    @first.setter
-    def first(self, new_first: Union[int, float, Sequence, jax.Array]):
-        self._center = super().center + self._to_ndim(new_first) - self.first
-
-    @property
-    def dtype(self):
-        """ The numeric data type for the coordinates. """
-        return (self.step[0] + self.center[0]).dtype
-
-    @dtype.setter
-    def dtype(self, new_type: dtype):
-        """ Sets the dtype of the range, updating the step and center coordinate."""
-        self._step = self._step.astype(new_type)
-        self._center = self._center.astype(new_type)
-
-    def __iadd__(self, number: Union[int, float, complex, Sequence, jax.Array]):
-        self.center += jnp.asarray(number)
-
-    def __imul__(self, number: Union[int, float, complex, Sequence, jax.Array]):
-        self.step *= jnp.asarray(number)
-        self.center *= jnp.asarray(number)
-
-    def __isub__(self, number: Union[int, float, complex, Sequence, jax.Array]):
-        self.center -= jnp.asarray(number)
-
-    def __idiv__(self, number: Union[int, float, complex, Sequence, jax.Array]):
-        self.step /= jnp.asarray(number)
-        self.center /= jnp.asarray(number)
