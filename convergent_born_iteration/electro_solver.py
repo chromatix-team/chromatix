@@ -3,18 +3,14 @@ A module with functions to solve electro-magnetic problems.
 
 See example_solve2d.py for an example.
 """
-from functools import partial
-
-import scipy.constants as const
 import jax
 import jax.numpy as jnp
 import jaxopt
 import jaxopt.linear_solve
-from macromax.utils import Grid
+import scipy.constants as const
 
-from convergent_born_iteration import log
+from chromatix.utils import dim, Grid
 
-log.getChild(__name__)
 
 def get_shift_and_scale(permittivity):
     """
@@ -44,8 +40,8 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
     """
     Preconditions the electromagnetic problem.
 
-    :param grid: The uniform plaid spatial sampling grid, imported from macromax.utils.
-    :param k0: The wavenumber in vacuum.
+    :param grid: The uniform plaid spatial sampling grid for this calculation.
+    :param k0: The vacuum wavenumber.
     :param permittivity: The relative permittivity of the material. Anisotropic materials have two extra axis on the left with shape (3, 3).
     :param current_density: The current density as a vector function of space. The polarization is the left-most axis.
     :param adjoint: Precondition for the adjoint problem instead. Default: False.
@@ -57,6 +53,12 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
         2. The preconditioned right hand side.
 
     """
+    grid_shape = current_density.shape[1:]  # FIXME: for some reason we cannot use grid.shape when JIT-ing.
+    grid_k = [dim.to_axis(jnp.fft.ifftshift(jnp.arange(sh) - (sh // 2)) * st * 2 * jnp.pi / k0,
+                          axis=-len(grid_shape) + _
+                          )
+              for _, (sh, st) in enumerate(zip(grid_shape, 1 / jnp.array(grid_shape) / grid.step))]  # Use units so that k0 == 1.
+
     permittivity_bias, scale = get_shift_and_scale(permittivity)
     scale_inv = 1 / (scale * (1 - 2 * adjoint))
 
@@ -67,8 +69,6 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
     def shifted_discrepancy(x):
         """The discrepancy after approximation of the scaled isotropic problem, shifted by -1."""
         return jnp.einsum(subscripts, scaled_permittivity, x) - scaled_and_shifted_permittivity_bias * x
-
-    grid_k = tuple(jnp.array(_) / k0 for _ in grid.k)  # Use units so that k0 == 1.
 
     def split_trans_long_ft(y_ft):
         """Split a k-space vector field into its transverse and longitudinal components."""
@@ -94,7 +94,6 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
 
     def prec(y):
         """The preconditioner for accretive problem."""
-        # jax.debug.print('y {s}GiB {d}', s=y.nbytes / 1024 ** 3, d=y.dtype)
         return -shifted_discrepancy(shifted_approx_inv(y / scale))
 
     def prec_forward(x):
@@ -103,8 +102,7 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
 
     return prec_forward, prec(-1j * k0 * const.c * const.mu_0 * current_density)
 
-@partial(jax.jit, static_argnames=['grid', 'maxiter', 'adjoint', 'implicit_diff'])
-def solve(grid: Grid, k0, permittivity, current_density, initial_E = None,
+def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None,
           maxiter: int = 1000, tol: float = 1e-3,
           adjoint: bool = False,
           implicit_diff: bool = True,
@@ -112,7 +110,7 @@ def solve(grid: Grid, k0, permittivity, current_density, initial_E = None,
     """
     Solve for the electromagnetic field.
 
-    :param grid: The uniformly plaid spatial sampling grid (imported from macromax.utils.
+    :param grid: The uniform plaid spatial sampling grid for this calculation.
     :param k0: The vacuum wavenumber.
     :param permittivity: The (relative) permittivity distribution can either have the spatial dimensions, or it can have
         a 3x3 matrix in the first (left-most) axes, for each point in space.
@@ -127,11 +125,10 @@ def solve(grid: Grid, k0, permittivity, current_density, initial_E = None,
     :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
         axes are spatial dimensions.
     """
-    permittivity = permittivity.reshape(-1, round((permittivity.size // grid.size) ** 0.5), *grid.shape)
+    while permittivity.ndim < 2 + len(grid.shape):
+        permittivity = permittivity[jnp.newaxis]  # Add singleton dimensions on the left.
     if adjoint:
         permittivity = permittivity.transpose(0, 1).conj()
-    # jax.debug.print('permittivity {s}G {d}', s=permittivity.nbytes / 1024 ** 3, d=permittivity.dtype)
-    # jax.debug.print('current_density {s}G {d}', s=current_density.nbytes / 1024 ** 3, d=current_density.dtype)
     prec_forward, prec_y = precondition(grid, k0, permittivity, current_density, adjoint=adjoint)
     numerical_scale = jnp.amax(jnp.abs(prec_y))  # To avoid overflow or underflow with our machine precision
     prec_y /= numerical_scale
@@ -143,6 +140,6 @@ def solve(grid: Grid, k0, permittivity, current_density, initial_E = None,
     x, optim_state = solver.run(x)
 
     # bicgstab_solver = jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=maxiter, tol=tol)
-    # x = bicgstab_solver()  # Takes about 4/3 the time as the fixed point run for simple problems.
+    # x = bicgstab_solver()  # Takes about 33% more than the fixed point run for simple problems.
 
     return x * numerical_scale  # E

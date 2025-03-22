@@ -21,9 +21,11 @@
       name = "python-fhs-env";
       targetPkgs = pkgs: with pkgs; (
         [
+          graphviz  # needed by pprof --web
           (python.withPackages(
-            pp: with pp; [ pip ]
+            pp: with pp; [ pip tensorboard "tensorboard-plugin-profile" ]
           ))
+          pprof
         ]
       );
       runScript = "bash";
