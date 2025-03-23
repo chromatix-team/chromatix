@@ -3,7 +3,6 @@ A module with functions to solve electro-magnetic problems.
 
 See example_solve2d.py for an example.
 """
-import jax
 import jax.numpy as jnp
 import jaxopt
 import jaxopt.linear_solve
@@ -62,12 +61,13 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
     permittivity_bias, scale = get_shift_and_scale(permittivity)
     scale_inv = 1 / (scale * (1 - 2 * adjoint))
 
+    scaled_and_shifted_permittivity_bias = permittivity_bias * scale_inv + 1
     subscripts = 'ij...,...->...' if permittivity.shape[0] == 1 else 'ij...,j...->i...'
     scaled_permittivity = permittivity * scale_inv
     del permittivity
-    scaled_and_shifted_permittivity_bias = permittivity_bias * scale_inv + 1
+
     def shifted_discrepancy(x):
-        """The discrepancy after approximation of the scaled isotropic problem, shifted by -1."""
+        """The discrepancy after approximation of the scaled (an)isotropic problem, shifted by -1."""
         return jnp.einsum(subscripts, scaled_permittivity, x) - scaled_and_shifted_permittivity_bias * x
 
     def split_trans_long_ft(y_ft):
