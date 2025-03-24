@@ -95,7 +95,6 @@ class GaussianSource(nn.Module):
 
     Attributes:
         shape: The shape (height and width) of the ``Field`` to be created.
-        dx: The spacing of the samples of the ``Field``.
         spectrum: The wavelengths included in the ``Field`` to be created.
         spectral_density: The weights of each wavelength in the ``Field`` to
             be created.
@@ -111,10 +110,10 @@ class GaussianSource(nn.Module):
             Defaults to (0, 0) for no offset (a centered point source).
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
+        envelope_waist: The waist of the Gaussian envelope.
     """
 
     shape: Tuple[int, int]
-    dx: Union[float, Array]
     spectrum: Union[float, Array]
     spectral_density: Union[float, Array]
     f: Union[float, Callable[[PRNGKey], float]]
@@ -137,7 +136,6 @@ class GaussianSource(nn.Module):
 
         return gaussian_source(
             self.shape,
-            self.dx,
             self.spectrum,
             self.spectral_density,
             z,

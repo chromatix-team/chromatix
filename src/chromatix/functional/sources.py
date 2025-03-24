@@ -74,7 +74,6 @@ def point_source(
 
 def gaussian_source(
     shape: Tuple[int, int],
-    dx: Union[float, Array],
     spectrum: Union[float, Array],
     spectral_density: Union[float, Array],
     z: float,
@@ -94,7 +93,6 @@ def gaussian_source(
 
     Args:
         shape: The shape (height and width) of the ``Field`` to be created.
-        dx: The spacing of the samples of the ``Field``.
         spectrum: The wavelengths included in the ``Field`` to be created.
         spectral_density: The weights of each wavelength in the ``Field`` to
             be created.
@@ -122,7 +120,7 @@ def gaussian_source(
     cos_theta = jnp.sqrt(1 - sin_theta2)
     sin_theta = jnp.sqrt(sin_theta2)
 
-    phi = jnp.arctan2(factor * field.grid[0], factor * field.grid[1])
+    phi = jnp.arctan2(field.grid[0], field.grid[1])
     cos_phi = jnp.cos(phi)
     sin_phi = jnp.sin(phi)
     sin_2phi = 2 * sin_phi * cos_phi
@@ -143,7 +141,6 @@ def gaussian_source(
     amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2
 
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    # amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
 
     offset = _broadcast_1d_to_grid(offset, field.ndim)
     L = jnp.sqrt(field.spectrum * f / n)
@@ -154,7 +151,6 @@ def gaussian_source(
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
     u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
-    # field = circular_pupil(field, D)
     return field * jnp.sqrt(power / field.power)
 
 

@@ -8,7 +8,7 @@ from chromatix.elements.utils import register
 from .. import functional as cf
 from ..field import Field
 
-__all__ = ["ThinLens", "FFLens", "DFLens", "FFLens2"]
+__all__ = ["ThinLens", "FFLens", "DFLens", "HighNALens"]
 
 
 class ThinLens(nn.Module):
@@ -73,7 +73,7 @@ class FFLens(nn.Module):
         return cf.ff_lens(field, f, n, NA, inverse=self.inverse)
 
 
-class FFLens2(nn.Module):
+class HighNALens(nn.Module):
     """
     Applies a thin lens placed a distance ``f`` after the incoming ``Field``.
     This element returns the ``Field`` a distance ``f`` after the lens.
@@ -85,11 +85,11 @@ class FFLens2(nn.Module):
     ``chromatix.utils.trainable``.
 
     Attributes:
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
-        inverse: Whether to use IFFT (default is False, which uses FFT).
+        camera_shape: The shape of the camera (in pixels).
+        camera_pixel_pitch: The pixel pitch of the camera (in microns).
+        wavelength: The wavelength of the light (in microns).
     """
 
     NA: Optional[Union[float, Callable[[PRNGKey], float]]]
@@ -103,7 +103,7 @@ class FFLens2(nn.Module):
         camera_shape = register(self, "camera_shape")
         camera_pixel_pitch = register(self, "camera_pixel_pitch")
         wavelength = register(self, "wavelength")
-        return cf.lenses.ff_lens2(
+        return cf.lenses.high_na_lens(
             field=field,
             NA=NA,
             camera_shape=camera_shape,

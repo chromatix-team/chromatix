@@ -10,7 +10,7 @@ from ..field import Field
 from ..utils import l2_sq_norm
 from .pupils import circular_pupil
 
-__all__ = ["thin_lens", "ff_lens", "df_lens", "ff_lens2"]
+__all__ = ["thin_lens", "ff_lens", "df_lens", "high_na_lens"]
 
 
 def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
@@ -67,7 +67,7 @@ def ff_lens(
     return optical_fft(field, f, n)
 
 
-def ff_lens2(
+def high_na_lens(
     field: Field,
     NA: Union[float, Callable[[PRNGKey], float]],
     camera_shape: Tuple[int, int],
@@ -79,31 +79,32 @@ def ff_lens2(
 
     Args:
         field: The ``Field`` to which the lens will be applied.
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
+        camera_shape: The shape of the camera (in pixels).
+        camera_pixel_pitch: The pixel pitch of the camera (in microns).
+        wavelength: The wavelength of the light (in microns).
 
     Returns:
         The ``Field`` propagated a distance ``f`` after the lens.
     """
     zoom_factor = (
         2
-        * NA  # 1.3
-        * camera_shape[0]  # 256
-        * camera_pixel_pitch  # 0.125
-        / wavelength  # 0.532
-        / (field.shape[1] - 1)  # 255
+        * NA
+        * camera_shape[0]
+        * camera_pixel_pitch
+        / wavelength
+        / (field.shape[1] - 1)
     )
 
-    # Compute w
+    # Compute w for chirp z transform
     end = zoom_factor * jnp.pi
     start = -zoom_factor * jnp.pi
     m = jnp.array(field.spatial_shape)
     w_phase = (end - start) / (m - 1)
     w = jnp.exp(1j * w_phase)
 
-    # Compute a
+    # Compute a for chirp z transform
     a_phase = zoom_factor * jnp.pi
     a = jnp.exp(1j * a_phase)
 
