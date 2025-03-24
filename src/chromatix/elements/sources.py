@@ -121,9 +121,7 @@ class GaussianSource(nn.Module):
     n: Union[float, Callable[[PRNGKey], float]]
     NA: Union[float, Callable[[PRNGKey], float]]
     power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = np.array(
-        [0.0, 0.0, 1.0]
-    )
+    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = (0.0, 0.0, 1.0)
     offset: Union[Array, Tuple[float, float]] = (0.0, 0.0)
     scalar: bool = True
     envelope_waist: float = (1.0,)
