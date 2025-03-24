@@ -31,14 +31,11 @@ def get_shift_and_scale(permittivity):
         """Computes the norm of the shifted (block-)diagonal potential."""
         return jnp.amax(jnp.linalg.norm(jnp.moveaxis(_, (0, 1), (-2, -1)) - s * jnp.eye(_.shape[0]), axis=(-2, -1)))
 
-    # (V' - c')(V - c) = V'V - 2Re[c'V] + |c|^2
-    import jax.scipy.optimize
-    s0 = jnp.array((1.0, 0.1))
-    optim_result = jax.scipy.optimize.minimize(lambda x: shifted_norm(permittivity, x[0] + x[1] * 1j), s0,
-                                               method='BFGS', tol=1e-2, options=dict(maxiter=10),
-                                               )
-    shift = optim_result.x[0] + 1j * optim_result.x[1]
-    scale = 1.1j * optim_result.fun
+    shift, opt_state = jaxopt.LBFGS(
+        lambda x: shifted_norm(permittivity, x),
+        maxiter=5,
+    ).run(jnp.array((1.6 + 0.25j, )))
+    scale = 1.1j * opt_state.value
 
     return shift, scale
 
@@ -68,8 +65,8 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
     permittivity_bias, scale = get_shift_and_scale(permittivity)
     scale_inv = 1 / (scale * (1 - 2 * adjoint))
 
-    scaled_and_shifted_permittivity_bias = permittivity_bias * scale_inv + 1
     subscripts = 'ij...,...->...' if permittivity.shape[0] == 1 else 'ij...,j...->i...'
+    scaled_and_shifted_permittivity_bias = permittivity_bias * scale_inv + 1
     scaled_permittivity = permittivity * scale_inv
     del permittivity
 

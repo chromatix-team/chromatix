@@ -5,7 +5,6 @@ A script to measure the solver's time-efficiency using the example found in exam
 import timeit
 
 import jax
-import jax.numpy as jnp
 
 from convergent_born_iteration import electro_solver
 from examples.convergent_born_series_solve2d import define_problem
@@ -13,13 +12,7 @@ from examples.convergent_born_series_solve2d import define_problem
 
 def main():
     print(f'Starting {__name__} ...')
-
-    print('Defining the problem.')
     grid, k0, permittivity, current_density, _ = define_problem([480, 640])
-
-    print(f'Converting problem of shape {grid.shape} to JAX.')
-    permittivity = jnp.array(permittivity)
-    current_density = jnp.array(current_density)
 
     print('JIT-ing the solver...')
     @jax.jit

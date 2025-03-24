@@ -18,13 +18,7 @@ from examples.convergent_born_series_solve2d import define_problem, display
 
 def main():
     print(f'Starting {__name__} ...')
-
     grid, k0, permittivity, current_density, target_area = define_problem([128, 128])
-
-    print(f'Converting problem of shape {grid.shape} to JAX.')
-    permittivity = jnp.array(permittivity)
-    current_density = jnp.array(current_density)
-    target_area = jnp.array(target_area)
 
     def get_updated_permittivity(x):
         return 1j * permittivity.imag + 1 + (permittivity.real - 1) * jax.nn.sigmoid(x)
@@ -40,7 +34,7 @@ def main():
         return -measure_intensity(x)
 
     random_key = jax.random.key(0)
-    x0 = jax.random.normal(random_key, permittivity.shape)  # use shape[-1:] to optimize in 1D, and have enough memory for LBFGS and NonLinearCG
+    x0 = jax.random.normal(random_key, permittivity.shape)
     x0 = x0 / jnp.linalg.norm(x0)
 
     initial_loss = loss(x0)
