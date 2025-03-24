@@ -27,11 +27,18 @@ def get_shift_and_scale(permittivity):
     :param permittivity: The relative permittivity of the material. Anisotropic materials have two extra axis on the left with shape (3, 3).
     :return: The complex tuple (shift, scale)
     """
-    def matrix_norm(_, s: complex):
-        return jnp.linalg.norm(jnp.moveaxis(_, (0, 1), (-2, -1)) - s * jnp.eye(_.shape[0]), axis=(-2, -1))  # This may be faster by using a custom implementation (see macromax)
+    def shifted_norm(_, s):
+        """Computes the norm of the shifted (block-)diagonal potential."""
+        return jnp.amax(jnp.linalg.norm(jnp.moveaxis(_, (0, 1), (-2, -1)) - s * jnp.eye(_.shape[0]), axis=(-2, -1)))
 
-    shift = 1.3  # This can be chosen more optimally to minimize the below scale factor, and maximize the convergence rate.
-    scale = 1.1j * jnp.amax(matrix_norm(permittivity, shift))  # Must be strictly larger than the norm in the polarization dimension
+    # (V' - c')(V - c) = V'V - 2Re[c'V] + |c|^2
+    import jax.scipy.optimize
+    s0 = jnp.array((1.0, 0.1))
+    optim_result = jax.scipy.optimize.minimize(lambda x: shifted_norm(permittivity, x[0] + x[1] * 1j), s0,
+                                               method='BFGS', tol=1e-2, options=dict(maxiter=10),
+                                               )
+    shift = optim_result.x[0] + 1j * optim_result.x[1]
+    scale = 1.1j * optim_result.fun
 
     return shift, scale
 

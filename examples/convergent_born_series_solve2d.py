@@ -10,15 +10,13 @@ There is already some code to handle anisotropy, though this remains untested an
 Magnetic and cross terms as used for chiral materials are not implemented as these add significantly more complexity.
 """
 import jax
-
-import matplotlib.pyplot as plt
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 
-from macromax.bound import LinearBound
 from chromatix.utils import Grid, dim
 from chromatix.utils.display import complex2rgb, grid2extent
-
 from convergent_born_iteration import electro_solver
+from convergent_born_iteration.bound import LinearBound
 
 def define_problem(grid_shape = (256, 256)):
     """Define the electro-magnetic problem."""
@@ -35,7 +33,7 @@ def define_problem(grid_shape = (256, 256)):
     bound = LinearBound(grid, thickness=2e-6, max_extinction_coefficient=0.25)
 
     print('Defining the incident wave...')
-    incident_angle = (0 + 90) * jnp.pi / 180
+    incident_angle = 90 * jnp.pi / 180
     def rot_Z(a): return jnp.array([[jnp.cos(a), -jnp.sin(a), 0], [jnp.sin(a), jnp.cos(a), 0], [0, 0, 1]])
     incident_k = rot_Z(incident_angle) * k0 @ jnp.array([1, 0, 0])
     source_polarization = dim.add(rot_Z(incident_angle) @ jnp.array([0, 1, 1j]) / jnp.sqrt(2), right=grid.ndim)  # Add dims on the right

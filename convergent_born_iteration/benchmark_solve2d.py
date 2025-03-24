@@ -7,7 +7,6 @@ import timeit
 import jax
 import jax.numpy as jnp
 
-from chromatix.utils import Grid
 from convergent_born_iteration import electro_solver
 from examples.convergent_born_series_solve2d import define_problem
 
