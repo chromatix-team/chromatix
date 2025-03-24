@@ -87,7 +87,6 @@ def ff_lens2(
     Returns:
         The ``Field`` propagated a distance ``f`` after the lens.
     """
-    # return optical_fft(field, 100, 1.3).u
     zoom_factor = (
         2
         * NA  # 1.3
@@ -96,10 +95,6 @@ def ff_lens2(
         / wavelength  # 0.532
         / (field.shape[1] - 1)  # 255
     )
-    # zoom_factor = 1 / 40
-    print(zoom_factor)
-    # print(field.u.max())
-    # print(field.u[0, :, :, 0, 0])
 
     # Compute w
     end = zoom_factor * jnp.pi
@@ -112,17 +107,9 @@ def ff_lens2(
     a_phase = zoom_factor * jnp.pi
     a = jnp.exp(1j * a_phase)
 
-    correction_factor = 1
-    # N = field.u.shape[1]
-    # k = jnp.arange(K)
-    # kx, ky = jnp.meshgrid(k, k)
-    # correction_factor = jnp.exp(1j * (N - 1) / 2 * (2 * start - w_phase * (kx + ky)))
-    # correction_factor = jnp.expand_dims(correction_factor, axis=(0, 3, 4))
-    # print(correction_factor.shape)
-
     return field.replace(
         u=cztn(
-            x=field.u * correction_factor,
+            x=field.u,
             m=m,
             a=(a, a),
             w=w,

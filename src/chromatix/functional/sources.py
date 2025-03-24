@@ -82,7 +82,7 @@ def gaussian_source(
     n: float,
     NA: float,
     power: float = 1.0,
-    amplitude: Union[float, Array] = 1.0,
+    amplitude: Union[float, Array] = np.array([0.0, 0.0, 1.0]),
     offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     scalar: bool = True,
     envelope_waist: float = 1.0,
@@ -116,7 +116,6 @@ def gaussian_source(
     D = 2
     fourier_spacing = D / shape[0]
     field = create(fourier_spacing, spectrum, spectral_density, shape=shape)
-    # field = create(dx, spectrum, spectral_density, shape=shape)
 
     mask = l2_sq_norm(field.grid) <= 1
 
@@ -126,7 +125,7 @@ def gaussian_source(
     cos_theta = jnp.sqrt(1 - sin_theta2)
     sin_theta = jnp.sqrt(sin_theta2)
 
-    phi = jnp.arctan2(field.grid[0], field.grid[1])  # y, and [1] is x
+    phi = jnp.arctan2(field.grid[0], field.grid[1])
     cos_phi = jnp.cos(phi)
     sin_phi = jnp.sin(phi)
     sin_2phi = 2 * sin_phi * cos_phi
