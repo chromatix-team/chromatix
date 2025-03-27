@@ -52,20 +52,24 @@ def define_problem(grid_shape = (256, 256)):
     # permittivity = dim.add(jnp.eye(3), right=grid.ndim) * permittivity
 
     target_radius = max(min(grid.extent) / 64, min(grid.step))
-    target_area = sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + bound.thickness[0, 1], grid.first[1] + grid.extent[1] - bound.thickness[1, 1]))) < target_radius ** 2
+    target_area = jnp.stack(
+        [
+            sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + bound.thickness[0, 1], grid.first[1] + grid.extent[1] - bound.thickness[1, 1]))) < target_radius ** 2,
+            sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + bound.thickness[0, 1], grid.first[1] + bound.thickness[1, 0]))) < target_radius ** 2,
+            ]
+    )
 
     print(f'Defined a problem of shape {grid.shape}.')
 
     return grid, k0, permittivity, current_density, target_area
 
-def display(grid, permittivity, current_density, E, labels=None, target_area=0.0):
+def display(grid, permittivity, current_density, E, labels=None, target_area=(0, 0)):
     """Display the input and output, including absorbing boundaries for clarity."""
-
     if E.ndim <= current_density.ndim:  # Check if multiple inputs
         E = E[jnp.newaxis]
     labels = ('' for _ in range(len(E))) if labels is None else (_ + ' | ' for _ in labels)
     fig, axs = plt.subplots(1 + E.shape[0], 3, sharex='all', sharey='all')
-    structure = jnp.sqrt(permittivity) - 1 - 0.5j * target_area
+    structure = jnp.sqrt(permittivity) - 1 - (-0.5 + 0.5j) * jnp.diff(target_area.astype(jnp.float32), axis=0)
     structure /= jnp.amax(jnp.abs(structure))
 
     for axs_row, fld, label_pre in zip(axs,

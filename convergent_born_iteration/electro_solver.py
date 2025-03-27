@@ -3,9 +3,9 @@ A module with functions to solve electro-magnetic problems.
 
 See example_solve2d.py for an example.
 """
+import jax
 import jax.numpy as jnp
 import jaxopt
-import jaxopt.linear_solve
 import scipy.constants as const
 
 from chromatix.utils import dim, Grid
@@ -31,11 +31,26 @@ def get_shift_and_scale(permittivity):
         """Computes the norm of the shifted (block-)diagonal potential."""
         return jnp.amax(jnp.linalg.norm(jnp.moveaxis(_, (0, 1), (-2, -1)) - s * jnp.eye(_.shape[0]), axis=(-2, -1)))
 
-    shift, opt_state = jaxopt.LBFGS(
-        lambda x: shifted_norm(permittivity, x),
-        maxiter=5,
-    ).run(jnp.array((1.6 + 0.25j, )))
-    scale = 1.1j * opt_state.value
+    f = lambda _: shifted_norm(permittivity, _) ** 2
+    df = jax.grad(f)
+    x = 1.6 + 0.25j
+    # x = 1.0 + 0.05j
+    fx = f(x)
+    steps = 0.75 ** jnp.arange(10)
+    for it in range(10):
+        steps = steps * 0.5
+        dfx = df(x)
+        fxs = jnp.array([f(x - _ * dfx) for _ in steps])
+        step_index = jnp.argmin(fxs)
+        improved = jnp.any(fxs[step_index] < fx)
+        x = x - steps[step_index] * dfx * improved
+        fx = jnp.minimum(fx, fxs[step_index])
+        # jax.debug.print('f({x}) = {fx}  dfx={dfx}, fxs={fxs}', x=x, fx=fx, dfx=dfx, fxs=fxs)
+
+    value = fx
+    shift = x
+
+    scale = 1.1j * value ** 0.5
 
     return shift, scale
 

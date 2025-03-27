@@ -10,11 +10,9 @@ import jax.numpy as jnp
 import jaxopt
 import jaxopt.linear_solve
 import matplotlib.pyplot as plt
-# import optax
 
 from convergent_born_iteration import electro_solver
 from examples.convergent_born_series_solve2d import define_problem, display
-
 
 def main():
     print(f'Starting {__name__} ...')
@@ -23,10 +21,16 @@ def main():
     def get_updated_permittivity(x):
         return 1j * permittivity.imag + 1 + (permittivity.real - 1) * jax.nn.sigmoid(x)
 
+
     def measure_intensity(x):
-        E = electro_solver.solve(grid, k0, get_updated_permittivity(x), current_density, implicit_diff=False)  # TODO: implement implicit differentiation of the preconditioner.
-        I = jnp.linalg.norm(E / 1e10, axis=0) ** 2  # TODO: pick a reasonable scale for light waves
-        return jnp.vdot(target_area, I)
+        updated_permittivity = get_updated_permittivity(x)
+
+        def measure1(index):
+            electric_fld = electro_solver.solve(grid, k0 * (1 + 0.01 * index), updated_permittivity, current_density, implicit_diff=False)  # TODO: implement implicit differentiation of the preconditioner.
+            intensity = jnp.linalg.norm(electric_fld / 1e10, axis=0) ** 2  # TODO: pick a reasonable scale for light waves
+            return jnp.vdot(target_area[index], intensity)
+
+        return measure1(0) + measure1(1)
 
     # @jax.jit
     def loss(x):
@@ -40,7 +44,7 @@ def main():
     initial_loss = loss(x0)
     print(f'Minimizing from loss {initial_loss:0.3f}...')
     verbose = True
-    x, opt_state = jaxopt.GradientDescent(loss, value_and_grad=False, jit=True, maxiter=100, tol=1e-4, verbose=verbose).run(x0)  # Memory efficient but slow
+    x, opt_state = jaxopt.GradientDescent(loss, value_and_grad=False, jit=True, maxiter=50, tol=1e-4, verbose=verbose).run(x0)  # Memory efficient but slow
     # x, opt_state = jaxopt.LBFGS(loss, value_and_grad=False, jit=True, verbose=verbose).run(x0)
     # x, opt_state = jaxopt.NonlinearCG(loss, value_and_grad=False, jit=True, max_stepsize=1, verbose=verbose).run(x0)
     # print(f'Executed {opt_state.num_fun_eval} function and {opt_state.num_grad_eval} evaluations.')
@@ -56,9 +60,10 @@ def main():
 
     print('Solving optimized system...')
     E = electro_solver.solve(grid, k0, get_updated_permittivity(x), current_density, implicit_diff=False)
+    E_alt = electro_solver.solve(grid, k0 * 1.01, get_updated_permittivity(x), current_density, implicit_diff=False)
 
     print('Displaying...')
-    display(grid, get_updated_permittivity(x), current_density, E, target_area=target_area)
+    display(grid, get_updated_permittivity(x), current_density, jnp.stack((E, E_alt)), target_area=target_area)
 
     print('Done. Close figure window to exit.')
     plt.show()
