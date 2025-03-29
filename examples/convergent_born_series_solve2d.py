@@ -69,7 +69,7 @@ def display(grid, permittivity, current_density, E, labels=None, target_areas=(0
         E = E[jnp.newaxis]
     labels = ('' for _ in range(len(E))) if labels is None else (_ + ' | ' for _ in labels)
     fig, axs = plt.subplots(1 + E.shape[0], 3, sharex='all', sharey='all')
-    structure = jnp.sqrt(permittivity) - 1 - (-0.5 + 0.5j) * jnp.diff(target_areas.astype(jnp.float32), axis=0)
+    structure = jnp.sqrt(permittivity) - 1 - (-0.5 + 0.5j) * jnp.diff(jnp.asarray(target_areas, dtype=jnp.float32), axis=0)
     structure /= jnp.amax(jnp.abs(structure))
 
     for axs_row, fld, label_pre in zip(axs,

@@ -5,6 +5,7 @@ See example_solve2d.py for an example.
 """
 import jax
 import jax.numpy as jnp
+import jax.scipy.sparse.linalg as spa
 import jaxopt
 import scipy.constants as const
 
@@ -123,8 +124,7 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
 
 def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None,
           maxiter: int = 1000, tol: float = 1e-3,
-          adjoint: bool = False,
-          implicit_diff: bool = True,
+          adjoint: bool = False, implicit_diff: bool = True, use_bicgstab: bool = False,
           ):
     """
     Solve for the electromagnetic field.
@@ -140,6 +140,8 @@ def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None
     :param tol: The tolerance for the convergence criterion.
     :param adjoint: Invert the adjoint problem instead. Default: False.
     :param implicit_diff: Whether to compute implicit gradients during the fixed point iteration. Default: True.
+    :param use_bicgstab: By default (False), the memory-efficient fixed-point iteration is used. When set to True,
+        the faster-converging stabilized bi-conjugate-gradient algorithm (BiCGStab) is used instead.
 
     :return: The electromagnetic field, E, with the first (left-most) axis the polarization vector, while the remaining
         axes are spatial dimensions.
@@ -153,12 +155,13 @@ def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None
     prec_y /= numerical_scale
     x = prec_y if initial_E is None else initial_E / numerical_scale
 
-    solver = jaxopt.FixedPointIteration(lambda _: prec_y - prec_forward(_) + _,
-                                        maxiter=maxiter, tol=tol, implicit_diff=implicit_diff,
-                                        )
-    x, optim_state = solver.run(x)
-
-    # bicgstab_solver = jaxopt.linear_solve.solve_bicgstab(prec_forward, prec_y, maxiter=maxiter, tol=tol)
-    # x = bicgstab_solver()  # Takes about 33% more than the fixed point run for simple problems.
+    if not use_bicgstab:
+        # jaxopt.AndersonAcceleration generally converges faster than jaxopt.FixedPointIteration but it uses more memory and triggers complex cast warnings
+        solver = jaxopt.FixedPointIteration(lambda _: prec_y - prec_forward(_) + _,
+                                            maxiter=maxiter, tol=tol, implicit_diff=implicit_diff,
+                                            )
+        x, optim_state = solver.run(x)
+    else:
+        x, optim_state = spa.bicgstab(prec_forward, prec_y, x, maxiter=maxiter, tol=tol)
 
     return x * numerical_scale  # E
