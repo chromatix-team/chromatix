@@ -55,14 +55,14 @@ def get_shift_and_scale(permittivity):
 
     return shift, scale
 
-def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: bool = False):
+def precondition(grid: Grid, k0: float, permittivity, source, adjoint: bool = False):
     """
     Preconditions the electromagnetic problem.
 
     :param grid: The uniform plaid spatial sampling grid for this calculation.
     :param k0: The vacuum wavenumber.
     :param permittivity: The relative permittivity of the material. Anisotropic materials have two extra axis on the left with shape (3, 3).
-    :param current_density: The current density as a vector function of space. The polarization is the left-most axis.
+    :param source: Proportional to the current density: source = -1j / k0 * const.c * const.mu_0 * current_density
     :param adjoint: Precondition for the adjoint problem instead. Default: False.
 
     :return: The tuple (prec_forward, prec_y) with:
@@ -72,7 +72,7 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
         2. The preconditioned right hand side.
 
     """
-    grid_shape = current_density.shape[1:]  # FIXME: for some reason we cannot use grid.shape when JIT-ing.
+    grid_shape = source.shape[1:]  # FIXME: for some reason we cannot use grid.shape when JIT-ing.
     grid_k = [dim.to_axis(jnp.fft.ifftshift(jnp.arange(sh) - (sh // 2)) * st * 2 * jnp.pi / k0,
                           axis=-len(grid_shape) + _
                           )
@@ -120,9 +120,9 @@ def precondition(grid: Grid, k0: float, permittivity, current_density, adjoint: 
         """The preconditioned problem does not actually require execution of the forward problem."""
         return -shifted_discrepancy(shifted_approx_inv(shifted_discrepancy(x)) + x)
 
-    return prec_forward, prec(-1j * k0 * const.c * const.mu_0 * current_density)
+    return prec_forward, prec(source)
 
-def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None,
+def solve(grid: Grid, k0: float, permittivity, current_density=None, source=None, initial_E = None,
           maxiter: int = 1000, tol: float = 1e-3,
           adjoint: bool = False, implicit_diff: bool = True, use_bicgstab: bool = False,
           ):
@@ -135,6 +135,7 @@ def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None
         a 3x3 matrix in the first (left-most) axes, for each point in space.
     :param current_density: The current density, with the first (left-most) axis the polarization vector, while the
         remaining axes are spatial dimensions.
+    :param source: Pre-scaled alternative to current_density: source = -1j / k0 * const.c * const.mu_0 * current_density
     :param initial_E: An optional starting point for the solver.
     :param maxiter: The maximum number of iterations.
     :param tol: The tolerance for the convergence criterion.
@@ -148,9 +149,11 @@ def solve(grid: Grid, k0: float, permittivity, current_density, initial_E = None
     """
     while permittivity.ndim < 2 + len(grid.shape):
         permittivity = permittivity[jnp.newaxis]  # Add singleton dimensions on the left.
+    if source is None:
+        source = -1j / k0 * const.c * const.mu_0 * current_density
     if adjoint:
         permittivity = permittivity.transpose(0, 1).conj()
-    prec_forward, prec_y = precondition(grid, k0, permittivity, current_density, adjoint=adjoint)
+    prec_forward, prec_y = precondition(grid, k0, permittivity, source, adjoint=adjoint)
     numerical_scale = jnp.amax(jnp.abs(prec_y))  # To avoid overflow or underflow with our machine precision
     prec_y /= numerical_scale
     x = prec_y if initial_E is None else initial_E / numerical_scale

@@ -25,14 +25,13 @@ def main():
         """
         TODO: implement implicit differentiation of the preconditioner.
         """
-        return (electro_solver.solve(grid, k0 * (1 + 0.01 * _), permittivity, current_density, implicit_diff=False) for _ in range(2))
-
+        return (electro_solver.solve(grid, k0 * (1 + 0.01 * _), permittivity, source=current_density, implicit_diff=False) for _ in range(2))
 
     def measure_intensity(x):
         updated_permittivity = get_updated_permittivity(x)
 
         def measure1(electric_fld, target_area):
-            intensity = jnp.linalg.norm(electric_fld / 1e10, axis=0) ** 2  # TODO: pick a reasonable scale for light waves
+            intensity = jnp.linalg.norm(electric_fld, axis=0) ** 2
             return jnp.vdot(target_area, intensity)
 
         return sum(measure1(fld, t) for fld, t in zip(get_all_fields(updated_permittivity), target_areas))

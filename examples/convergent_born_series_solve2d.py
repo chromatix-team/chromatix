@@ -40,7 +40,7 @@ def define_problem(grid_shape = (256, 256)):
     current_density = jnp.exp(1j * sum(k * g for k, g in zip(incident_k, grid)))
     source_pixel_index = int(bound.thickness[1, 0] / grid.step[1])
     current_density = current_density * (jnp.arange(current_density.shape[-1]) == source_pixel_index)
-    current_density = current_density * jnp.exp(-0.5* ((grid[0] - object_diameter / 2) / (beam_diameter/2)) ** 2)  # beam aperture
+    current_density = current_density * jnp.exp(-0.5 * ((grid[0] - object_diameter / 2) / (beam_diameter/2)) ** 2)  # beam aperture
     current_density = source_polarization * current_density  # Make it vectorial by tagging on the polarization dimension on the left.
 
     print('Defining the sample...')
@@ -56,7 +56,7 @@ def define_problem(grid_shape = (256, 256)):
         [
             sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + bound.thickness[0, 1], grid.first[1] + grid.extent[1] - bound.thickness[1, 1]))) < target_radius ** 2,
             sum((rng - o) ** 2 for rng, o in zip(grid, (grid.first[0] + bound.thickness[0, 1], grid.first[1] + bound.thickness[1, 0]))) < target_radius ** 2,
-            ]
+        ]
     )
 
     print(f'Defined a problem of shape {grid.shape}.')
