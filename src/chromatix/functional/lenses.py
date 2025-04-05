@@ -10,7 +10,13 @@ from ..field import Field
 from ..utils import l2_sq_norm
 from .pupils import circular_pupil
 
-__all__ = ["thin_lens", "ff_lens", "df_lens", "high_na_lens"]
+__all__ = [
+    "thin_lens",
+    "ff_lens",
+    "df_lens",
+    "high_na_lens",
+    "apply_highNA_basis_change",
+]
 
 
 def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
@@ -65,6 +71,35 @@ def ff_lens(
         # if inverse, propagate over negative distance
         f = -f
     return optical_fft(field, f, n)
+
+
+def apply_highNA_basis_change(field: Field, n: float, NA: float) -> Field:
+    factor = NA / n
+    mask = field.grid[0] ** 2 + field.grid[1] ** 2 <= 1
+    sin_theta2 = factor**2 * jnp.sum(field.grid**2, axis=0) * mask
+    cos_theta = jnp.sqrt(1 - sin_theta2)
+    sin_theta = jnp.sqrt(sin_theta2)
+
+    phi = jnp.arctan2(field.grid[0], field.grid[1])
+    cos_phi = jnp.cos(phi)
+    sin_phi = jnp.sin(phi)
+    sin_2phi = 2 * sin_phi * cos_phi
+    cos_2phi = cos_phi**2 - sin_phi**2
+
+    field_x = field.u[:, :, :, :, 2][..., None]
+    field_y = field.u[:, :, :, :, 1][..., None]
+
+    e_inf_x = ((cos_theta + 1.0) + (cos_theta - 1.0) * cos_2phi) * field_x + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_y
+    e_inf_y = ((cos_theta + 1.0) - (cos_theta - 1.0) * cos_2phi) * field_y + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_x
+    e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
+
+    return field.replace(
+        u=jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2
+    )
 
 
 def high_na_lens(

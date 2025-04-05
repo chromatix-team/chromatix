@@ -115,31 +115,7 @@ def gaussian_source(
     fourier_spacing = D / shape[0]
     field = create(fourier_spacing, spectrum, spectral_density, shape=shape)
 
-    mask = field.grid[0] ** 2 + field.grid[1] ** 2 <= 1
     factor = NA / n
-    sin_theta2 = factor**2 * jnp.sum(field.grid**2, axis=0) * mask
-    cos_theta = jnp.sqrt(1 - sin_theta2)
-    sin_theta = jnp.sqrt(sin_theta2)
-
-    phi = jnp.arctan2(field.grid[0], field.grid[1])
-    cos_phi = jnp.cos(phi)
-    sin_phi = jnp.sin(phi)
-    sin_2phi = 2 * sin_phi * cos_phi
-    cos_2phi = cos_phi**2 - sin_phi**2
-
-    single_field = field.grid[0] ** 2 + field.grid[1] ** 2 <= 1
-    field_x = jnp.complex64(amplitude[2] * single_field)
-    field_y = jnp.complex64(amplitude[1] * single_field)
-
-    e_inf_x = ((cos_theta + 1.0) + (cos_theta - 1.0) * cos_2phi) * field_x + (
-        cos_theta - 1.0
-    ) * sin_2phi * field_y
-    e_inf_y = ((cos_theta + 1.0) - (cos_theta - 1.0) * cos_2phi) * field_y + (
-        cos_theta - 1.0
-    ) * sin_2phi * field_x
-    e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
-
-    amplitude = jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2
 
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
 
