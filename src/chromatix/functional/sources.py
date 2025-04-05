@@ -115,8 +115,9 @@ def gaussian_source(
     fourier_spacing = D / shape[0]
     field = create(fourier_spacing, spectrum, spectral_density, shape=shape)
 
+    mask = field.grid[0] ** 2 + field.grid[1] ** 2 <= 1
     factor = NA / n
-    sin_theta2 = factor**2 * jnp.sum(field.grid**2, axis=0)
+    sin_theta2 = factor**2 * jnp.sum(field.grid**2, axis=0) * mask
     cos_theta = jnp.sqrt(1 - sin_theta2)
     sin_theta = jnp.sqrt(sin_theta2)
 
