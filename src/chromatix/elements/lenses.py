@@ -106,8 +106,8 @@ class HighNALens(nn.Module):
         return cf.lenses.high_na_lens(
             field=field,
             NA=NA,
-            camera_shape=camera_shape,
-            camera_pixel_pitch=camera_pixel_pitch,
+            output_shape=camera_shape,
+            output_dx=camera_pixel_pitch,
             wavelength=wavelength,
         )
 

@@ -80,6 +80,7 @@ def gaussian_source(
     f: float,
     n: float,
     NA: float,
+    dx: Optional[float] = None,
     power: float = 1.0,
     amplitude: Union[float, Array] = np.array([0.0, 0.0, 1.0]),
     offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
@@ -111,19 +112,17 @@ def gaussian_source(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
-    D = 2
-    fourier_spacing = D / shape[0]
-    field = create(fourier_spacing, spectrum, spectral_density, shape=shape)
-
-    factor = NA / n
+    if dx is None:
+        correction = f * NA / n
+        dx = 2 * correction / shape[0]
+    field = create(dx, spectrum, spectral_density, shape=shape)
 
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-
     offset = _broadcast_1d_to_grid(offset, field.ndim)
     L = jnp.sqrt(field.spectrum * f / n)
-    phase = -jnp.pi * (z / f) * l2_sq_norm(factor * field.grid - offset) / L**2
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2 / correction**2
     gaussian_envelope = jnp.exp(
-        -l2_sq_norm(factor * field.grid - offset) * factor**2 / envelope_waist**2
+        -l2_sq_norm(field.grid - offset) / envelope_waist**2 / correction**2
     )
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
     u = jnp.broadcast_to(u, field.shape)
