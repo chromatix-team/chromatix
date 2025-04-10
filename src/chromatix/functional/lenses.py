@@ -5,7 +5,7 @@ from chex import PRNGKey
 
 from chromatix.field import ScalarField, VectorField, cartesian_to_spherical
 from chromatix.functional.convenience import optical_fft
-from chromatix.utils.czt import cztn
+from chromatix.utils.czt import custom_fftn
 
 from ..field import Field
 from ..utils import l2_sq_norm
@@ -105,25 +105,18 @@ def high_na_lens(
     zoom_factor = (
         2 * NA * output_shape[0] * output_dx / wavelength / (field.shape[1] - 1)
     )
-
-    # Compute w for chirp z transform
-    end = zoom_factor * jnp.pi
-    start = -zoom_factor * jnp.pi
-    w = tuple(jnp.exp(1j * (end - start) / (m - 1)) for m in output_shape)
-
-    # Compute a for chirp z transform
-    a = jnp.exp(1j * zoom_factor * jnp.pi)
+    u = custom_fftn(
+        x=spherical_u,
+        k_start=-zoom_factor * jnp.pi,
+        k_end=zoom_factor * jnp.pi,
+        output_shape=output_shape,
+        include_end=True,
+        axes=field.spatial_dims,
+    )
 
     create = ScalarField.create if field.shape[-1] == 1 else VectorField.create
     out_field = create(
         output_dx, field.spectrum, field.spectral_density, shape=output_shape
-    )
-    u = cztn(
-        x=spherical_u,
-        m=output_shape,
-        a=(a, a),
-        w=w,
-        axes=field.spatial_dims,
     )
     if return_spherical_u:
         return out_field.replace(u=u), spherical_u
