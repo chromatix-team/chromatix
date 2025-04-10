@@ -109,13 +109,10 @@ def high_na_lens(
     # Compute w for chirp z transform
     end = zoom_factor * jnp.pi
     start = -zoom_factor * jnp.pi
-    m = jnp.array(field.spatial_shape)
-    w_phase = (end - start) / (m - 1)
-    w = jnp.exp(1j * w_phase)
+    w = tuple(jnp.exp(1j * (end - start) / (m - 1)) for m in output_shape)
 
     # Compute a for chirp z transform
-    a_phase = zoom_factor * jnp.pi
-    a = jnp.exp(1j * a_phase)
+    a = jnp.exp(1j * zoom_factor * jnp.pi)
 
     create = ScalarField.create if field.shape[-1] == 1 else VectorField.create
     out_field = create(
@@ -123,7 +120,7 @@ def high_na_lens(
     )
     u = cztn(
         x=spherical_u,
-        m=m,
+        m=output_shape,
         a=(a, a),
         w=w,
         axes=field.spatial_dims,
