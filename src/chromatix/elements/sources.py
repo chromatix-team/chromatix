@@ -7,7 +7,6 @@ from chex import Array, PRNGKey
 from chromatix.elements.utils import register
 from chromatix.field import Field
 from chromatix.functional.sources import (
-    gaussian_source,
     generic_field,
     objective_point_source,
     plane_wave,
@@ -16,7 +15,6 @@ from chromatix.functional.sources import (
 
 __all__ = [
     "PointSource",
-    "GaussianSource",
     "ObjectivePointSource",
     "PlaneWave",
     "GenericField",
@@ -81,72 +79,6 @@ class PointSource(nn.Module):
             self.pupil,
             self.scalar,
             self.epsilon,
-        )
-
-
-class GaussianSource(nn.Module):
-    """
-    Generates field due to a point source defocused by an amount ``z`` away from
-    the focal plane, just after passing through a lens with focal length ``f``
-    and numerical aperture ``NA``.
-
-    The attributes ``f``, ``n``, ``NA``, and ``power`` can be learned by using
-    ``chromatix.utils.trainable``.
-
-    Attributes:
-        shape: The shape (height and width) of the ``Field`` to be created.
-        spectrum: The wavelengths included in the ``Field`` to be created.
-        spectral_density: The weights of each wavelength in the ``Field`` to
-            be created.
-        f: Focal length of the objective lens.
-        n: Refractive index.
-        NA: The numerical aperture of the objective lens.
-        power: The total power that the result should be normalized to,
-            defaults to 1.0.
-        amplitude: The amplitude of the electric field. For ``ScalarField`` this
-            doesnt do anything, but it is required for ``VectorField`` to set
-            the polarization.
-        offset: The offset (y and x) in spatial coordinates of the point source.
-            Defaults to (0, 0) for no offset (a centered point source).
-        scalar: Whether the result should be ``ScalarField`` (if True) or
-            ``VectorField`` (if False). Defaults to True.
-        envelope_waist: The waist of the Gaussian envelope.
-    """
-
-    shape: Tuple[int, int]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    f: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    NA: Union[float, Callable[[PRNGKey], float]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = (0.0, 0.0, 1.0)
-    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0)
-    scalar: bool = True
-    envelope_waist: float = (1.0,)
-
-    @nn.compact
-    def __call__(self, z: float) -> Field:
-        f = register(self, "f")
-        n = register(self, "n")
-        NA = register(self, "NA")
-        power = register(self, "power")
-        amplitude = register(self, "amplitude")
-        offset = register(self, "offset")
-
-        return gaussian_source(
-            self.shape,
-            self.spectrum,
-            self.spectral_density,
-            z,
-            f,
-            n,
-            NA,
-            power,
-            amplitude,
-            offset,
-            self.scalar,
-            self.envelope_waist,
         )
 
 
