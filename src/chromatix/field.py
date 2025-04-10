@@ -487,7 +487,7 @@ def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
     return field.replace(u=u)
 
 
-def cartesian_to_spherical(field: Field, n: float, NA: float, f: float) -> Field:
+def cartesian_to_spherical(field: Field, n: float, NA: float, f: float) -> Array:
     """
     Converts the field to a spherical basis. This is useful for high NA lenses.
 

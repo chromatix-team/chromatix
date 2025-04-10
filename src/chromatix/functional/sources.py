@@ -82,7 +82,7 @@ def gaussian_source(
     NA: float,
     dx: Optional[float] = None,
     power: float = 1.0,
-    amplitude: Union[float, Array] = np.array([0.0, 0.0, 1.0]),
+    amplitude: Union[float, Array] = 1.0,
     offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     scalar: bool = True,
     envelope_waist: float = 1.0,
@@ -112,8 +112,8 @@ def gaussian_source(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
+    correction = f * NA / n
     if dx is None:
-        correction = f * NA / n
         dx = 2 * correction / shape[0]
     field = create(dx, spectrum, spectral_density, shape=shape)
 
@@ -127,6 +127,8 @@ def gaussian_source(
     u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
     u = jnp.broadcast_to(u, field.shape)
     field = field.replace(u=u)
+    D = 2 * f * NA / n
+    field = circular_pupil(field, D)
     return field * jnp.sqrt(power / field.power)
 
 
