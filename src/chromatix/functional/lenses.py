@@ -97,7 +97,10 @@ def high_na_lens(
     Returns:
         The ``Field`` propagated a distance ``f`` after the lens.
     """
-    spherical_u = cartesian_to_spherical(field, n, NA, f)
+    if field.shape[-1] == 1:
+        spherical_u = field.u
+    else:
+        spherical_u = cartesian_to_spherical(field, n, NA, f)
 
     zoom_factor = (
         2 * NA * output_shape[0] * output_dx / wavelength / (field.shape[1] - 1)
