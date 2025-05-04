@@ -1,20 +1,12 @@
-@software{chromatix_2023,
-  author       = {Deb, Diptodip and
-                  Both, Gert-Jan and
-                  Chaware, Amey and
-                  Kohli, Amit and
-                  Allier, Cédric and
-                  Cai, Changjia and
-                  Schlafly, Geneva and
-                  Meng, Guanghan and
-                  Eybposh, M. Hossein and
-                  Schneider, Magdalena and
-                  Yang, Xi and
-                  Turaga, Srinivas C.},
-  title        = {Chromatix},
-  month        = aug,
-  year         = 2023,
-  publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.7803771},
-  url          = {https://doi.org/10.5281/zenodo.7803771}
+@article {Deb2025.04.29.651152,
+	author = {Deb, Diptodip and Both, Gert-Jan and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, C{\'e}dric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pegard, Nicolas C. and La Rivi{\`e}re, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C.},
+	title = {Chromatix: a differentiable, GPU-accelerated wave-optics library},
+	elocation-id = {2025.04.29.651152},
+	year = {2025},
+	doi = {10.1101/2025.04.29.651152},
+	publisher = {Cold Spring Harbor Laboratory},
+	abstract = {Modern microscopy methods incorporate computational modeling of optical systems as an integral part of the imaging process, either to solve inverse problems or enable optimization of the optical system design. These methods often depend on differentiable simulations of optical systems, yet no standardized framework exists - forcing computational optics researchers to repeatedly and independently implement simulations that are prone to errors, difficult to reuse in other applications, and often computationally suboptimal. These common problems limit the potential impact of computational optics as a field. We present Chromatix: an open-source, GPU-accelerated differentiable wave optics library. Chromatix builds on JAX to enable fast simulation of diverse optical systems and inverse problem solving, scaling these simulations from single-CPU laptops to multi-GPU servers. The library implements various optical elements (e.g., lenses, polarizers and spatial light modulators) and multiple light propagation models (e.g., Fresnel approximation, angular spectrum and off-axis propagation) that can be flexibly combined to model various computational optics applications such as snapshot microscopy, holography, and phase retrieval of multiple scattering samples. These simulations can be automatically parallelized to scale across multiple GPUs with a single-line change to the modeling code, enabling simulation and optimization of previously impractical optical system designs. We demonstrate Chromatix{\textquoteright}s capacity to substantially accelerate optics simulation and optimization on existing methods in computational optics, speeding up optical simulation and optimization from 2-6{\texttimes} on a single GPU to up to 22{\texttimes} on 8 GPUs (depending on the particular system being modeled) compared to the original implementations. Chromatix establishes a standard for wave optics simulations, democratizing access to and expanding the design space of computational optics.Competing Interest StatementThe authors have declared no competing interest.National Research Foundation of KoreaNational Research Foundation of Korea, https://ror.org/013aysd81, 2023R1A2C3004040},
+	URL = {https://www.biorxiv.org/content/early/2025/05/02/2025.04.29.651152},
+	eprint = {https://www.biorxiv.org/content/early/2025/05/02/2025.04.29.651152.full.pdf},
+	journal = {bioRxiv}
 }
