@@ -1,14 +1,22 @@
-from typing import Optional
+from typing import Callable, Optional, Tuple, Union
 
 import jax.numpy as jnp
+from chex import PRNGKey
 
+from chromatix.field import ScalarField, VectorField, cartesian_to_spherical
 from chromatix.functional.convenience import optical_fft
+from chromatix.utils.czt import custom_fftn
 
 from ..field import Field
 from ..utils import l2_sq_norm
 from .pupils import circular_pupil
 
-__all__ = ["thin_lens", "ff_lens", "df_lens"]
+__all__ = [
+    "thin_lens",
+    "ff_lens",
+    "df_lens",
+    "high_na_lens",
+]
 
 
 def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
@@ -63,6 +71,57 @@ def ff_lens(
         # if inverse, propagate over negative distance
         f = -f
     return optical_fft(field, f, n)
+
+
+def high_na_lens(
+    field: Field,
+    f: float,
+    n: float,
+    NA: float,
+    output_shape: Tuple[int, int],
+    output_dx: Union[float, Callable[[PRNGKey], float]],
+    wavelength: Union[float, Callable[[PRNGKey], float]],
+    return_spherical_u: bool = False,
+) -> Field:
+    """
+    Applies a thin lens placed a distance ``f`` after the incoming ``Field``.
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
+        camera_shape: The shape of the camera (in pixels).
+        camera_pixel_pitch: The pixel pitch of the camera (in microns).
+        wavelength: The wavelength of the light (in microns).
+
+    Returns:
+        The ``Field`` propagated a distance ``f`` after the lens.
+    """
+    if field.shape[-1] == 1:
+        spherical_u = field.u
+    else:
+        spherical_u = cartesian_to_spherical(field, n, NA, f)
+
+    zoom_factor = (
+        2 * NA * output_shape[0] * output_dx / wavelength / (field.shape[1] - 1)
+    )
+    u = custom_fftn(
+        x=spherical_u,
+        k_start=-zoom_factor * jnp.pi,
+        k_end=zoom_factor * jnp.pi,
+        output_shape=output_shape,
+        include_end=True,
+        axes=field.spatial_dims,
+    )
+
+    create = ScalarField.create if field.shape[-1] == 1 else VectorField.create
+    out_field = create(
+        output_dx, field.spectrum, field.spectral_density, shape=output_shape
+    )
+    if return_spherical_u:
+        return out_field.replace(u=u), spherical_u
+    else:
+        return out_field.replace(u=u)
 
 
 def df_lens(

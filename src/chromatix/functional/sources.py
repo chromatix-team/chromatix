@@ -16,6 +16,7 @@ from .pupils import circular_pupil
 
 __all__ = [
     "point_source",
+    "gaussian_source",
     "objective_point_source",
     "plane_wave",
     "generic_field",
@@ -68,6 +69,66 @@ def point_source(
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
+    return field * jnp.sqrt(power / field.power)
+
+
+def gaussian_source(
+    shape: Tuple[int, int],
+    spectrum: Union[float, Array],
+    spectral_density: Union[float, Array],
+    z: float,
+    f: float,
+    n: float,
+    NA: float,
+    dx: Optional[float] = None,
+    power: float = 1.0,
+    amplitude: Union[float, Array] = 1.0,
+    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    scalar: bool = True,
+    envelope_waist: float = 1.0,
+) -> Field:
+    """
+    Generates field due to a point source defocused by an amount ``z`` away from
+    the focal plane, just after passing through a lens with focal length ``f``
+    and numerical aperture ``NA``.
+
+    Args:
+        shape: The shape (height and width) of the ``Field`` to be created.
+        spectrum: The wavelengths included in the ``Field`` to be created.
+        spectral_density: The weights of each wavelength in the ``Field`` to
+            be created.
+        z: The distance of the point source.
+        f: Focal length of the objective lens.
+        n: Refractive index.
+        NA: The numerical aperture of the objective lens.
+        power: The total power that the result should be normalized to,
+            defaults to 1.0.
+        amplitude: The amplitude of the electric field. For ``ScalarField`` this
+            doesnt do anything, but it is required for ``VectorField`` to set
+            the polarization.
+        offset: The offset of the point source in the plane. Should be an array
+            of shape `[2,]` in the format `[y, x]`.
+        scalar: Whether the result should be ``ScalarField`` (if True) or
+            ``VectorField`` (if False). Defaults to True.
+    """
+    create = ScalarField.create if scalar else VectorField.create
+    correction = f * NA / n
+    if dx is None:
+        dx = 2 * correction / shape[0]
+    field = create(dx, spectrum, spectral_density, shape=shape)
+
+    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
+    offset = _broadcast_1d_to_grid(offset, field.ndim)
+    L = jnp.sqrt(field.spectrum * f / n)
+    phase = -jnp.pi * (z / f) * l2_sq_norm(field.grid - offset) / L**2 / correction**2
+    gaussian_envelope = jnp.exp(
+        -l2_sq_norm(field.grid - offset) / envelope_waist**2 / correction**2
+    )
+    u = gaussian_envelope * amplitude * -1j / L**2 * jnp.exp(1j * phase)
+    u = jnp.broadcast_to(u, field.shape)
+    field = field.replace(u=u)
+    D = 2 * f * NA / n
+    field = circular_pupil(field, D)
     return field * jnp.sqrt(power / field.power)
 
 
