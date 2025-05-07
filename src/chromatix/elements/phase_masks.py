@@ -1,19 +1,23 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Sequence
+
 import jax.numpy as jnp
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 from jax.scipy.ndimage import map_coordinates
-from chromatix.field import Field
-from chromatix.functional import wrap_phase, phase_change
-from chromatix.utils import seidel_aberrations, zernike_aberrations
-from chromatix.ops import quantize
+
 from chromatix.elements.utils import register
+from chromatix.field import Field
+from chromatix.functional import phase_change, wrap_phase
+from chromatix.ops import quantize
+from chromatix.typing import ArrayLike, ScalarLike
+from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
-    "PhaseMask",
-    "SpatialLightModulator",
     "SeidelAberrations",
     "ZernikeAberrations",
+    "PhaseMask",
+    "SpatialLightModulator",
 ]
 
 
@@ -47,10 +51,10 @@ class PhaseMask(nn.Module):
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    f: ScalarLike | None = None
+    n: ScalarLike | None = None
+    NA: ScalarLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -59,7 +63,6 @@ class PhaseMask(nn.Module):
             pupil_args = (self.n, self.f, self.NA)
         else:
             pupil_args = ()
-
         phase = register(
             self,
             "phase",
@@ -68,7 +71,6 @@ class PhaseMask(nn.Module):
             field.spectrum[..., 0, 0].squeeze(),
             *pupil_args,
         )
-
         return phase_change(field, phase)
 
 
@@ -119,15 +121,15 @@ class SpatialLightModulator(nn.Module):
         NA: The numerical aperture of the system's objective. Defaults to None.
     """
 
-    phase: Union[Array, Callable[[PRNGKey, Tuple[int, int], float, float], Array]]
-    shape: Tuple[int, int]
-    spacing: float
-    phase_range: Tuple[float, float]
-    num_bits: Optional[Union[int, float]] = None
+    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    shape: tuple[int, int]
+    spacing: ScalarLike
+    phase_range: ArrayLike
+    num_bits: int | None = None
     interpolation_order: int = 0
-    f: Optional[float] = None
-    n: Optional[float] = None
-    NA: Optional[float] = None
+    f: ScalarLike | None = None
+    n: ScalarLike | None = None
+    NA: ScalarLike | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -150,14 +152,13 @@ class SpatialLightModulator(nn.Module):
         ), "Provided phase shape should match provided SLM shape"
         phase = wrap_phase(phase, self.phase_range)
         if self.num_bits is not None:
-            phase = quantize(phase, 2.0**self.num_bits, range=self.phase_range)
+            phase = quantize(phase, self.num_bits, range=self.phase_range)
         field_pixel_grid = jnp.meshgrid(
             jnp.linspace(0, self.shape[0] - 1, num=field.spatial_shape[0]) + 0.5,
             jnp.linspace(0, self.shape[1] - 1, num=field.spatial_shape[1]) + 0.5,
             indexing="ij",
         )
         phase = map_coordinates(phase, field_pixel_grid, self.interpolation_order)
-
         return phase_change(field, phase)
 
 
@@ -185,12 +186,12 @@ class SeidelAberrations(nn.Module):
         v: The vertical position of the object field point
     """
 
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
-    u: float
-    v: float
+    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike
+    u: ScalarLike
+    v: ScalarLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -207,7 +208,6 @@ class SeidelAberrations(nn.Module):
             self.u,
             self.v,
         )
-
         return phase_change(field, phase)
 
 
@@ -229,21 +229,23 @@ class ZernikeAberrations(nn.Module):
         f: The focal length.
         n: The refractive index.
         NA: The numerical aperture. The applied phase will be 0 outside NA.
-        ansi_indices: Indices of Zernike polynomials (ANSI indexing). Should
-            have same length as coefficients.
+        ansi_indices: Linear Zernike indices according to ANSI numbering.
+        coefficients: Weight coefficients for the Zernike polynomials.
+        normalize: Whether to normalize the Zernike coefficients. Defaults to
+            ``True``.
     """
 
-    coefficients: Union[Array, Callable[[PRNGKey], Array]]
-    f: float
-    n: float
-    NA: float
-    ansi_indices: Array
+    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    f: ArrayLike
+    n: ArrayLike
+    NA: ArrayLike
+    ansi_indices: Sequence[int]
+    normalize: bool = True
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
         coefficients = register(self, "coefficients")
-
         phase = zernike_aberrations(
             field.spatial_shape,
             field.dx[..., 0, 0].squeeze(),
@@ -253,6 +255,6 @@ class ZernikeAberrations(nn.Module):
             self.NA,
             self.ansi_indices,
             coefficients,
+            self.normalize,
         )
-
         return phase_change(field, phase)

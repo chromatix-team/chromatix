@@ -1,9 +1,12 @@
-from typing import Tuple
 import jax
 import jax.numpy as jnp
-from chex import Array, assert_rank
-from chromatix.field import Field
-from chromatix.utils.shapes import _broadcast_2d_to_spatial
+from chex import assert_rank
+from jax import Array
+
+from chromatix.typing import ArrayLike
+
+from ..field import Field, ScalarField, VectorField
+from ..utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["phase_change", "wrap_phase", "spectrally_modulate_phase"]
 
@@ -30,7 +33,9 @@ def phase_change(field: Field, phase: Array, spectrally_modulate: bool = True) -
 
 
 @jax.custom_jvp
-def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) -> Array:
+def wrap_phase(
+    phase: ArrayLike, limits: ArrayLike | tuple[float, float] = (-jnp.pi, jnp.pi)
+) -> Array:
     """
     Wraps values of ``phase`` to the range given by ``limits``.
 
@@ -54,11 +59,11 @@ def wrap_phase(phase: Array, limits: Tuple[float, float] = (-jnp.pi, jnp.pi)) ->
 
 
 @wrap_phase.defjvp
-def wrap_phase_jvp(primals: Tuple, tangents: Tuple) -> Tuple:
+def wrap_phase_jvp(primals: tuple, tangents: tuple) -> tuple:
     return wrap_phase(*primals), tangents[0]
 
 
-def spectrally_modulate_phase(phase: Array, field: Field) -> Array:
+def spectrally_modulate_phase(phase: Array, field: ScalarField | VectorField) -> Array:
     """Spectrally modulates a given ``phase`` for multiple wavelengths."""
     central_wavelength = field.spectrum[..., 0, 0].squeeze()
     spectral_modulation = central_wavelength / field.spectrum

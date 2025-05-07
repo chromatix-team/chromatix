@@ -1,7 +1,9 @@
 import jax.numpy as jnp
-from chex import Array, assert_rank
+from chex import assert_rank
+from jax import Array
 
-from ..field import Field
+from chromatix import Field
+
 from ..utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["amplitude_change"]

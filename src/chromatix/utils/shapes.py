@@ -1,8 +1,8 @@
-from typing import Union
-
 import jax.numpy as jnp
-from chex import Array
 from einops import rearrange
+from jax import Array
+
+from chromatix.typing import ArrayLike, ScalarLike
 
 __all__ = [
     "_broadcast_1d_to_channels",
@@ -15,34 +15,34 @@ __all__ = [
 ]
 
 
-def _broadcast_1d_to_channels(x: Union[float, Array], ndim: int) -> Array:
+def _broadcast_1d_to_channels(x: ScalarLike, ndim: int) -> Array:
     """Broadcast 1D array of size `C` to `(B... H W C [1 | 3])`."""
     shape_spec = "c -> " + ("1 " * (ndim - 2)) + "c 1"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_polarization(x: Union[float, Array], ndim: int) -> Array:
+def _broadcast_1d_to_polarization(x: ScalarLike, ndim: int) -> Array:
     """Broadcast 1D array of size `P` to `(B... H W C [1 | 3])`."""
     shape_spec = "p -> " + ("1 " * (ndim - 1)) + "p"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_innermost_batch(x: Union[float, Array], ndim: int) -> Array:
+def _broadcast_1d_to_innermost_batch(x: ScalarLike, ndim: int) -> Array:
     """Broadcast 1D array of size `B` to left of `(H W)` in `(B... H W C [1 | 3])`."""
     shape_spec = "b ->" + " 1" * (ndim - 5) + " b 1 1 1 1"
     return rearrange(jnp.atleast_1d(x), shape_spec)
 
 
-def _broadcast_1d_to_grid(x: Union[float, Array], ndim: int) -> Array:
+def _broadcast_1d_to_grid(x: ArrayLike | tuple[float, float], ndim: int) -> Array:
     """
     Broadcast 1D array of size `2` to `(2 B... H W C 1)`.
     Useful for vectorial ops on grids.
     """
     shape_spec = "d ->" + "d" + " 1" * (ndim - 4) + " 1 1 1 1"
-    return rearrange(jnp.atleast_1d(x), shape_spec, d=2)
+    return rearrange(jnp.atleast_1d(jnp.array(x)), shape_spec, d=2)
 
 
-def _broadcast_2d_to_grid(x: Union[float, Array], ndim: int) -> Array:
+def _broadcast_2d_to_grid(x: Array, ndim: int) -> Array:
     """
     Broadcast 2D array of shape `2 C` to `(2 B... H W C [1 | 3])`.
     Useful for vectorial ops on grids.
@@ -51,7 +51,7 @@ def _broadcast_2d_to_grid(x: Union[float, Array], ndim: int) -> Array:
     return rearrange(x, shape_spec, d=2)
 
 
-def _squeeze_grid_to_2d(x: Union[float, Array], ndim: int) -> Array:
+def _squeeze_grid_to_2d(x: Array, ndim: int) -> Array:
     """
     Squeeze array of shape `(2 B... H W C [1 | 3])` to 2D array of shape `2 C`.
     Useful for vectorial ops on grids.
