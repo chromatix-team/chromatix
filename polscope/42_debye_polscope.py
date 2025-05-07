@@ -1,4 +1,5 @@
 # %%
+# Imports
 %load_ext autoreload
 %autoreload 2
 
@@ -7,8 +8,8 @@ import sys
 import numpy as np
 import time
 import jax
+jax.config.update("jax_enable_x64", False)
 from jax import lax
-# jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import Array
@@ -37,7 +38,6 @@ from helpers import (
 from helpers_sampling import (
     fibonacci_cone_sampling, generate_kohler_2d_points
 )
-# from debye import optical_debye_wolf
 from chromatix.functional.convenience import optical_debye_wolf
 from debye import (
     optical_debye_wolf_factored_chunked
@@ -46,11 +46,12 @@ from debye import (
 import importlib
 importlib.reload(cf)
 # Define directory for saving results
-SAVE_DIR = os.path.join('results', 'debye_polscope_3')
+SAVE_DIR = os.path.join('results', 'debye_polscope_angles_20_illum')
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 
-# %% Helper functions
+# %%
+# Helper functions
 def incoherent_sum_across_angles(final_amps: jnp.ndarray, normalize: bool = False) -> jnp.ndarray:
     """
     Incoherently sums intensity across the angle dimension of the vector field.
@@ -75,9 +76,10 @@ def incoherent_sum_across_angles(final_amps: jnp.ndarray, normalize: bool = Fals
     if isinstance(final_amps, list):
         final_amps = jnp.array(final_amps)
     amps_sq = jnp.abs(final_amps) ** 2  # shape: (num_angles, ..., 3)
-
+    # print(f"amps_sq shape: {amps_sq.shape}, max: {jnp.max(amps_sq):.2f}, min: {jnp.min(amps_sq):.2f}")
     # Sum over angles (axis=0), leaving vector components intact:
     intensities_sum = jnp.sum(amps_sq, axis=0)  # shape: (..., 3), angle dimension collapsed
+    # print(f"intensities_sum shape: {intensities_sum.shape}, max: {jnp.max(intensities_sum):.2f}, min: {jnp.min(intensities_sum):.2f}")
 
     # Optionally normalize total power to 1:
     if normalize:
@@ -259,7 +261,7 @@ class PolScope(PyTreeNode):
     spacing: float = 0.546 / 2  # [µm]
     wavelength: float = 0.546  # [µm]
     swing: float = 2 * jnp.pi * 0.03
-    num_angles: int = 40
+    num_angles: int = 1
 
     # Condenser parameters
     condenser_f: float = 5000 
@@ -307,8 +309,6 @@ class PolScope(PyTreeNode):
             NA=self.condenser_NA,
             n=self.condenser_n
         )
-
-        print(f"points:\n{points}")
 
         # lens_radius = f * tan(arcsin(NA/n))
         lens_radius = self.condenser_f * jnp.tan(jnp.arcsin(self.condenser_NA / self.condenser_n))
@@ -376,52 +376,59 @@ class PolScope(PyTreeNode):
 
         return field_incoherent, camera.squeeze()
 
-    def single_angle_forward(self, uc_mode: jnp.ndarray, potential: jnp.ndarray, angle: jnp.ndarray):
+    def single_angle_forward(self, uc_mode: jnp.ndarray, potential: jnp.ndarray, kohler_pt: jnp.ndarray):
         """
         Run the optical propagation for a single angle.
 
         Args:
             uc_mode:  The universal-compensator mode amplitude (scalar or array).
             potential:  3D potential or something describing the sample.
-            angle:   jnp.array([theta, phi]) for this illumination.
+            kohler_pt:   jnp.array([y, x]) for this illumination.
 
         Returns:
             field:  The final Field after microlens array, etc.
         """
-        # Determine sample thickness in physical space
-        z_sample = potential.shape[0] * self.spacing
-
         # 1) Create illumination
         field = gaussian_spot_field(
             shape=self.shape,
             dx=self.spacing,
             spectrum=self.wavelength,
             center=kohler_pt,
-            polarization=uc_mode, #(0.0, 1.0j, 1.0)
+            polarization=uc_mode * 1_000,
             spectral_density=1.0,
             waist=1.0 / 4
         )
-        field = field.replace(u=field.u)
         pupil_width_um = field.u.shape[2] * field.dx.squeeze()[1]
         # fig = plot_propagated_field(field, title="Pupil")
-        field = cf.ff_lens_debye_chunked(field, self.condenser_f, self.condenser_n, self.condenser_NA, range_um=pupil_width_um*1.5, num_samples=256, chunk_size=1024)
 
-        # 2) Sample interaction
-        field = thick_polarised_sample(field, potential, self.objective_n, self.spacing, NA=self.objective_NA)
-        # fig = plot_propagated_field_separate_colorbars(field, title="Sample")
+        sample_pixels = potential.shape[1]
+        field_width_increase_factor = 2
+        field_range_um = pupil_width_um * field_width_increase_factor
+        field = cf.ff_lens_debye_chunked(field, self.condenser_f, self.condenser_n, self.condenser_NA, range_um=field_range_um, num_samples=sample_pixels, chunk_size=1024)
 
-        # 3) Propagate half sample thickness
-        field = cf.transfer_propagate(field, -z_sample / 2, self.objective_n, 256, mode="same")
-        # fig = plot_propagated_field_separate_colorbars(field, title="Propagate half sample thickness")
+        if True:
+            # 2) Sample interaction
+            dz = field.dx.squeeze()[0] * 8
+            field = thick_polarised_sample(field, potential, self.objective_n, dz, NA=self.objective_NA)
+            # fig = plot_propagated_field_separate_colorbars(field, title="Sample")
+
+            # 3) Propagate half sample thickness
+            z_sample = potential.shape[0] * dz # Determine sample thickness in physical space
+            field = cf.transfer_propagate(field, -z_sample / 2, self.objective_n, 512, mode="same")
+            # fig = plot_propagated_field_separate_colorbars(field, title="Propagate half sample thickness")
 
         # 4) Analyzer
         M_wave_2x2 = jnp.array([
             [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
             [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
         ], dtype=jnp.complex64)
-        field = apply_jones_in_lab_basis(
+        angle = compute_angles_from_offset(kohler_pt[1], kohler_pt[0], self.objective_f)
+        field = apply_jones_in_wave_basis(
             field,
-            M_lab_2x2=M_wave_2x2,
+            M_wave_2x2.T, 
+            n_medium=self.objective_n,
+            spectrum=self.wavelength,
+            angle=angle
         )
 
         # 5) Microlens
@@ -438,7 +445,7 @@ class PolScope(PyTreeNode):
             block_between=True,
         )
         # 6) Transfer propagate after MLA
-        field = cf.transfer_propagate(field, self.mla_f, self.mla_n, 256, mode="same")
+        field = cf.transfer_propagate(field, self.mla_f, self.mla_n, 512, mode="same")
 
         return field
 
@@ -452,20 +459,32 @@ class PolScope(PyTreeNode):
             return field.u
 
         kohler_points = self.kohler_points
+
+
         # We accumulate final_amps in chunks
         angle_batches = []
         for i in range(0, len(kohler_points), chunk_size):
             chunk = kohler_points[i : i + chunk_size]
             chunk_amps = jax.vmap(per_angle, in_axes=0)(chunk)
+            print(f"Completed chunk {i} of {len(kohler_points) // chunk_size}")
             angle_batches.append(chunk_amps)
+
 
         # Concatenate all chunk results along axis=0 (angle-axis)
         final_amps = jnp.concatenate(angle_batches, axis=0)
 
-        I_incoh = incoherent_sum_across_angles(final_amps, normalize=True)
+        if False:
+            fields = jax.lax.map(lambda a: self.single_angle_forward(uc_mode, potential, a).u, kohler_points)
+            final_amps_lax = jnp.stack(fields, axis=0)
+            print("lax.map final_amps:", final_amps_lax)
+            final_amps = final_amps_lax
+
+        I_incoh = incoherent_sum_across_angles(final_amps, normalize=False)
+        # print(f"I_incoh shape: {I_incoh.shape}, max: {jnp.max(I_incoh)}, min: {jnp.min(I_incoh)}")
 
         # Create a reference field with zero uc_mode
-        ref_field = self.single_angle_forward(jnp.zeros_like(uc_mode), potential, kohler_points[0])
+        ref_field = VectorField.create(self.spacing, self.wavelength, 1, shape=self.shape)
+        # ref_field = self.single_angle_forward(jnp.zeros_like(uc_mode), potential, kohler_points[0])
         u_incoh = jnp.sqrt(I_incoh) * jnp.exp(1j * 0.0)
         incoherent_field = ref_field.replace(u=u_incoh)
 
@@ -475,10 +494,45 @@ class PolScope(PyTreeNode):
         # # Calculate intensity from transverse components only:
         # intensity_transverse = jnp.abs(Ex)**2 + jnp.abs(Ey)**2
 
-        # camera = init_plane_resample(self.camera_shape, self.camera_pitch)(
-        #     intensity_transverse.squeeze(0),
-        #     incoherent_field.dx.squeeze()
-        # )
+        camera = init_plane_resample(self.camera_shape, self.camera_pitch)(
+            incoherent_field.intensity.squeeze(0),
+            incoherent_field.dx.squeeze(),
+        )
+
+        return incoherent_field, camera.squeeze()
+
+    def forward_chunked_memory_efficient(self, uc_mode: jnp.ndarray, potential: jnp.ndarray, chunk_size: int = 5):
+        """
+        Instead of vmapping over *all* angles at once, we chunk the angles
+        to avoid creating extremely large intermediate arrays.
+        """
+        def per_angle(a):
+            field = self.single_angle_forward(uc_mode, potential, a)
+            return field.u
+
+        kohler_points = self.kohler_points
+
+
+        # We accumulate final_amps in chunks
+        angle_batches = []
+        for i in range(0, len(kohler_points), chunk_size):
+            chunk = kohler_points[i : i + chunk_size]
+            chunk_amps = jax.vmap(per_angle, in_axes=0)(chunk)
+            print(f"Completed chunk {i} of {len(kohler_points)}")
+            chunk_I_incoh = incoherent_sum_across_angles(chunk_amps, normalize=False)
+
+            # Accumulate the sum across chunks.
+            if I_incoh_total is None:
+                I_incoh_total = chunk_I_incoh
+            else:
+                I_incoh_total = I_incoh_total + chunk_I_incoh
+
+        # Create a reference field with zero uc_mode
+        ref_field = VectorField.create(self.spacing, self.wavelength, 1, shape=self.shape)
+        # ref_field = self.single_angle_forward(jnp.zeros_like(uc_mode), potential, kohler_points[0])
+        u_incoh = jnp.sqrt(I_incoh_total) * jnp.exp(1j * 0.0)
+        incoherent_field = ref_field.replace(u=u_incoh)
+
         camera = init_plane_resample(self.camera_shape, self.camera_pitch)(
             incoherent_field.intensity.squeeze(0),
             incoherent_field.dx.squeeze(),
@@ -582,6 +636,29 @@ class PolScope(PyTreeNode):
             [1.0, 0.0],
             [0.0, 0.0]
         ], dtype=jnp.complex64)
+        M_wave_2x2_cp = jnp.array([
+            [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
+            [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
+        ], dtype=jnp.complex64)
+        M_wave_2x2_cp_flip = jnp.array([
+            [1.0/jnp.sqrt(2),   -1j/jnp.sqrt(2)],
+            [1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
+        ], dtype=jnp.complex128)
+        M_wave_2x2_cp_attempt = jnp.array([
+            [-1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
+            [1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
+        ], dtype=jnp.complex64)
+        M_circ_sp = jnp.array([
+            [7.071674e-01-6.121397e-05j, -6.121397e-05-7.071674e-01j],
+            [6.121397e-05+7.071674e-01j,  7.071674e-01-6.121397e-05j]
+        ], dtype=jnp.complex64)
+        M_circ_sp_conj = jnp.array([
+            [7.071674e-01+6.121397e-05j, -6.121397e-05+7.071674e-01j],
+            [6.121397e-05-7.071674e-01j,  7.071674e-01+6.121397e-05j]
+        ], dtype=jnp.complex64)
+        M_2x2 = M_wave_2x2_cp_flip
+        # M_2x2 = M_wave_2x2_linear
+
         field = gaussian_spot_field(
             shape=self.shape,
             dx=self.spacing,
@@ -589,41 +666,47 @@ class PolScope(PyTreeNode):
             center=kohler_pt,
             polarization=uc_mode, #(0.0, 1.0j, 1.0)
             spectral_density=1.0,
-            waist=1.0 / 6
+            waist=1.0 / 8
         )
+        field = field.replace(u=field.u.astype(jnp.complex128))
         pupil_width_um = field.u.shape[2] * field.dx.squeeze()[1]
-        fig = plot_propagated_field(field, title="Pupil")
-
-        M_wave_2x2 = jnp.array([
-            [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
-            [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
-        ], dtype=jnp.complex64)
-        field_analyzer_after_pupil = apply_jones_in_lab_basis(field, M_lab_2x2=M_wave_2x2_linear)
-        fig = plot_propagated_field(field_analyzer_after_pupil, title="Analyzer after pupil")
+        fig = plot_propagated_field_separate_colorbars(field, title="Pupil")
+        
+        if True:
+            field_analyzer_after_pupil = apply_jones_in_lab_basis(field, M_lab_2x2=M_2x2)
+            fig = plot_propagated_field_separate_colorbars(field_analyzer_after_pupil, title="Analyzer after pupil (lab basis)")
+            angle = compute_angles_from_offset(kohler_pt[1], kohler_pt[0], self.objective_f)
+            print(f"Angle: {angle}")
+            field_analyzer_after_pupil = apply_jones_in_wave_basis(
+                field,
+                M_2x2, 
+                n_medium=self.objective_n,
+                spectrum=self.wavelength,
+                angle=angle
+            )
+            fig = plot_propagated_field_separate_colorbars(field_analyzer_after_pupil, title="Analyzer after pupil (wave basis)")
 
         res = 256
 
         field = cf.ff_lens_debye_chunked(field, self.objective_f, self.objective_n, self.objective_NA, range_um=pupil_width_um, num_samples=res, chunk_size=1024)
         fig = plot_propagated_field_separate_colorbars(field, title="Condenser lens")
 
-        M_wave_2x2 = jnp.array([
-            [1.0/jnp.sqrt(2),   -1j/jnp.sqrt(2)],
-            [1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
-        ], dtype=jnp.complex64)
-        # field_analyzer_after_condenser = apply_jones_in_lab_basis(field, M_lab_2x2=M_wave_2x2)
-        angle = compute_angles_from_offset(kohler_pt[1], kohler_pt[0], self.objective_f)
-        print(f"Angle: {angle}")
+        angle_og = compute_angles_from_offset(kohler_pt[1], kohler_pt[0], self.objective_f)
+        # angle = (angle[0], angle[1] + jnp.pi / 2)
+        angle = (angle_og[0], 0)
+        angle = angle_og
+        print(f"Angle: {angle_og[0]:.3f}, {angle_og[1]:.3f} -> {angle[0]:.3f}, {angle[1]:.3f}")
         field_analyzer_after_condenser = apply_jones_in_wave_basis(
             field,
-            M_wave_2x2_linear,
+            M_2x2,
             n_medium=self.objective_n,
             spectrum=self.wavelength,
             angle=angle
         )
         fig = plot_propagated_field_separate_colorbars(field_analyzer_after_condenser, title="Analyzer after condenser (wave basis)")
         field_analyzer_after_condenser = apply_jones_in_lab_basis(
-            field_analyzer_after_condenser,
-            M_lab_2x2=M_wave_2x2_linear,
+            field,
+            M_lab_2x2=M_2x2,
         )
         fig = plot_propagated_field_separate_colorbars(field_analyzer_after_condenser, title="Analyzer after condenser (lab basis)")
 
@@ -631,15 +714,12 @@ class PolScope(PyTreeNode):
             field = cf.ff_lens_debye_chunked(field, self.objective_f, self.objective_n, self.objective_NA, range_um=pupil_width_um, num_samples=res, chunk_size=1024)
             fig = plot_propagated_field_separate_colorbars(field, title="Objective lens")
 
+            field = apply_jones_in_lab_basis(field, M_lab_2x2=M_2x2)
+            fig = plot_propagated_field_separate_colorbars(field, title="Analyzer after objective (lab basis)")
+
+        if False:
             field = cf.ff_lens_debye_chunked(field, self.objective_f, self.objective_n, self.objective_NA, range_um=pupil_width_um, num_samples=res, chunk_size=1024)
             fig = plot_propagated_field_separate_colorbars(field, title="Tube lens")
-
-            M_wave_2x2 = jnp.array([
-                [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
-                [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
-            ], dtype=jnp.complex64)
-            field = apply_jones_in_lab_basis(field, M_lab_2x2=M_wave_2x2_linear)
-            fig = plot_propagated_field_separate_colorbars(field, title="Analyzer")
 
         return field
 
@@ -663,7 +743,6 @@ class PolScope(PyTreeNode):
             field: Final Field object after all steps.
             intermediates: dict of {step_name -> Field}, if return_intermediates=True
         """
-        z_sample = potential.shape[0] * self.spacing
         intermediates = {}
 
         # Helper for recording steps
@@ -676,54 +755,66 @@ class PolScope(PyTreeNode):
             dx=self.spacing,
             spectrum=self.wavelength,
             center=kohler_pt,
-            polarization=uc_mode, #(0.0, 1.0j, 1.0)
+            polarization=uc_mode * 1_000, #(0.0, 1.0j, 1.0)
             spectral_density=1.0,
             waist=1.0 / 4
         )
         pupil_width_um = field.u.shape[2] * field.dx.squeeze()[1]
         record("pupil", field)
-    
-        # num_samples must match that of the sample
-        sample_pixels = potential.shape[1]
-        field = cf.ff_lens_debye_chunked(field, self.condenser_f, self.condenser_n, self.condenser_NA, range_um=pupil_width_um*1.5, num_samples=sample_pixels, chunk_size=1024)
-        record("condenser_lens", field)
 
-        if False:
+        if True:
+            # num_samples must match that of the sample
+            sample_pixels = potential.shape[1]
+            condenser_width_um = pupil_width_um #*2
+            field = cf.ff_lens_debye_chunked(field, self.condenser_f, self.condenser_n, self.condenser_NA, range_um=condenser_width_um, num_samples=sample_pixels, chunk_size=1024)
+            record("condenser_lens", field)
+
+        if True:
             # 2) Sample interaction
-            field = thick_polarised_sample(field, potential, self.objective_n, self.spacing, NA=self.objective_NA)
+            dz = field.dx.squeeze()[0] * 8
+            field = thick_polarised_sample(field, potential, self.objective_n, dz, NA=self.objective_NA)
             record("sample_interaction", field)
 
             # 3) Propagate half sample thickness
+            z_sample = potential.shape[0] * dz
             field = cf.transfer_propagate(field, -z_sample / 2, self.objective_n, 256, mode="same")
             record("propagate_half", field)
 
-        # 5) Analyzer
-        M_wave_2x2 = jnp.array([
-            [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
-            [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
-        ], dtype=jnp.complex64)
-        field = apply_jones_in_lab_basis(
-            field,
-            M_lab_2x2=M_wave_2x2,
-        )
-        record("analyzer", field)
+        if True:
+            # 5) Analyzer
+            M_wave_2x2 = jnp.array([
+                [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
+                [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
+            ], dtype=jnp.complex64)
+            if False:
+                field = apply_jones_in_lab_basis(
+                    field,
+                    M_lab_2x2=M_wave_2x2,
+                )
+            angle = compute_angles_from_offset(kohler_pt[1], kohler_pt[0], self.objective_f)
+            field = apply_jones_in_wave_basis(
+                field,
+                M_wave_2x2.T, 
+                n_medium=self.objective_n,
+                spectrum=self.wavelength,
+                angle=angle
+            )
+            record("analyzer", field)
 
-        # 7) Microlens array
-        # print(f"field.dx.squeeze()[0]: {field.dx.squeeze()[0]}")
-        time_start = time.time()
-        mla_radius = jnp.floor(self.mla_radius / field.dx.squeeze()[0]) * field.dx.squeeze()[0]
-        mla_separation = jnp.floor(self.mla_separation / field.dx.squeeze()[0]) * field.dx.squeeze()[0]
-        field = cf.rectangular_microlens_array(
-            field,
-            n=self.mla_n,
-            f=self.mla_f,
-            num_lenses_height=self.mla_n_y,
-            num_lenses_width=self.mla_n_x,
-            radius=mla_radius,
-            separation=mla_separation,
-            block_between=True,
-        )
-        record("mla", field)
+            # 7) Microlens array
+            mla_radius = jnp.floor(self.mla_radius / field.dx.squeeze()[0]) * field.dx.squeeze()[0]
+            mla_separation = jnp.floor(self.mla_separation / field.dx.squeeze()[0]) * field.dx.squeeze()[0]
+            field = cf.rectangular_microlens_array(
+                field,
+                n=self.mla_n,
+                f=self.mla_f,
+                num_lenses_height=self.mla_n_y,
+                num_lenses_width=self.mla_n_x,
+                radius=mla_radius,
+                separation=mla_separation,
+                block_between=True,
+            )
+            record("mla", field)
 
         # 8) Transfer propagate after MLA
         field = cf.transfer_propagate(field, self.mla_f, self.mla_n, 512, mode="same")
@@ -881,7 +972,6 @@ class PolScope(PyTreeNode):
         uc_mode: jnp.ndarray,
         potential: jnp.ndarray,
         kohler_pt: float,
-        return_intermediates: bool = False
     ):
         """
         Run the optical propagation for a single angle, optionally returning intermediate fields.
@@ -902,14 +992,15 @@ class PolScope(PyTreeNode):
             dx=self.spacing,
             spectrum=self.wavelength,
             center=kohler_pt,
-            polarization=uc_mode, #(0.0, 1.0j, 1.0)
+            polarization=uc_mode * 10_000, #(0.0, 1.0j, 1.0)
             spectral_density=1.0,
             waist=1.0 / 4
         )
         pupil_width_um = field.u.shape[2] * field.dx.squeeze()[1]
         fig = plot_propagated_field(field, title="Pupil")
 
-        num_samples_condenser = 1024
+        # num_samples_condenser = 1024
+        num_samples_condenser = potential.shape[1]
         field_size_condenser = pupil_width_um * 2
         field = cf.ff_lens_debye_chunked(field, self.condenser_f, self.condenser_n, self.condenser_NA, range_um=field_size_condenser, num_samples=num_samples_condenser, chunk_size=1024)
         fig = plot_propagated_field_separate_colorbars(field, title="Condenser lens")
@@ -917,14 +1008,16 @@ class PolScope(PyTreeNode):
 
         if False:
             # 2) Sample interaction
-            dz = field.dx.squeeze()[0] #self.spacing
+            dz = field.dx.squeeze()[0] * 8 #self.spacing
             # dz = self.spacing
             field = thick_polarised_sample(field, potential, self.objective_n, dz, NA=self.objective_NA)
             fig = plot_propagated_field_separate_colorbars(field, title="Sample")
-            # 3) Propagate half sample thickness
-            z_sample = potential.shape[0] * dz
-            field = cf.transfer_propagate(field, -z_sample / 2, self.objective_n, 256, mode="same")
-            fig = plot_propagated_field_separate_colorbars(field, title="Propagate half sample thickness")
+            if True:
+                # 3) Propagate half sample thickness
+                z_sample = potential.shape[0] * dz
+                print(f"Propagating half sample thickness: {z_sample / 2:.3f} um")
+                field = cf.transfer_propagate(field, -z_sample / 2, self.objective_n, 512, mode="same")
+                fig = plot_propagated_field_separate_colorbars(field, title="Propagate half sample thickness")
 
         if False:
             # 4) Objective lens
@@ -939,11 +1032,25 @@ class PolScope(PyTreeNode):
                 [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
                 [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
             ], dtype=jnp.complex64)
+
+            angle = compute_angles_from_offset(kohler_pt[1], kohler_pt[0], self.objective_f)
+            # print(f"Angle: {angle[0]:.3f}, {angle[1]:.3f}")
+            field = apply_jones_in_wave_basis(
+                field,
+                M_wave_2x2.T, 
+                n_medium=self.objective_n,
+                spectrum=self.wavelength,
+                angle=angle
+            )
+            fig = plot_propagated_field_separate_colorbars(field, title="Analyzer")
+
+        if False:
             field = apply_jones_in_lab_basis(
                 field,
                 M_lab_2x2=M_wave_2x2,
             )
             fig = plot_propagated_field_separate_colorbars(field, title="Analyzer")
+
 
         if False:
             # 6) Tube lens
@@ -980,7 +1087,7 @@ class PolScope(PyTreeNode):
             plt.show()
             # 8) Transfer propagate after MLA
             field = cf.transfer_propagate(field, self.mla_f, self.mla_n, 512, mode="same")
-            print(f"After final propagate, field.dx.squeeze()[0]: {field.dx.squeeze()[0]:.3f} um")
+            print(f"After final propagate, field.dx: {field.dx.squeeze()[0]:.3f} um")
             fig = plot_propagated_field_separate_colorbars(field, title=f"Final propagate")
 
             camera = init_plane_resample(self.camera_shape, self.camera_pitch)(
@@ -1022,16 +1129,20 @@ class PolScope(PyTreeNode):
             # fig = plot_propagated_field_separate_colorbars(step_incoh_field, title=f"Incoherent sum at step {step_name}", presquared=True)
             fig = plot_propagated_field(step_incoh_field, title=f"Incoherent sum at step {step_name}", presquared=True)
             plt.tight_layout()
-            fig.savefig(f"{SAVE_DIR}/mode0_sample_{step_name}.png", bbox_inches='tight')
+            fig.savefig(f"{SAVE_DIR}/mode0_sample_{step_name}.png", bbox_inches='tight', transparent=True)
 
         final_fields_u = [inter["final_propagate"] for inter in all_angles_intermediates]
         final_sum_u = incoherent_sum_across_angles(final_fields_u, normalize=False)
         final_sum = reference_field.replace(u=final_sum_u)
+        print(f"final_sum.dx: {final_sum.dx.squeeze()[0]:.3f} um")
+
+        # spacing = self.wavelength / 2
+        # final_field_dx = jnp.array([spacing, spacing])
+        final_field_dx = self.calculate_precamera_field_spacing(2, 2)
         camera = init_plane_resample(self.camera_shape, self.camera_pitch)(
             final_sum.intensity.squeeze(0),
-            final_sum.dx.squeeze()
+            final_field_dx
         )
-        # plot_propagated_field(final_sum, title="Final Field (Incoherent Sum)") # Repeated
 
         intensity = final_sum.intensity
         max_plot = intensity.max() / 100
@@ -1040,63 +1151,18 @@ class PolScope(PyTreeNode):
         plt.title("Final Field (after adjusting for contrast)")
         plt.show()
 
-        print(f"Camera field max: {camera.max()}, camera shape: {camera.shape}")
+        fig = plt.figure(figsize=(4, 3))
         max_plot = camera.max() #/ 2
         plt.imshow(camera.squeeze(), vmin=0, vmax=max_plot, cmap='inferno')
         plt.colorbar()
-        plt.title("Camera Field")
+        num_angles = len(self.kohler_points)
+        plt.title(f"Detection from {num_angles} angles")
+        plt.xticks([])
+        plt.yticks([])
         plt.show()
-        fig.savefig(f"{SAVE_DIR}/mode0_sample_camera.png", bbox_inches='tight')
+        fig.savefig(f"{SAVE_DIR}/mode0_sample_camera.png", bbox_inches='tight', transparent=True)
 
         return final_sum, camera
-
-    def single_angle_forward_illum_analyzer_debug(
-        self,
-        uc_mode: jnp.ndarray,
-        angle: jnp.ndarray,
-        return_intermediates: bool = False
-    ):
-        """
-        Minimal forward simulation for a single angle:
-        1) Create illumination (with given uc_mode).
-        2) Apply analyzer in local basis.
-        """
-        intermediates = {}
-        
-        # Helper to record a step's amplitude field (u) if debugging
-        def record(step_name: str, field, store: bool):
-            if store:
-                intermediates[step_name] = field.u
-
-        # Illumination
-        field = single_angle_illumination(
-            shape=self.shape,
-            dx=self.spacing,
-            spectrum=self.wavelength,
-            n_medium=self.condenser_n,
-            angle=angle,
-            amplitude=(0.0, 1.0j, 1.0)
-        )
-        record("illumination", field, return_intermediates)
-
-        # Analyzer
-        M_wave_2x2 = jnp.array([
-            [1.0/jnp.sqrt(2),   1j/jnp.sqrt(2)],
-            [-1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
-        ], dtype=jnp.complex64)
-        field = apply_jones_in_wave_basis(
-            field,
-            M_wave_2x2,
-            n_medium=self.condenser_n,
-            spectrum=self.wavelength,
-            angle=angle
-        )
-        record("analyzer", field, return_intermediates)
-
-        if return_intermediates:
-            return field, intermediates
-        else:
-            return field
 
     def forward_debug_minimal(self, uc_mode: jnp.ndarray):
         """
@@ -1150,51 +1216,6 @@ class PolScope(PyTreeNode):
         plot_propagated_field(final_sum, title="Final (Illum -> Analyzer) Incoherent Sum")
 
         return final_sum
-
-    def single_angle_forward_cancel_test(self):
-        """
-        Test if LCP -> RCP analyzer kills the signal for normal incidence.
-        """
-        # Force angle=0 (normal incidence)
-        angle = jnp.array([0.1, 0.5])
-
-        # Force an LCP universal-compensator mode in x-y plane
-        # E_x = 1/sqrt(2), E_y = i/sqrt(2), E_z=0
-        lcp_mode = jnp.array([
-            0.0 + 0.0j,              # Ez
-            (1j / jnp.sqrt(2)),      # Ey = i/sqrt(2)
-            (1.0 / jnp.sqrt(2))      # Ex = 1/sqrt(2)
-        ], dtype=jnp.complex64)
-
-        field = single_angle_illumination(
-            shape=(1, *self.shape),
-            dx=self.spacing,
-            spectrum=self.wavelength,
-            n_medium=self.condenser_n,
-            angle=angle,
-            amplitude=lcp_mode
-        )
-        print("Illumination field:")
-        fig = plot_propagated_field(field)
-        # analyzer
-        M_wave_2x2 = jnp.array([
-            [1.0/jnp.sqrt(2),   -1j/jnp.sqrt(2)],
-            [1j/jnp.sqrt(2),   1.0/jnp.sqrt(2)]
-        ], dtype=jnp.complex64)
-        field = apply_jones_in_wave_basis(
-            field,
-            M_wave_2x2,
-            n_medium=self.condenser_n,
-            spectrum=self.wavelength,
-            angle=angle
-        )
-        print("Analyzed field:")
-        fig = plot_propagated_field(field)
-
-        amp_norm = jnp.abs(field.u).max()
-        print("Final amplitude norm (should be near 0):", amp_norm)
-
-        return field
 
     def single_angle_forward_illum_debug(
         self,
@@ -1391,7 +1412,6 @@ class PolScope(PyTreeNode):
         else:
             return field
 
-
     def forward_debug_minimal_illum_only(self, uc_mode: jnp.ndarray):
         """
         Forward pass that ONLY does illumination across all angles,
@@ -1429,7 +1449,28 @@ class PolScope(PyTreeNode):
 
         return step_incoh_field
 
+    def calculate_precamera_field_spacing(self, width_factor, sample_factor=1):
+        """
+        Compute the new field spacing.
 
+        Parameters:
+        -----------
+        width_factor : float
+            The factor by which the physical width of the field is scaled.
+        sample_factor : float, optional
+            The factor by which the number of samples is scaled (default is 1).
+
+        Returns:
+        --------
+        jnp.array
+            A 1D array with two elements, each equal to the computed new spacing (in microns).
+        """
+        original_dx = self.spacing
+        new_dx = (width_factor * original_dx) / sample_factor
+
+        new_field_dx = jnp.array([new_dx, new_dx])
+        
+        return new_field_dx
 
 # %% Basic output
 scope = PolScope()
@@ -1482,7 +1523,6 @@ print(f"scope_short.kohler_points:\n{scope_short.kohler_points}")
 
 # %%
 field_illum_short = scope_short.forward_debug_minimal_illum_only(uc_mode)
-# %%
 field_illum_short = scope_short.forward_debug(uc_mode)
 
 # %%
@@ -1597,8 +1637,6 @@ field_output_short = scope_short.forward_debug(uc_mode, potential)
 # %%
 field_output_short = scope_short.single_angle_forward_intermediates(uc_mode, potential_bg, jnp.array([-7.5, 0]))
 # %%
-field_output_short = scope_short.single_angle_forward_intermediates(uc_mode, potential_bg, jnp.array([-7.5, 0]))
-# %%
 shape = (64, 64)
 dx = 1.0 / 64
 wavelength = 0.546
@@ -1646,7 +1684,9 @@ for center, field in zip(centers, fields):
     print(f"  Peak intensity   = {peak_intensity:8.5f}")
     print(f"  Integrated power = {total_intensity:8.5f}")
     print()
+
 # %% Small MLA
+# Small MLA
 sample_pixels = 512
 potential_bg = single_bead_sample(
     n_background=1.33,
@@ -1687,7 +1727,7 @@ scope_short = replace(
     condenser_f=focal_length,
     objective_f=focal_length,
     condenser_NA=0.8,
-    condenser_n=1.0,
+    # condenser_n=1.0,
     # objective_NA=0.05,
     spacing=spacing,
     tube_f=focal_length,
@@ -1699,8 +1739,428 @@ scope_short = replace(
     camera_shape=(camera_pixels, camera_pixels),
     camera_pitch=camera_pitch,
 )
-field_output_short = scope_short.single_angle_forward_plot(uc_mode, potential_bg, jnp.array([-35, 32]))
+# field_output_short = scope_short.single_angle_forward_plot(uc_mode, potential_bg, jnp.array([-35, 32]))
 # field_output_short_bg = scope_short.forward_debug(uc_mode, potential_bg)
 # field_output_short = scope_short.single_angle_forward_plot(uc_mode, potential_bg, jnp.array([0, 0]))
 
+# %% Forward chunked
+# Forward chunked
+field = scope_short.single_angle_forward(uc_mode, potential_bg, jnp.array([0, 0]))
+field, camera = scope_short.forward_chunked(uc_mode, potential_bg)
+plt.imshow(camera.squeeze(), cmap='inferno')
+plt.colorbar()
+plt.title(f"Camera Field")
+plt.show()
+
+# %% PolScope images
+# PolScope images
+sample_pixels = 1024
+potential_bg = single_bead_sample(
+    n_background=1.33,
+    n_bead=jnp.array([1.33, 1.33, 1.33]),
+    orientation=jnp.array([jnp.pi / 4, 0, 0]),
+    radius=4.0,
+    shape=(0, sample_pixels, sample_pixels),
+    spacing=0.546 / 4, 
+    k0=2 * jnp.pi / 0.546,
+)[:-1, :-1, :-1, None]
+potential_z = single_bead_sample(
+    n_background=1.33,
+    n_bead=jnp.array([1.45, 1.33, 1.33]),
+    orientation=jnp.array([0, 0, 0]),
+    radius=3.0,
+    shape=(3, sample_pixels, sample_pixels),
+    spacing=0.546 / 4, 
+    k0=2 * jnp.pi / 0.546,
+)[:-1, :-1, :-1, None]
+
+_, images = scope_short(potential_z)
+fig = plot_camera_images(images)
+ret_sample, azim_sample = ret_and_azim_from_intensity(images, swing=scope.swing)
+fig = plot_retardance_azimuth(ret_sample, azim_sample)
+
+
+mask = generate_mla_mask(
+    scope_short.camera_shape, 
+    scope_short.camera_pitch,
+    scope_short.mla_n_y, 
+    scope_short.mla_n_x, 
+    scope_short.mla_separation, 
+    scope_short.mla_radius
+)
+ret_mla = ret_sample.copy()
+azim_mla = azim_sample.copy()
+ret_mla[~mask] = 0
+azim_mla[~mask] = 0
+fig = plot_retardance_azimuth(ret_mla, azim_mla)
+
+# %% PolScope images rerun
+# PolScope images rerun
+sample_pixels = 1024
+potential_bg = single_bead_sample(
+    n_background=1.33,
+    n_bead=jnp.array([1.33, 1.33, 1.33]),
+    orientation=jnp.array([jnp.pi / 4, 0, 0]),
+    radius=3.0,
+    shape=(0, sample_pixels, sample_pixels),
+    spacing=0.546 / 4, 
+    k0=2 * jnp.pi / 0.546,
+)[:-1, :-1, :-1, None]
+potential_z = single_bead_sample(
+    n_background=1.33,
+    n_bead=jnp.array([1.45, 1.33, 1.33]),
+    orientation=jnp.array([0, 0, 0]),
+    radius=3.0,
+    shape=(3, sample_pixels, sample_pixels),
+    spacing=0.546 / 4, 
+    k0=2 * jnp.pi / 0.546,
+)[:-1, :-1, :-1, None]
+
+scope = PolScope()
+uc_mode = universal_compensator_modes(scope.swing)[0]
+wavelength = scope.wavelength
+focal_length = 40
+NA = scope.condenser_NA
+n = scope.condenser_n
+diam_um = 2 * focal_length * jnp.tan(jnp.arcsin(NA / n))
+res_factor = 2
+shape_len = 128 * res_factor * 2
+spacing = wavelength / 2 / res_factor
+pupil_field_width_um = shape_len * spacing
+assert pupil_field_width_um >= diam_um, f"pupil_field_width_um ({pupil_field_width_um:.2f} um) must be >= diam_um ({diam_um:.2f} um)"
+mag = 20
+mla_f = scope.mla_f / mag
+mla_f = 2
+mla_radius = scope.mla_radius / mag
+mla_separation = scope.mla_separation / mag
+mla_n_y = 1 #scope.mla_n_y
+mla_n_x = 1 #scope.mla_n_x
+camera_pitch = spacing
+camera_pixels = int(jnp.ceil(mla_n_x * mla_radius * 2 / camera_pitch))
+scope_short = replace(
+    scope,
+    num_angles=2,
+    shape=(shape_len, shape_len),
+    condenser_f=focal_length,
+    objective_f=focal_length,
+    condenser_NA=0.8,
+    # condenser_n=1.0,
+    # objective_NA=0.05,
+    spacing=spacing,
+    tube_f=focal_length,
+    mla_f=mla_f,
+    mla_radius=mla_radius,
+    mla_separation=mla_separation,
+    mla_n_y=mla_n_y,
+    mla_n_x=mla_n_x,
+    camera_shape=(camera_pixels, camera_pixels),
+    camera_pitch=camera_pitch,
+)
+
+_, images = scope_short(potential_z)
+fig = plot_camera_images(images)
+
+# field, camera = scope_short.forward_chunked(uc_mode, potential_z)
+# plt.imshow(camera.squeeze(), cmap='inferno')
+# plt.colorbar()
+# plt.title(f"Camera Field")
+# plt.show()
+
+# %% Confirming analyzer after condenser
+# Confirming analyzer after condenser
+scope = PolScope()
+uc_mode = universal_compensator_modes(scope.swing)[0]
+wavelength = scope.wavelength
+focal_length = 40
+NA = scope.condenser_NA
+n = scope.condenser_n
+diam_um = 2 * focal_length * jnp.tan(jnp.arcsin(NA / n))
+res_factor = 2
+shape_len = 128 * res_factor * 2
+spacing = wavelength / 2 / res_factor
+pupil_field_width_um = shape_len * spacing
+assert pupil_field_width_um >= diam_um, f"pupil_field_width_um ({pupil_field_width_um:.2f} um) must be >= diam_um ({diam_um:.2f} um)"
+mag = 20
+mla_f = scope.mla_f / mag
+mla_f = 2
+mla_radius = scope.mla_radius / mag
+mla_separation = scope.mla_separation / mag
+mla_n_y = 3 #scope.mla_n_y
+mla_n_x = 3 #scope.mla_n_x
+camera_pitch = spacing
+camera_pixels = int(jnp.ceil(mla_n_x * mla_radius * 2 / camera_pitch))
+scope_short = replace(
+    scope,
+    num_angles=2,
+    shape=(shape_len, shape_len),
+    condenser_f=focal_length,
+    objective_f=focal_length,
+    condenser_NA=0.8,
+    # condenser_n=1.0,
+    # objective_NA=0.05,
+    spacing=spacing,
+    tube_f=focal_length,
+    mla_f=mla_f,
+    mla_radius=mla_radius,
+    mla_separation=mla_separation,
+    mla_n_y=mla_n_y,
+    mla_n_x=mla_n_x,
+    camera_shape=(camera_pixels, camera_pixels),
+    camera_pitch=camera_pitch,
+)
+kohler_pt = jnp.array([0, 0])
+kohler_pt = jnp.array([-9, 3])
+polarization = uc_mode
+# polarization = jnp.array([0.0, 0.0, 1.0], dtype=jnp.complex64)
+field_output_short = scope_short.single_angle_illum_analyzer(polarization, kohler_pt)
+# %%
+s_hat = jnp.array([-0.707, -0.707])
+p_hat = jnp.array([0.674, 0.674])
+k_hat = jnp.array([0.214, -0.214])
+# Check orthogonality and sign
+print("dot(k_hat, s_hat) =", jnp.dot(k_hat, s_hat))
+print("dot(k_hat, p_hat) =", jnp.dot(k_hat, p_hat))
+print("dot(s_hat, p_hat) =", jnp.dot(s_hat, p_hat))
+
+def convert_xy_matrix_to_sp_basis(
+    M_circ_xy: jnp.ndarray,
+    s_hat_xy: jnp.ndarray,
+    p_hat_xy: jnp.ndarray
+) -> jnp.ndarray:
+    """
+    Convert a 2x2 Jones matrix from the (x,y) basis to the (s,p) basis.
+
+    Parameters
+    ----------
+    M_circ_xy : jnp.ndarray, shape (2,2)
+        The polarizer (or retarder) matrix in the {x,y} basis.
+    s_hat_xy : jnp.ndarray, shape (2,)
+        The s-hat unit vector expressed in the {x,y} lab coordinates.
+    p_hat_xy : jnp.ndarray, shape (2,)
+        The p-hat unit vector expressed in the {x,y} lab coordinates.
+
+    Returns
+    -------
+    M_circ_sp : jnp.ndarray, shape (2,2)
+        The same polarizer, but in the {s,p} basis.
+    """
+    # Build transformation from (s,p) -> (x,y)
+    # Each column is how s-hat or p-hat is represented in the (x,y) basis.
+    T_sp_to_xy = jnp.column_stack((s_hat_xy, p_hat_xy))
+    
+    # For an orthonormal basis, the inverse is just the conjugate transpose:
+    # but let's do a full matrix inverse in case there's a small numerical mismatch.
+    T_xy_to_sp = jnp.linalg.inv(T_sp_to_xy)
+    
+    # Now do the basis change:
+    # M_{sp} = T_{xy->sp} * M_{xy} * T_{sp->xy}
+    M_circ_sp = T_xy_to_sp @ M_circ_xy @ T_sp_to_xy
+    return M_circ_sp
+
+def example_usage():
+    # 1) Your circular polarizer in the {x,y} basis:
+    M_circ_xy = jnp.array([
+        [1.0/jnp.sqrt(2),    1j/jnp.sqrt(2)],
+        [-1j/jnp.sqrt(2),      1.0/jnp.sqrt(2)]
+    ], dtype=jnp.complex64)
+
+    k_hat_3d = jnp.array([0.07297562, -0.2189269, 0.9730085], dtype=jnp.float32)
+    s_hat_xy, p_hat_xy = calc_sp_xy_from_k_hat(k_hat_3d)
+    print("s_hat_xy =", s_hat_xy)
+    print("p_hat_xy =", p_hat_xy)
+    
+    # 3) Convert the circular polarizer to the (s,p) basis.
+    M_circ_sp = convert_xy_matrix_to_sp_basis(M_circ_xy, s_hat_xy, p_hat_xy)
+    
+    print("M_circ_xy (original, in x-y basis):\n", M_circ_xy)
+    print("M_circ_sp (converted to s-p basis):\n", M_circ_sp)
+
+# %%
+def calc_sp_xy_from_k_hat(
+    k_hat_3d: jnp.ndarray,
+    reference_axis_3d: jnp.ndarray = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32),
+    eps: float = 1e-12
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """
+    Given a 3D unit vector k_hat_3d (wave direction in {x,y,z}),
+    compute the 2D vectors (s_hat_xy, p_hat_xy) in the {x,y} lab basis.
+
+    Steps:
+      1) Ensure k_hat_3d is normalized.
+      2) s_hat_3d = (k_hat x ref) / ||k_hat x ref||
+      3) p_hat_3d = k_hat x s_hat_3d
+      4) Extract the x,y components => s_hat_xy, p_hat_xy
+
+    Parameters
+    ----------
+    k_hat_3d : jnp.ndarray, shape (3,)
+        The wave direction in {x,y,z}, not necessarily normalized.
+    reference_axis_3d : jnp.ndarray, shape (3,)
+        A fallback or reference axis in {x,y,z}, default [0,0,1].
+        This should not be parallel to k_hat_3d.
+    eps : float
+        Tolerance for near-zero cross products.
+
+    Returns
+    -------
+    s_hat_xy, p_hat_xy : jnp.ndarray, shape (2,)
+        The s and p unit vectors in the {x,y} plane.
+    """
+    # 1) Normalize k_hat
+    norm_k = jnp.linalg.norm(k_hat_3d)
+    def zero_k():
+        # degenerate case: k_hat is zero (or extremely small)
+        return jnp.array([0., 0., 0.], dtype=k_hat_3d.dtype)
+    def nonzero_k():
+        return k_hat_3d / norm_k
+    k_hat_3d = jax.lax.cond(norm_k < eps, zero_k, nonzero_k)
+
+    # 2) Cross with the reference axis to get s_hat
+    cross_vec = jnp.cross(k_hat_3d, reference_axis_3d)
+    norm_cross = jnp.linalg.norm(cross_vec)
+    def zero_cross():
+        # If cross is zero => reference_axis was parallel or near-parallel
+        # For fallback, pick any direction orthonormal to k_hat
+        # e.g. cross with [1,0,0] or [0,1,0], etc.
+        alt_axis = jnp.array([1., 0., 0.], dtype=k_hat_3d.dtype)
+        cross_alt = jnp.cross(k_hat_3d, alt_axis)
+        norm_alt = jnp.linalg.norm(cross_alt)
+        return jax.lax.cond(norm_alt < eps,
+                            lambda: jnp.array([0., 0., 0.], dtype=k_hat_3d.dtype),
+                            lambda: cross_alt / norm_alt)
+    def nonzero_cross():
+        return cross_vec / norm_cross
+    s_hat_3d = jax.lax.cond(norm_cross < eps, zero_cross, nonzero_cross)
+
+    # 3) Compute p_hat = k_hat x s_hat
+    p_vec = jnp.cross(k_hat_3d, s_hat_3d)
+    norm_p = jnp.linalg.norm(p_vec)
+    def zero_p():
+        # degenerate: s_hat was parallel to k_hat
+        return jnp.zeros_like(p_vec)
+    def nonzero_p():
+        return p_vec / norm_p
+    p_hat_3d = jax.lax.cond(norm_p < eps, zero_p, nonzero_p)
+
+    # 4) Extract x,y components => shape (2,)
+    # We assume the first element is x, second is y, third is z in your code base.
+    # Adjust if your code stores them in a different order.
+    s_hat_xy = s_hat_3d[:2]  # (s_x, s_y)
+    p_hat_xy = p_hat_3d[:2]  # (p_x, p_y)
+
+    # (Optional) Re-normalize in 2D, in case there's a small z-component we removed
+    norm_s2d = jnp.linalg.norm(s_hat_xy)
+    norm_p2d = jnp.linalg.norm(p_hat_xy)
+    s_hat_xy = jax.lax.cond(norm_s2d > eps, lambda: s_hat_xy / norm_s2d, lambda: s_hat_xy)
+    p_hat_xy = jax.lax.cond(norm_p2d > eps, lambda: p_hat_xy / norm_p2d, lambda: p_hat_xy)
+
+    return s_hat_xy, p_hat_xy
+
+
+# %% Save camera images
+def save_camera_image(camera, filename):
+    """
+    Save a JAX array as an image using plt.imshow with the 'inferno' colormap,
+    but without ticks, borders, a title, or a colorbar.
+    
+    Parameters:
+        camera (jax.numpy.DeviceArray): The JAX array to display.
+        filename (str): The path (and name) of the file to save the image.
+    """
+    # Create a new figure and axis without frame.
+    fig, ax = plt.subplots(frameon=False)
+    
+    max_plot = camera.max() / 4
+    ax.imshow(camera.squeeze(), vmin=0, vmax=max_plot, cmap='inferno')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.axis('off')
+    ax.set_title('')
+    
+    # Save the figure with tight layout and no extra padding.
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+def save_jax_array(camera, filename):
+    """
+    Save a JAX array to a file so it can be loaded later.
+    
+    Parameters:
+        camera (jax.numpy.DeviceArray): The JAX array to save.
+        filename (str): The file path to save the array (e.g., 'array.npy').
+    """
+    # Convert the JAX DeviceArray to a NumPy array and save it.
+    np_array = np.array(camera)
+    np.save(filename, np_array)
+# %%
+save_camera_image(camera_tilt, os.path.join(SAVE_DIR, "potential_tilt_y"))
+save_camera_image(camera_tilt_xy, os.path.join(SAVE_DIR, "potential_tilt_xy"))
+save_jax_array(camera, os.path.join(SAVE_DIR, "potential_z"))
+save_jax_array(camera_tilt, os.path.join(SAVE_DIR, "potential_tilt_y"))
+save_jax_array(camera_tilt_xy, os.path.join(SAVE_DIR, "potential_tilt_xy"))
+
+# %% Plot propagated field at higher contrast
+
+def plot_propagated_field_high_contrast(field, title=None, vmin=None, vmax=None, presquared=False):
+    """Plots the intensity and the x, y, z components of the field amplitude."""
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    if title is not None:
+        fig.suptitle(title, fontsize=16)
+    
+    # Plot intensity
+    intensity_data = field.intensity.squeeze()
+    if intensity_data.size == 1:
+        intensity_data = np.array([[intensity_data]])
+    if vmin is None:
+        vmin = 0
+    if vmax is None:
+        vmax = intensity_data.max()
+    else:
+        vmax_intensity = vmax ** 2
+    im_intensity = axes[0].imshow(intensity_data, vmin=vmin, vmax=vmax_intensity, cmap='inferno')
+    axes[0].set_title("Intensity", fontsize=14)
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
+    fig.colorbar(im_intensity, ax=axes[0], fraction=0.046, pad=0.04)
+
+
+    # Standard case with [batch, z, y, x, component]
+    if presquared:
+        data_ex = field.amplitude[0, :, :, 0, 2].squeeze()
+        data_ey = field.amplitude[0, :, :, 0, 1].squeeze()
+        data_ez = field.amplitude[0, :, :, 0, 0].squeeze()
+    else:
+        data_ex = field.amplitude[0, :, :, 0, 2].squeeze() ** 2
+        data_ey = field.amplitude[0, :, :, 0, 1].squeeze() ** 2
+        data_ez = field.amplitude[0, :, :, 0, 0].squeeze() ** 2
+
+    if vmin is None:
+        vmin = min(data_ex.min(), data_ey.min(), data_ez.min())
+    if vmax is None:
+        vmax = max(data_ex.max(), data_ey.max(), data_ez.max())
+    
+    # Plot each electric field component
+    im_ex = axes[1].imshow(data_ex, vmin=vmin, vmax=vmax, cmap='inferno')
+    axes[1].set_title("$|E_x|^2$", fontsize=14)
+    axes[1].set_xticks([])
+    axes[1].set_yticks([])
+
+    im_ey = axes[2].imshow(data_ey, vmin=vmin, vmax=vmax, cmap='inferno')
+    axes[2].set_title("$|E_y|^2$", fontsize=14)
+    axes[2].set_xticks([])
+    axes[2].set_yticks([])
+
+    im_ez = axes[3].imshow(data_ez, vmin=vmin, vmax=vmax, cmap='inferno')
+    axes[3].set_title("$|E_z|^2$", fontsize=14)
+    axes[3].set_xticks([])
+    axes[3].set_yticks([])
+
+    # Add a common colorbar
+    fig.subplots_adjust(right=0.9)
+    pos = axes[1].get_position()
+    cbar_ax = fig.add_axes([0.92, pos.y0, 0.01, pos.height])
+    fig.colorbar(im_ex, cax=cbar_ax)
+    
+    plt.show()
+    return fig
 # %%
