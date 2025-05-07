@@ -97,8 +97,6 @@ def single_bead_sample(
         4D array of shape (*shape, 3, 3) representing the sample. Each point
         in the 3D volume contains a 3x3 matrix representing the difference
         between the permittivity tensor of the bead and the background.
-
-
     """
     # Making grid and mask
     spacing = spacing / antialiasing
@@ -116,6 +114,86 @@ def single_bead_sample(
     )
 
     return reduce(permitivitty, "(z nz) (y ny) (x nx) ni no -> z y x ni no", nz=antialiasing, ny=antialiasing, nx=antialiasing, reduction="mean")
+
+
+def multi_bead_sample(n_background: float, 
+                      beads: list,  # list of dictionaries for each bead
+                      shape: tuple, 
+                      spacing: float, 
+                      k0: float, 
+                      antialiasing: int = 1):
+    """
+    Generate a sample containing multiple beads in a background medium.
+    
+    Parameters
+    ----------
+    n_background : float
+        Refractive index of the background medium.
+    beads : list of dict
+        Each dict should contain:
+          - "n_bead": ArrayLike of length 3 for the bead's refractive indices.
+          - "orientation": ArrayLike of length 3 for the bead's rotation angles (radians).
+          - "radius": float specifying the bead's radius.
+          - "position": tuple or list of length 3 specifying the bead's center (in grid units).
+    shape : tuple
+        3-tuple specifying the shape of the sample volume (z, y, x).
+    spacing : float
+        Grid spacing in the sample volume.
+    k0 : float
+        Wavenumber in vacuum.
+    antialiasing : int, optional
+        Factor for antialiasing (default is 1).
+        
+    Returns
+    -------
+    Array
+        4D array of shape (*shape, 3, 3) representing the sample. Each point
+        in the 3D volume contains a 3x3 matrix representing the difference
+        between the permittivity tensor of the bead(s) and the background.
+    """
+    # Adjust spacing for antialiasing.
+    spacing = spacing / antialiasing
+
+    # Create the high-resolution grid.
+    grid = jnp.mgrid[: antialiasing * shape[0],
+                      : antialiasing * shape[1],
+                      : antialiasing * shape[2]]
+    # Center the grid (this is our reference for positions).
+    grid = grid - jnp.mean(grid, axis=(1, 2, 3), keepdims=True)
+
+    # Initialize the sample with zeros.
+    sample = jnp.zeros((*shape, 3, 3))
+    # Define the background permittivity tensor.
+    background_permittivity = jnp.eye(3) * n_background**2
+
+    # Loop over each bead to add its contribution.
+    for bead in beads:
+        # Extract bead parameters.
+        n_bead = bead["n_bead"]
+        orientation = bead["orientation"]
+        radius = bead["radius"]
+        position = jnp.array(bead["position"])  # Expected to be in same units as grid
+
+        # Shift the grid by the bead's center.
+        # Note: We need to reshape position to broadcast properly over grid dimensions.
+        pos_reshaped = position[:, None, None, None]
+        grid_shifted = grid - pos_reshaped
+
+        # Create the spherical mask for this bead.
+        mask = jnp.sum(grid_shifted**2, axis=0) < (radius / spacing)**2
+
+        # Compute the bead's permittivity tensor.
+        bead_permittivity = R(*orientation).T @ jnp.diag(jnp.array(n_bead)**2) @ R(*orientation)
+        
+        # Compute the bead's contribution.
+        contribution = k0**2 * jnp.where(mask[..., None, None], background_permittivity - bead_permittivity, 0)
+
+        # Add the contribution to the sample.
+        sample = sample + reduce(contribution,
+                                 "(z nz) (y ny) (x nx) ni no -> z y x ni no",
+                                 nz=antialiasing, ny=antialiasing, nx=antialiasing,
+                                 reduction="mean")
+    return sample
 
 
 
@@ -154,7 +232,7 @@ def paper_sample() -> Array:
     # Adding each bead
     for pos, orientation in zip(bead_pos, rotation):
         # Making bead and background
-        bead_permitivitty = R(*orientation, inv=True).T @ jnp.diag(n_bead**2) @ R(*orientation, inv=True)
+        bead_permitivitty = R(*orientation).T @ jnp.diag(n_bead**2) @ R(*orientation)
         background_permitivitty = jnp.eye(3) * n_background**2
 
         # Mask

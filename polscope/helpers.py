@@ -564,8 +564,6 @@ def apply_jones_in_wave_basis(field, M_wave_2x2, n_medium, spectrum, angle):
     k_vec, k_mag, k_hat = wavevector_from_angle(n_medium, spectrum, angle)
     #  -> k_vec is typically shape (3,) in your (z, y, x) ordering
 
-    print(f"k_vec: {k_vec}")
-
     # Convert the 2x2 wave-basis matrix into a 3x3 lab-basis matrix
     M_lab_3x3 = jones_matrix_wave_to_lab(M_wave_2x2, k_vec, reference_axis_lab=jnp.array([1, 0, 0]))
 
@@ -636,7 +634,7 @@ def wavevector_from_angle(
 def jones_matrix_wave_to_lab(
     M_wave_2x2: jnp.ndarray,
     k_lab: jnp.ndarray,
-    reference_axis_lab: jnp.ndarray = jnp.array([1.0, 0.0, 0.0], dtype=jnp.float64),
+    reference_axis_lab: jnp.ndarray = jnp.array([1.0, 0.0, 0.0]),
     fallback_axes_lab: jnp.ndarray = None,
     tol: float = 1e-12,
     high_precision: bool = False,
@@ -727,7 +725,7 @@ def jones_matrix_wave_to_lab(
     # 2. Choose s_hat among reference/fallback
     # ------------------------
     # Cross with each candidate
-    fix_ordering = False
+    fix_ordering = True
     if fix_ordering:
         # Convert reference_and_fallback from [z,y,x] -> [x,y,z]
         ref_and_fallback_xyz = jax.vmap(zyx_to_xyz)(ref_and_fallback)
@@ -764,21 +762,26 @@ def jones_matrix_wave_to_lab(
     p_hat_xyz = jax.lax.cond(p_norm > tol, has_nonzero_p, zero_p)  # float64[3]
 
     if debug:
-        print("k_hat =", k_hat)            # e.g. [kx, ky, kz] in your final convention
         print("s_hat =", s_hat_xyz)
         print("p_hat =", p_hat_xyz)
+        print("k_hat =", k_hat)
+        cross_sp = jnp.cross(s_hat_xyz, p_hat_xyz)
+        print("cross(s_hat, p_hat) =", cross_sp, "should be parallel to k_hat")
 
-        # Check orthogonality & right-handedness:
+        # Check orthogonality and sign
         print("dot(k_hat, s_hat) =", jnp.dot(k_hat, s_hat_xyz))
         print("dot(k_hat, p_hat) =", jnp.dot(k_hat, p_hat_xyz))
         print("dot(s_hat, p_hat) =", jnp.dot(s_hat_xyz, p_hat_xyz))
 
-    # Also check the sign of cross(s_hat, p_hat):
-    cross_sp = jnp.cross(s_hat_xyz, p_hat_xyz)
+        # If you want to force s-hat first, p-hat second, you can also check:
+        assert jnp.abs(jnp.dot(k_hat, s_hat_xyz)) < 1e-6, "k and s not orthogonal!"
+        assert jnp.abs(jnp.dot(k_hat, p_hat_xyz)) < 1e-6, "k and p not orthogonal!"
+        assert jnp.abs(jnp.dot(s_hat_xyz, p_hat_xyz)) < 1e-6, "s and p not orthogonal!"
+        cross_sp_norm = jnp.linalg.norm(cross_sp)
+        dot_with_k = jnp.dot(cross_sp / cross_sp_norm, k_hat)
+        assert dot_with_k > 0.99, "s x p doesn't match k"
 
-    if debug:
-        print("cross(s_hat, p_hat) =", cross_sp, "  (should line up with k_hat)")
-    # ------------------------
+
     # 4. Build W in (x,y,z): columns = [s_hat, p_hat, k_hat]
     # ------------------------
     W_xyz = jnp.column_stack([s_hat_xyz, p_hat_xyz, k_hat])  # shape (3,3), float64
@@ -787,7 +790,6 @@ def jones_matrix_wave_to_lab(
     # 5. Embed M_wave_2x2 in 3×3
     # ------------------------
     # Build a 3×3 identity, then fill the top-left block with M_wave_2x2
-    # We assume M_wave_2x2 is already complex128 or we cast it.
     M_wave_2x2_cplx = M_wave_2x2.astype(dtype_complex)
     M_wave_3x3 = jnp.eye(3, dtype=dtype_complex)
     M_wave_3x3 = M_wave_3x3.at[0:2, 0:2].set(M_wave_2x2_cplx)

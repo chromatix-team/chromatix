@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 from typing import Optional, Union, Tuple
 
-from permittivity_tensors import (
+from .permittivity_tensors import (
     permittivity_from_vector,
     calc_scattering_potential_unscaled,
 )

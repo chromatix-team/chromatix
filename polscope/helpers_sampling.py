@@ -419,6 +419,8 @@ def generate_kohler_2d_points(num_angles: int, NA: float, n: float, overshoot_fa
     """
     # Generate angles within the cone
     angles_in_cone = fibonacci_cone_sampling(num_angles, NA, n, overshoot_factor, rng)
+
+    # angles_in_cone = ring_at_largest_na(num_angles, NA, n)
     
     # Convert (theta, phi) to (x, y) projections
     theta_vals = angles_in_cone[:, 0]
@@ -433,8 +435,38 @@ def generate_kohler_2d_points(num_angles: int, NA: float, n: float, overshoot_fa
     
     return points_2d
 
+def test_kohler_2d_points():
+    # Example parameters
+    NA = 1.4
+    n = 1.5
+    num_angles = 1000
+    
+    rng = jax.random.PRNGKey(0)
+    points_2d = generate_kohler_2d_points(num_angles, NA, n, rng=rng)
+    
+    # Compute radius of each point from origin
+    radii = jnp.sqrt(jnp.sum(points_2d**2, axis=1))
+    
+    # Check maximum radius
+    max_radius = jnp.max(radii)
+    allowed_radius = NA / n
+    print(f"Max radius = {max_radius:.6f}")
+    print(f"Allowed disk radius = {allowed_radius:.6f}")
+    
+    # Print min and max values among all coordinates of the points
+    min_val = jnp.min(points_2d)
+    max_val = jnp.max(points_2d)
+    print(f"Minimum coordinate value = {min_val:.6f}")
+    print(f"Maximum coordinate value = {max_val:.6f}")
+    
+    # Assertion to ensure all points lie within the allowed disk
+    assert max_radius <= allowed_radius + 1e-7, \
+        f"Points exceed the disk radius (max {max_radius:.6f} vs. allowed {allowed_radius:.6f})."
+    print("All points lie within the disk of radius NA/n.")
+
+
 # %%
 if __name__ == "__main__":
     fig = visualize_kohler_illumination_side_by_side(num_angles=400, NA=0.8, n=1.0, overshoot_factor=5)
-    fig.savefig("kohler_illumination_distribution.png", dpi=300)
+    fig.savefig("kohler_illumination_distribution.png", dpi=300, transparent=True, bbox_inches='tight')
 # %%

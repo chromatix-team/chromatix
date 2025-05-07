@@ -74,7 +74,7 @@ class PolScope(PyTreeNode):
 
         # sample - we have some power gain, we should probably renormalise?
         field = thick_polarised_sample(
-            field, potential, 1.33, self.spacing, NA=self.objective_NA
+            field, potential, 1.52, self.spacing, NA=self.objective_NA
         )
 
         # propagation over - half / sample as imaging is focused in center of sample
@@ -130,9 +130,9 @@ scope = PolScope()
 
 potential = single_bead_sample(
     1.52,
-    jnp.array([1.5, 1.54, 1.54]),
+    jnp.array([1.54, 1.52, 1.52]),
     jnp.array([0, 1/4 * jnp.pi, 0]),
-    radius=10.0,
+    radius=5.0,
     shape=(256, 256, 256),
     spacing=0.546 / 2,
     k0=2 * jnp.pi / 0.546,
@@ -144,7 +144,8 @@ field, image = scope.forward(
 )
 
 # %% Plotting
-plt.figure(figsize=(20, 8))
+fig = plt.figure(figsize=(20, 8), layout="tight")
+fig.suptitle("Propagated Field")
 plt.subplot(141)
 plt.title("Intensity")
 plt.imshow(field.intensity.squeeze())
@@ -167,27 +168,23 @@ plt.subplot(144)
 plt.title("Ez")
 plt.imshow(field.amplitude[0, :, :, 0, 0].squeeze())
 plt.colorbar(fraction=0.046, pad=0.04)
+plt.show()
+
 
 # %%
 _, images = scope(potential)
 
 # %%
-plt.figure(figsize=(15, 10), layout="tight")
-plt.subplot(231)
-plt.imshow(images[0])
+fig = plt.figure(figsize=(25, 5), layout="tight")
+fig.suptitle("Camera Images")
+for i in range(5):
+    plt.subplot(151 + i)
+    plt.imshow(images[i], cmap="gray")
+    plt.xticks([])
+    plt.yticks([])
+    # plt.title(f"$\Sigma_{i+1}$", fontsize=24)
 
-plt.subplot(232)
-plt.imshow(images[1])
-
-plt.subplot(233)
-plt.imshow(images[2])
-
-plt.subplot(234)
-plt.imshow(images[3])
-
-plt.subplot(235)
-plt.imshow(images[4])
-
+plt.show(block=True)
 
 # %%
 def ret_and_azim_from_intensity(image_list, swing):
@@ -224,16 +221,21 @@ def ret_and_azim_from_intensity(image_list, swing):
 ret, azim = ret_and_azim_from_intensity(images, swing=scope.swing)
 # %%
 
-plt.figure(figsize=(10, 5))
+fig = plt.figure(figsize=(10, 5), layout="tight")
 plt.subplot(121)
-plt.title("retardance")
-plt.imshow(ret)
+plt.title("Retardance")
+plt.imshow(ret, cmap="viridis")
 plt.colorbar(fraction=0.046, pad=0.04)
+plt.xticks([])
+plt.yticks([])
 
 plt.subplot(122)
 plt.title("Azimuth")
-plt.imshow(azim)
+plt.imshow(azim, cmap="twilight")
 plt.colorbar(fraction=0.046, pad=0.04)
+plt.xticks([])
+plt.yticks([])
+plt.show(block=True)
 # %% Blocking everything outside
 amplitude, phase = rectangular_microlens_array_amplitude_and_phase(
         (240, 240),
@@ -248,4 +250,48 @@ amplitude, phase = rectangular_microlens_array_amplitude_and_phase(
     )
 mask = amplitude > 0.0
 
-# %%
+# %% Masking
+N = scope.camera_shape[0]  #scope.shape[0]
+s = scope.camera_pitch   #scope.spacing
+num_lenses_height = scope.mla_n_y
+num_lenses_width = scope.mla_n_x
+separation = scope.mla_separation
+r = scope.mla_radius
+
+# camera coordinates
+det_coord = np.linspace(-N*s/2, N*s/2, N) + s/2
+XX, YY = np.meshgrid(det_coord, det_coord)
+
+# MLA coordinates
+unit_coordinates = np.meshgrid(
+        np.arange(num_lenses_height) - num_lenses_height // 2,
+        np.arange(num_lenses_width) - num_lenses_width // 2,
+        indexing="ij",
+    )
+unit_coordinates = np.array(unit_coordinates).reshape(2, num_lenses_height * num_lenses_width)
+x_mla, y_mla = unit_coordinates * separation
+
+# make the mask - this takes a few seconds
+mask = np.zeros(ret.shape, dtype=bool)
+for xc in x_mla:
+    for yc in y_mla:
+        mask[np.where((XX-xc)**2 + (YY-yc)**2 < (r/2)**2)] = 1
+
+
+#######################
+ret_mla = ret.copy()
+azim_mla = azim.copy()
+ret_mla[~mask] = 0
+azim_mla[~mask] = 0
+fig, ax = plt.subplots(1, 3, figsize=[12,3], dpi=300)
+ax[0].set_title('mask')
+m = ax[0].imshow(mask)
+fig.colorbar(m, ax=ax[0])
+ax[1].set_title('masked retardance')
+m = ax[1].imshow(ret_mla)
+fig.colorbar(m, ax=ax[1])
+ax[2].set_title('masked azimuth')
+m = ax[2].imshow(azim_mla)
+fig.colorbar(m, ax=ax[2])
+fig.tight_layout()
+plt.show()

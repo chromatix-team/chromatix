@@ -2,6 +2,7 @@ import numpy as np
 from jax import Array
 from jax import numpy as jnp
 from jax.lax import scan
+from jax.lax import fori_loop
 from jax.typing import ArrayLike
 
 import chromatix.functional as cf
@@ -88,6 +89,11 @@ def thick_polarised_sample(
         jnp.sum(k_grid[1:, ..., None] ** 2, axis=0) <= NA**2 * km**2, Q, 0
     )  # Limit NA
 
-    # Running scan over sample
-    u, intermediates = scan(propagate_slice, field.u, potential)
-    return field.replace(u=u)
+    # Use lax.fori_loop instead of scan to avoid accumulating intermediates.
+    def body_fun(i, u):
+        new_field, _ = propagate_slice(u, potential[i])
+        return new_field
+
+    num_slices = potential.shape[0]
+    u_final = fori_loop(0, num_slices, body_fun, field.u)
+    return field.replace(u=u_final)
