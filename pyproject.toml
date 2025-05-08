@@ -10,12 +10,24 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
+    "equinox>=0.11.12",
     "jax[cuda12]==0.5.3",
- "einops >= 0.6.0",
- "flax >= 0.6.3",
- "chex>=0.1.5",
- "optax >=0.1.4",
- "scipy >= 1.10.0",
+    "nvidia-cublas-cu12==12.8.4.1",
+    "nvidia-cuda-cupti-cu12==12.8.90",
+    "nvidia-cuda-nvcc-cu12==12.8.93",
+    "nvidia-cuda-runtime-cu12==12.8.90",
+    "nvidia-cudnn-cu12==9.8.0.87",
+    "nvidia-cufft-cu12==11.3.3.83",
+    "nvidia-cusolver-cu12==11.7.3.90",
+    "nvidia-cusparse-cu12==12.5.8.93",
+    "nvidia-nccl-cu12==2.26.2",
+    "nvidia-nvjitlink-cu12==12.8.93",
+    "optimistix>=0.0.10",
+    "einops >= 0.6.0",
+    "flax >= 0.6.3",
+    "chex>=0.1.5",
+    "optax >=0.1.4",
+    "scipy >= 1.10.0",
 ]
 version = "0.3.0"
 
@@ -35,8 +47,6 @@ extend-select = ["I"]
 
 [dependency-groups]
 dev = [
-    "equinox>=0.12.1",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.1",
-    "optimistix>=0.0.10",
 ]
