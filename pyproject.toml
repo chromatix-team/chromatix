@@ -7,9 +7,16 @@ name = "chromatix"
 authors = [{name = "Chromatix Team"}]
 description = "Differentiable wave optics library using JAX"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {text = "MIT"}
-dependencies = ["jax >= 0.4.1", "einops >= 0.6.0", "flax >= 0.6.3", "chex>=0.1.5", "optax >=0.1.4", "scipy >= 1.10.0"]
+dependencies = [
+    "jax[cuda12]==0.5.3",
+ "einops >= 0.6.0",
+ "flax >= 0.6.3",
+ "chex>=0.1.5",
+ "optax >=0.1.4",
+ "scipy >= 1.10.0",
+]
 version = "0.3.0"
 
 [project.optional-dependencies]
@@ -17,7 +24,7 @@ dev = ["mypy>= 0.991", "pytest>=7.2.0", "ruff >= 0.4.8"]
 docs = ["mkdocs >= 1.4.2", "mkdocs-material >= 9.0.6", "mkdocstrings-python >= 0.8.3", "mkdocs-jupyter"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 ignore = ["E402"]
@@ -25,3 +32,11 @@ extend-select = ["I"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
+
+[dependency-groups]
+dev = [
+    "equinox>=0.12.1",
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.10.1",
+    "optimistix>=0.0.10",
+]
