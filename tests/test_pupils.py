@@ -5,7 +5,7 @@ from chromatix.functional.sources import plane_wave
 
 
 def test_circular_pupil():
-    field = plane_wave((512, 512), 1.0, 0.532, 1.0)
+    field = plane_wave((512, 512), 1.0, 0.532, 1.0, power=1.0)
 
     w = 100
     field = circular_pupil(field, w)
@@ -16,7 +16,7 @@ def test_circular_pupil():
 
 
 def test_square_pupil():
-    field = plane_wave((512, 512), 1.0, 0.532, 1.0)
+    field = plane_wave((512, 512), 1.0, 0.532, 1.0, power=1.0)
 
     w = 100
     field = square_pupil(field, w)

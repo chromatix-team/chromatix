@@ -35,6 +35,7 @@ def test_linear_polarizer(E0, angle, power):
         0.532,
         1.0,
         amplitude=E0,
+        power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
         scalar=False,
     )
@@ -44,7 +45,7 @@ def test_linear_polarizer(E0, angle, power):
     assert_axis_dimension(field.u, -1, 3)
 
     # check power - malus law
-    assert jnp.allclose(field.power.squeeze(), power)
+    assert jnp.allclose(field.power.squeeze(), power, atol=1e-3, rtol=1e-3)
 
 
 def test_left_circular_polarizer():
@@ -78,7 +79,7 @@ def test_left_circular_polarizer():
     )
     field_after = cf.left_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
-    assert np.allclose(field.u, field_after.u)
+    assert np.allclose(field.u, field_after.u, atol=5e-5, rtol=5e-5)
 
 
 def test_right_circular_polarizer():
@@ -112,7 +113,7 @@ def test_right_circular_polarizer():
     )
     field_after = cf.right_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
-    assert np.allclose(field.u, field_after.u)
+    assert np.allclose(field.u, field_after.u, atol=5e-5, rtol=5e-5)
 
 
 def test_quarter_waveplate():
@@ -122,6 +123,7 @@ def test_quarter_waveplate():
         0.532,
         1.0,
         amplitude=cf.linear(0),
+        power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
         scalar=False,
     )

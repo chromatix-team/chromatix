@@ -68,7 +68,9 @@ def point_source(
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def objective_point_source(
@@ -80,7 +82,7 @@ def objective_point_source(
     f: float,
     n: float,
     NA: float,
-    power: float = 1.0,
+    power: Optional[float] = None,
     amplitude: Union[float, Array] = 1.0,
     offset: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     scalar: bool = True,
@@ -121,7 +123,9 @@ def objective_point_source(
     field = field.replace(u=u)
     D = 2 * f * NA / n
     field = circular_pupil(field, D)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def plane_wave(
@@ -129,7 +133,7 @@ def plane_wave(
     dx: Union[float, Array],
     spectrum: Union[float, Array],
     spectral_density: Union[float, Array],
-    power: float = 1.0,
+    power: Optional[float] = None,
     amplitude: Union[float, Array] = 1.0,
     kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
     pupil: Optional[Callable[[Field], Field]] = None,
@@ -166,7 +170,9 @@ def plane_wave(
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def generic_field(
@@ -175,7 +181,7 @@ def generic_field(
     spectral_density: Union[float, Array],
     amplitude: Array,
     phase: Array,
-    power: Optional[float] = 1.0,
+    power: Optional[float] = None,
     pupil: Optional[Callable[[ScalarField], ScalarField]] = None,
     scalar: bool = True,
 ) -> Field:
@@ -198,12 +204,12 @@ def generic_field(
             ``VectorField`` (if False). Defaults to True.
     """
     create = ScalarField.create if scalar else VectorField.create
-    assert (
-        amplitude.ndim >= 5
-    ), "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
-    assert (
-        phase.ndim >= 5
-    ), "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
+    assert amplitude.ndim >= 5, (
+        "Amplitude must have at least 5 dimensions: (B... H W C [1 | 3])"
+    )
+    assert phase.ndim >= 5, (
+        "Phase must have at least 5 dimensions: (B... H W C [1 | 3])"
+    )
     vectorial_dimension = 1 if scalar else 3
     assert_axis_dimension(amplitude, -1, vectorial_dimension)
     assert_axis_dimension(phase, -1, vectorial_dimension)
@@ -212,4 +218,6 @@ def generic_field(
     field = create(dx, spectrum, spectral_density, u=u)
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field

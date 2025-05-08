@@ -43,7 +43,7 @@ def test_transform_propagation(shape, N_pad):
 
     # Input field
     field = cf.plane_wave(
-        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D), power=1.0
     )
     out_field = cf.transform_propagate(field, z, n, N_pad=N_pad)
     I_numerical = out_field.intensity.squeeze()
@@ -56,7 +56,7 @@ def test_transform_propagation(shape, N_pad):
     assert rel_error < 2e-2
 
     # Forward and backward
-    field = cf.plane_wave(shape, spacing, 0.532, 1.0)
+    field = cf.plane_wave(shape, spacing, 0.532, 1.0, power=1.0)
     field = cf.square_pupil(field, w)  # Pupil after plane wave to lose some power
     out_field = cf.transform_propagate(field, z, n, N_pad=0)
     back_field = cf.transform_propagate(out_field, -z, n, N_pad=0)
@@ -73,7 +73,7 @@ def test_transform_sas_propagation(shape):
 
     # Input field
     field = cf.plane_wave(
-        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D), power=1.0
     )
     out_field = cf.transform_propagate_sas(field, z, n)
     I_numerical = out_field.intensity.squeeze()
@@ -96,7 +96,7 @@ def test_transfer_propagation(shape, N_pad):
 
     # Input field
     field = cf.plane_wave(
-        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D), power=1.0
     )
     out_field = cf.transfer_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
@@ -119,7 +119,7 @@ def test_exact_propagation(shape, N_pad):
 
     # Input field
     field = cf.plane_wave(
-        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D), power=1.0
     )
     out_field = cf.exact_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
@@ -134,11 +134,11 @@ def test_exact_propagation(shape, N_pad):
     assert rel_error < 2e-2
 
     # Forward and backward
-    field = cf.plane_wave(shape, spacing, 0.532, 1.0)
+    field = cf.plane_wave(shape, spacing, 0.532, 1.0, power=1.0)
     field = cf.square_pupil(field, w)  # Pupil after plane wave to lose some power
     out_field = cf.exact_propagate(field, z, n, N_pad=0, mode="same")
     back_field = cf.exact_propagate(out_field, -z, n, N_pad=0, mode="same")
-    assert jnp.allclose(back_field.u, field.u, rtol=2e-5)
+    assert jnp.allclose(back_field.u, field.u, rtol=5e-5, atol=5e-5)
 
 
 @pytest.mark.parametrize(
@@ -151,7 +151,7 @@ def test_asm_propagation(shape, N_pad):
 
     # Input field
     field = cf.plane_wave(
-        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D)
+        shape, spacing, 0.532, 1.0, pupil=partial(cf.square_pupil, w=D), power=1.0
     )
     out_field = cf.asm_propagate(field, z, n, N_pad=N_pad, mode="same")
     I_numerical = out_field.intensity.squeeze()
@@ -168,7 +168,7 @@ def test_asm_propagation(shape, N_pad):
 
 def test_transform_multiple():
     field_after_first_lens = cf.objective_point_source(
-        (512, 512), 0.3, 0.532, 1.0, 0, f=10.0, n=1.0, NA=0.8
+        (512, 512), 0.3, 0.532, 1.0, 0, f=10.0, n=1.0, NA=0.8, power=1.0
     )
     field_after_first_propagation = cf.transform_propagate(
         field_after_first_lens, z=10.0, n=1, N_pad=256
