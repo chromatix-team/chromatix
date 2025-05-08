@@ -1,7 +1,8 @@
 import jax.numpy as jnp
+import pytest
+
 from chromatix.functional.samples import multislice_thick_sample, thin_sample
 from chromatix.functional.sources import plane_wave
-import pytest
 
 
 def test_zero_thin_sample():

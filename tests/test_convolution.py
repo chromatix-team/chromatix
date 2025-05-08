@@ -1,7 +1,8 @@
 import numpy as np
-from chromatix.ops.ops import fourier_convolution
 from jax import jit
 from scipy.signal import convolve
+
+from chromatix.ops.ops import fourier_convolution
 
 
 def test_fourier_convolution():
