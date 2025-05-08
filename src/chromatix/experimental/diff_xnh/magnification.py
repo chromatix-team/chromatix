@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import Array
+
 from chromatix.experimental.diff_xnh.utils import make_gaussian_window, shift_matrix
 
 __all__ = ["magnification"]

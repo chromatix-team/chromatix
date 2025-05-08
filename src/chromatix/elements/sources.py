@@ -1,7 +1,9 @@
 from typing import Callable, Optional, Tuple, Union
-import numpy as np
+
 import flax.linen as nn
+import numpy as np
 from chex import Array, PRNGKey
+
 from chromatix.elements.utils import register
 from chromatix.field import Field
 from chromatix.functional.sources import (

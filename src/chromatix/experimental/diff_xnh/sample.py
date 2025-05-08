@@ -5,15 +5,14 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from chex import assert_equal_shape
-from chromatix import ScalarField
 from einops import rearrange
 from jax import Array
 
-
+from chromatix import ScalarField
 from chromatix.experimental.diff_xnh.magnification import magnification
 from chromatix.experimental.diff_xnh.radon import radon
-from chromatix.experimental.diff_xnh.shift import apply_shift
 from chromatix.experimental.diff_xnh.rotate import rotate_volume
+from chromatix.experimental.diff_xnh.shift import apply_shift
 
 radians = Array
 

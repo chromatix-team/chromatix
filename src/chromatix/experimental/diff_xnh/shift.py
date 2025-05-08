@@ -1,6 +1,7 @@
 import jax.numpy as jnp
-from chromatix import Field
 from jaxtyping import Array
+
+from chromatix import Field
 
 
 def apply_shift(x: Array, shift: Array) -> Array:

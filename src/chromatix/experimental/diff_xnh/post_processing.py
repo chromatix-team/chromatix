@@ -1,7 +1,8 @@
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array
 import numpy as np
+from jaxtyping import Array
+
 
 def multi_paganin(
     data: Array,

@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
 
+
 def rotate_volume(volume: Array, angle: float, scale: float) -> Array:
     """Rotates a volume around the y axis (axis 1).
     angle in radians."""

@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array
 
+
 def shift_matrix(n: int) -> Array:
     """Creates a shift matrix to get a centered Fourier transform."""
     s = 1 - 2 * (jnp.arange(1, n + 1) % 2)  # [1, -1, 1, -1, ...]

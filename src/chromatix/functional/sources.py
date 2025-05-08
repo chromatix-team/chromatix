@@ -1,7 +1,9 @@
 from typing import Callable, Optional, Tuple, Union
-import numpy as np
+
 import jax.numpy as jnp
+import numpy as np
 from chex import Array, assert_axis_dimension, assert_equal_shape
+
 from chromatix.field import Field, ScalarField, VectorField
 from chromatix.utils import l2_sq_norm
 from chromatix.utils.shapes import (
@@ -9,6 +11,7 @@ from chromatix.utils.shapes import (
     _broadcast_1d_to_innermost_batch,
     _broadcast_1d_to_polarization,
 )
+
 from .pupils import circular_pupil
 
 __all__ = [

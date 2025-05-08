@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 from jax import Array
+
 from chromatix import ScalarField
 
 
