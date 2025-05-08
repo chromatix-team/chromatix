@@ -2,7 +2,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
-import chromatix.experimental.diff_xnh as diff_xnh
+
+from chromatix.experimental.diff_xnh.utils import make_gaussian_window, shift_matrix
+
 
 def radon(x: Array, theta: float) -> Array:
     """Calculates the radon transform"""
@@ -11,12 +13,12 @@ def radon(x: Array, theta: float) -> Array:
     n = x.shape[-1]
 
     # Window and pad
-    window, mu, m = diff_xnh.utils.make_gaussian_window(n)
+    window, mu, m = make_gaussian_window(n)
     x = x * window
     x = jnp.pad(x, ((0, 0), (int(n // 2), int(n // 2)), (int(n // 2), int(n // 2))))
 
     # Centered FFT
-    s = diff_xnh.utils.shift_matrix(x.shape[-1])
+    s = shift_matrix(x.shape[-1])
     x_hat = s * jnp.fft.fft2(x * s)  # [ne, ne]
 
     # Pad and gather kernel
@@ -32,6 +34,7 @@ def radon(x: Array, theta: float) -> Array:
     w = jnp.exp(-2 * jnp.pi * 1j * t * n)
     sino = jnp.fft.ifft(w * jnp.fft.fft(sino))
     return sino / (4 * n)
+
 
 def gather_kernel(f: Array, theta: float, m: int, mu: float, n: int) -> Array:
     """Gathers the rotated image from the Fourier transform."""
@@ -71,5 +74,3 @@ def gather_kernel(f: Array, theta: float, m: int, mu: float, n: int) -> Array:
         accumulate_kernel,
         jnp.zeros((nz, n), dtype=f.dtype),
     )
-
-

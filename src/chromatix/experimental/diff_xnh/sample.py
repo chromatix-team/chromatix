@@ -9,10 +9,11 @@ from chromatix import ScalarField
 from einops import rearrange
 from jax import Array
 
-from diff_xnh.magnification import fourier_magnification
-from diff_xnh.rotation import radon
-from diff_xnh.shift import apply_shift
-from diff_xnh.tomography import rotate_volume
+
+from chromatix.experimental.diff_xnh.magnification import magnification
+from chromatix.experimental.diff_xnh.radon import radon
+from chromatix.experimental.diff_xnh.shift import apply_shift
+from chromatix.experimental.diff_xnh.rotate import rotate_volume
 
 radians = Array
 
@@ -83,7 +84,7 @@ class Sample(AbstractSample):
         data = jnp.squeeze(
             (self.delta + 1j * self.beta), (-2, -1)
         )  # get rid of empty axes
-        scaled = jax.vmap(lambda volume: fourier_magnification(volume, scale, n_out))(
+        scaled = jax.vmap(lambda volume: magnification(volume, scale, n_out))(
             data
         )
         return Sample(scaled.real, scaled.imag, self.thickness)
@@ -111,7 +112,7 @@ def thin_sample(
 ) -> ScalarField:
     """See paganin for details."""
     projection = sample.project(angle)
-    scaled_projection = fourier_magnification(
+    scaled_projection = magnification(
         projection.squeeze(), scale, field.shape[-3]
     )[None, :, :, None, None]
     return field * jnp.exp(-1j * 2 * jnp.pi / field.spectrum * scaled_projection)
