@@ -1,18 +1,32 @@
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax import Array
+import chromatix.experimental.diff_xnh as diff_xnh
 
+def magnification(x: Array, mag: float | None, n: int | None = None) -> Array:
+    """Applies a magnification of factor mag to the input image x through fourier domain, with optional output shape n.
+    This essentially does an upscaling and then a USFFT."""
+    mag = 1.0 if mag is None else mag
+    ne = x.shape[-1]
+    if n is None:
+        n = ne
 
-def make_gaussian_window(ne: int, eps: float = 1e-3) -> tuple[Array, float, int]:
-    """Creates a gaussian window for the spectral smoothing."""
-    mu = -np.log(eps) / (2 * ne**2)
-    m = int(np.ceil(2 * ne / np.pi * np.sqrt(-mu * np.log(eps) + (mu * ne) ** 2 / 4)))
+    # Centered fourier transform
+    s = diff_xnh.utils.shift_matrix(x.shape[-1])
+    x_hat = s * jnp.fft.fft2(x * s)  # [ne, ne]
 
-    t = jnp.linspace(-1 / 2, 1 / 2, ne, endpoint=False)
-    dx = jnp.stack(jnp.meshgrid(t, t))
-    return jnp.exp(mu * ne**2 * jnp.sum(dx**2, axis=0)) * (1 - ne % 4), mu, m
+    # Apply gaussian filter
+    window, mu, m = diff_xnh.utils.make_gaussian_window(ne)
+    x_hat = x_hat * window  # [ne, ne]
 
+    # Pad and fft again
+    x_hat = jnp.pad(x_hat, int(ne // 2))  # [2 ne, 2 ne]
+    s = diff_xnh.utils.shift_matrix(x_hat.shape[-1])
+    x_hat = s * jnp.fft.fft2(x_hat * s)
+    x_hat = jnp.pad(x_hat, m, mode="wrap")
+
+    img = gather_mag(x_hat, mag, m, mu, n, ne)
+    return img / (4 * ne**2)
 
 def gather_mag(f: Array, mag: float, m: int, mu: float, n: int, ne: int) -> Array:
     """Gathers the magnified image from the Fourier transform."""
@@ -50,33 +64,4 @@ def gather_mag(f: Array, mag: float, m: int, mu: float, n: int, ne: int) -> Arra
     )
 
 
-def shift_matrix(n: int) -> Array:
-    """Creates a shift matrix to get a centered Fourier transform."""
-    s = 1 - 2 * (jnp.arange(1, n + 1) % 2)  # [1, -1, 1, -1, ...]
-    return jnp.outer(s, s)
 
-
-def fourier_magnification(x: Array, mag: float | None, n: int | None = None) -> Array:
-    """Applies a magnification of factor mag to the input image x through fourier domain, with optional output shape n.
-    This essentially does an upscaling and then a USFFT."""
-    mag = 1.0 if mag is None else mag
-    ne = x.shape[-1]
-    if n is None:
-        n = ne
-
-    # Centered fourier transform
-    s = shift_matrix(x.shape[-1])
-    x_hat = s * jnp.fft.fft2(x * s)  # [ne, ne]
-
-    # Apply gaussian filter
-    window, mu, m = make_gaussian_window(ne)
-    x_hat = x_hat * window  # [ne, ne]
-
-    # Pad and fft again
-    x_hat = jnp.pad(x_hat, int(ne // 2))  # [2 ne, 2 ne]
-    s = shift_matrix(x_hat.shape[-1])
-    x_hat = s * jnp.fft.fft2(x_hat * s)
-    x_hat = jnp.pad(x_hat, m, mode="wrap")
-
-    img = gather_mag(x_hat, mag, m, mu, n, ne)
-    return img / (4 * ne**2)

@@ -116,15 +116,3 @@ def thin_sample(
     )[None, :, :, None, None]
     return field * jnp.exp(-1j * 2 * jnp.pi / field.spectrum * scaled_projection)
 
-
-def thin_sample_htc(
-    field: ScalarField,
-    sample: Sample,
-    scale: float,
-) -> ScalarField:
-    """This function exists for holotomocupy compatibility. Compared to the standard thin_sample,
-    this one first calculates the field multiplier, and scales that, rather than scaling the object
-    and then projecting."""
-    multiplier = jnp.exp(-1j * 2 * jnp.pi / field.spectrum * sample.project()).squeeze()
-    multiplier = fourier_magnification(multiplier, scale, n=field.shape[-3])
-    return field * multiplier[None, ..., None, None]

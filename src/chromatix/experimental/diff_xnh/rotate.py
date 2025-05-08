@@ -3,6 +3,13 @@ import jax.numpy as jnp
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
 
+def rotate_volume(volume: Array, angle: float, scale: float) -> Array:
+    """Rotates a volume around the y axis (axis 1).
+    angle in radians."""
+    transform = jnp.matmul(S(scale), Ry(angle, volume.dtype))
+    rotated_grid = volume_homogeneous_grid(volume) @ transform.T
+    return resample(volume, rotated_grid[..., :3])
+
 
 def Ry(theta: float, dtype=jnp.float32) -> jnp.ndarray:
     """Generates rotation matrix around y.
@@ -63,9 +70,3 @@ def resample(volume: Array, sample_grid: Array) -> Array:
     return resampled.reshape(sample_grid.shape[:3])
 
 
-def rotate_volume(volume: Array, angle: float, scale: float) -> Array:
-    """Rotates a volume around the y axis (axis 1).
-    angle in radians."""
-    transform = jnp.matmul(S(scale), Ry(angle, volume.dtype))
-    rotated_grid = volume_homogeneous_grid(volume) @ transform.T
-    return resample(volume, rotated_grid[..., :3])
