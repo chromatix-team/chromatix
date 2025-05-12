@@ -26,8 +26,7 @@ nav:
     - Digital Micromirror Device: examples/dmd.ipynb
     - Scalable Angular Spectrum: examples/sas.ipynb
     - Bandlimited Angular Spectrum: examples/bandlimited_angular_spectrum.ipynb
-    - Fourier Ptychography: examples/fourier_ptychography.md
-    - Synchrotron X-ray Holography: examples/tomography.md
+    - Rescaled propagation: examples/rescaled_propagation.ipynb
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
     - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
 
