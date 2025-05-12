@@ -3,6 +3,8 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array
 
+__all__ = ["multi_paganin", "register_shift"]
+
 
 def multi_paganin(
     data: Array,
@@ -67,7 +69,55 @@ def multi_paganin(
         -1 / 2 * delta_beta * jnp.log(jnp.real(jnp.fft.ifft2(numerator / denominator)))
     )
 
-    return dphi + 1j * (dphi - dphi.min()) / delta_beta
+    return dphi
+
+
+def register_shift(
+    image: jnp.ndarray,
+    reference: jnp.ndarray,
+    upsample_factor: int | None = None,
+):
+    """
+    Efficient sub-pixel image translation registration (JAX).
+
+    Args:
+      src_image: 2D array (H, W) to register.
+      target_image: 2D array (H, W) reference.
+      upsample_factor: upsampling for fractional accuracy.
+      space: 'real' (FFT input) or 'fourier' (inputs already spectra).
+    Returns:
+      shifts: [dy, dx] required to align src to target.
+    """
+
+    shifts = register_integer_shift(image, reference)
+
+    # 3) Sub-pixel refinement
+    if upsample_factor is not None:
+        image_product = jnp.fft.fft2(image) * jnp.fft.fft2(reference).conj()
+        # coarse estimate on upsampled grid
+        shifts = np.round(shifts * upsample_factor) / upsample_factor
+        ups = int(np.ceil(upsample_factor * 1.5))
+        dftshift = np.fix(ups / 2.0)
+
+        # compute offsets for DFT patch
+        axis_offsets = dftshift - shifts * upsample_factor
+
+        # localized DFT patch
+        patch = _upsampled_dft_jax(
+            jnp.conj(image_product), ups, upsample_factor, axis_offsets
+        )
+
+        # locate sub-pixel peak in patch
+        max_corr_idx = jnp.stack(
+            jnp.unravel_index(jnp.argmax(jnp.abs(patch.conj())), patch.shape)
+        )
+        maxima = max_corr_idx - dftshift
+
+        # combine integer + fractional
+        shifts = shifts + maxima[::-1] / upsample_factor
+
+    return shifts
+
 
 def register_integer_shift(image, reference):
     correlation = jax.scipy.signal.correlate(
@@ -121,50 +171,3 @@ def _upsampled_dft_jax(
     rec = jnp.einsum("ph,qh->pq", tdata, kernel_y)  # shape (ups, ups)
 
     return rec
-
-
-def register_shift(
-    image: jnp.ndarray,
-    reference: jnp.ndarray,
-    upsample_factor: int | None = None,
-):
-    """
-    Efficient sub-pixel image translation registration (JAX).
-
-    Args:
-      src_image: 2D array (H, W) to register.
-      target_image: 2D array (H, W) reference.
-      upsample_factor: upsampling for fractional accuracy.
-      space: 'real' (FFT input) or 'fourier' (inputs already spectra).
-    Returns:
-      shifts: [dy, dx] required to align src to target.
-    """
-
-    shifts = register_integer_shift(image, reference)
-
-    # 3) Sub-pixel refinement
-    if upsample_factor is not None:
-        image_product = jnp.fft.fft2(image) * jnp.fft.fft2(reference).conj()
-        # coarse estimate on upsampled grid
-        shifts = np.round(shifts * upsample_factor) / upsample_factor
-        ups = int(np.ceil(upsample_factor * 1.5))
-        dftshift = np.fix(ups / 2.0)
-
-        # compute offsets for DFT patch
-        axis_offsets = dftshift - shifts * upsample_factor
-
-        # localized DFT patch
-        patch = _upsampled_dft_jax(
-            jnp.conj(image_product), ups, upsample_factor, axis_offsets
-        )
-
-        # locate sub-pixel peak in patch
-        max_corr_idx = jnp.stack(
-            jnp.unravel_index(jnp.argmax(jnp.abs(patch.conj())), patch.shape)
-        )
-        maxima = max_corr_idx - dftshift
-
-        # combine integer + fractional
-        shifts = shifts + maxima[::-1] / upsample_factor
-
-    return shifts

@@ -3,6 +3,8 @@ import jax.numpy as jnp
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
 
+__all__ = ["rotate_volume"]
+
 
 def rotate_volume(volume: Array, angle: float, scale: float) -> Array:
     """Rotates a volume around the y axis (axis 1).
@@ -69,5 +71,3 @@ def resample(volume: Array, sample_grid: Array) -> Array:
         volume, list(sample_locations), order=1, mode="constant", cval=0.0
     )
     return resampled.reshape(sample_grid.shape[:3])
-
-
