@@ -1,9 +1,10 @@
 from functools import partial
 
-import chromatix.functional as cf
 import jax.numpy as jnp
 import pytest
 from chex import assert_shape
+
+import chromatix.functional as cf
 
 
 @pytest.mark.parametrize(
@@ -41,6 +42,17 @@ def test_plane_wave_vectorial(power, amplitude, shape, pupil):
 
     assert jnp.allclose(field.power, power)
     assert_shape(field.u, (1, *shape, 1, 3))
+
+
+def test_spectral_plane_wave():
+    """Tests the planewave initialisation shapes."""
+    field = cf.plane_wave(
+        (16, 16),
+        0.1,
+        [0.1, 0.532, 1.0],
+        [1.0, 1.0, 1.0],
+    )
+    assert_shape(field.u, (1, 16, 16, 3, 1))
 
 
 @pytest.mark.parametrize(

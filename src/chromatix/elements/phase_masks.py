@@ -1,13 +1,15 @@
 from typing import Callable, Optional, Tuple, Union
+
 import jax.numpy as jnp
 from chex import Array, PRNGKey
 from flax import linen as nn
 from jax.scipy.ndimage import map_coordinates
-from chromatix.field import Field
-from chromatix.functional import wrap_phase, phase_change
-from chromatix.utils import seidel_aberrations, zernike_aberrations
-from chromatix.ops import quantize
+
 from chromatix.elements.utils import register
+from chromatix.field import Field
+from chromatix.functional import phase_change, wrap_phase
+from chromatix.ops import quantize
+from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
     "PhaseMask",
@@ -145,9 +147,9 @@ class SpatialLightModulator(nn.Module):
             field.spectrum[..., 0, 0].squeeze(),
             *pupil_args,
         )
-        assert (
-            phase.shape == self.shape
-        ), "Provided phase shape should match provided SLM shape"
+        assert phase.shape == self.shape, (
+            "Provided phase shape should match provided SLM shape"
+        )
         phase = wrap_phase(phase, self.phase_range)
         if self.num_bits is not None:
             phase = quantize(phase, 2.0**self.num_bits, range=self.phase_range)

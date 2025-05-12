@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import pytest
+
 from chromatix.utils import (
     create_grid,
     grid_spatial_to_pupil,
@@ -54,9 +55,9 @@ def test_first_ten_zernikes():
             coefficients=[1],
         )
         assert phase.shape == size
-        assert jnp.allclose(
-            phase.squeeze(), expected[idx]
-        ), f"Mismatch in Zernike polynomial {idx}."
+        assert jnp.allclose(phase.squeeze(), expected[idx]), (
+            f"Mismatch in Zernike polynomial {idx}."
+        )
 
 
 def piston(mask):

@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+
 from chromatix.elements import PhaseMask, trainable
 from chromatix.functional import (
     phase_change,

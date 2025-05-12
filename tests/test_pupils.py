@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+
 from chromatix.functional.pupils import circular_pupil, square_pupil
 from chromatix.functional.sources import plane_wave
 

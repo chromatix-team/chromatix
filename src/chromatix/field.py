@@ -347,9 +347,9 @@ class ScalarField(Field):
             assert shape is not None, "Must specify shape if u is None"
             u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
         ndim = len(u.shape)
-        assert (
-            ndim >= 5
-        ), "Field must be Array with at least 5 dimensions: (B... H W C 1)."
+        assert ndim >= 5, (
+            "Field must be Array with at least 5 dimensions: (B... H W C 1)."
+        )
         assert u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
         assert_equal_shape([spectrum, spectral_density])
         spectral_density = spectral_density / jnp.sum(spectral_density)
@@ -408,9 +408,9 @@ class VectorField(Field):
             assert shape is not None, "Must specify shape if u is None"
             u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
         ndim = len(u.shape)
-        assert (
-            ndim >= 5
-        ), "Field must be Array with at least 5 dimensions: (B... H W C 3)."
+        assert ndim >= 5, (
+            "Field must be Array with at least 5 dimensions: (B... H W C 3)."
+        )
         assert u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
         assert_equal_shape([spectrum, spectral_density])
         spectral_density = spectral_density / jnp.sum(spectral_density)
@@ -485,3 +485,43 @@ def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
     u = jnp.pad(field.u[tuple(crop)], pads)
 
     return field.replace(u=u)
+
+
+def cartesian_to_spherical(field: Field, n: float, NA: float, f: float) -> Array:
+    """
+    Converts the field to a spherical basis. This is useful for high NA lenses.
+
+    Args:
+        field: The incoming ``Field`` in pupil space, in Cartesian coordinates.
+        n: Refractive index of the lens.
+        NA: NA of the lens.
+        f: Focal length of the lens.
+
+    Returns:
+        The Field.u in spherical coordinates (Caution: Not the full Field object).
+    """
+    pupil_radius = f * NA / n
+    mask = field.grid[0] ** 2 + field.grid[1] ** 2 <= pupil_radius**2
+    sin_theta2 = jnp.sum(field.grid**2, axis=0) * mask / f**2
+    cos_theta = jnp.sqrt(1 - sin_theta2)
+    sin_theta = jnp.sqrt(sin_theta2)
+
+    phi = jnp.arctan2(field.grid[0], field.grid[1])
+    cos_phi = jnp.cos(phi)
+    sin_phi = jnp.sin(phi)
+    sin_2phi = 2 * sin_phi * cos_phi
+    cos_2phi = cos_phi**2 - sin_phi**2
+
+    field_x = field.u[:, :, :, :, 2][..., None]
+    field_y = field.u[:, :, :, :, 1][..., None]
+
+    # Source: Eq. (6) of arXiv:2502.03170
+    e_inf_x = ((cos_theta + 1.0) + (cos_theta - 1.0) * cos_2phi) * field_x + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_y
+    e_inf_y = ((cos_theta + 1.0) - (cos_theta - 1.0) * cos_2phi) * field_y + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_x
+    e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
+
+    return jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2

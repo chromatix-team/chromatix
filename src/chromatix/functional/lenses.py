@@ -1,14 +1,21 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import jax.numpy as jnp
 
+from chromatix.field import ScalarField, VectorField, cartesian_to_spherical
 from chromatix.functional.convenience import optical_fft
+from chromatix.utils.czt import zoomed_fft
 
 from ..field import Field
 from ..utils import l2_sq_norm
 from .pupils import circular_pupil
 
-__all__ = ["thin_lens", "ff_lens", "df_lens"]
+__all__ = [
+    "thin_lens",
+    "ff_lens",
+    "df_lens",
+    "high_na_ff_lens",
+]
 
 
 def thin_lens(field: Field, f: float, n: float, NA: Optional[float] = None) -> Field:
@@ -63,6 +70,69 @@ def ff_lens(
         # if inverse, propagate over negative distance
         f = -f
     return optical_fft(field, f, n)
+
+
+def high_na_ff_lens(
+    field: Field,
+    f: float,
+    n: float,
+    NA: float,
+    output_shape: Tuple[int, int] | None = None,
+    output_dx: float | None = None,
+) -> Field:
+    """
+    Applies a high NA lens placed a distance ``f`` after the incoming ``Field``.
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
+        camera_shape: The shape of the camera (in pixels).
+        camera_pixel_pitch: The pixel pitch of the camera (in microns).
+        wavelength: The wavelength of the light (in microns).
+
+    Returns:
+        The ``Field`` propagated a distance ``f`` after the lens.
+    """
+
+    if field.shape[-1] == 1:
+        # Scalar
+        spherical_u = field.u
+        create = ScalarField.create
+    else:
+        # Vectorial
+        spherical_u = cartesian_to_spherical(field, n, NA, f)
+        create = VectorField.create
+
+    if output_dx is None:
+        output_dx = field.dx.squeeze()
+
+    if output_shape is None:
+        output_shape = field.spatial_shape
+
+    # NOTE: This only works for single wavelength so far?
+    # NOTE: What about non-square cases?
+    zoom_factor = (
+        2
+        * NA
+        * output_shape[0]
+        * output_dx
+        / field.spectrum.squeeze()
+        / (field.shape[1] - 1)
+    )
+    u = zoomed_fft(
+        x=spherical_u,
+        k_start=-zoom_factor * jnp.pi,
+        k_end=zoom_factor * jnp.pi,
+        output_shape=output_shape,
+        include_end=True,
+        axes=field.spatial_dims,
+    )
+
+    out_field = create(
+        output_dx, field.spectrum, field.spectral_density, shape=output_shape
+    )
+    return out_field.replace(u=u)
 
 
 def df_lens(

@@ -1,5 +1,6 @@
-import chromatix.functional as cf
 import jax.numpy as jnp
+
+import chromatix.functional as cf
 
 
 def test_ff_lens():

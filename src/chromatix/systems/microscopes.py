@@ -156,7 +156,9 @@ class Microscope(nn.Module):
             sample: The sample volume to image with of shape `(B... H W 1 1)`.
             psf: The PSF intensity volume to image with of shape `(B... H W 1 1)`.
         """
-        image = fourier_convolution(sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape)
+        image = fourier_convolution(
+            sample, psf, axes=axes, fast_fft_shape=self.fast_fft_shape
+        )
         # NOTE(dd): By this point, the image should already be at the same
         # spacing as the sensor. Any resampling to the pixels of the sensor
         # should already have happened to the PSF.
