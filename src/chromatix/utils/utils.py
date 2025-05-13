@@ -138,6 +138,16 @@ def matvec(x: Array, y: Array) -> Array:
     return jnp.matmul(x, y[..., None]).squeeze(-1)
 
 
+def outer(x: Array, y: Array, in_axis: int = -1) -> Array:
+    """Calculates batched outer product (Numpy flattens input matrices)
+    Includes additional in_axis for which axis to use.
+    Output axes will always be last two.
+    """
+    _x = jnp.moveaxis(x, in_axis, -1)
+    _y = jnp.moveaxis(y, in_axis, -1)
+    return _x[..., None, :] * _y[..., :, None]
+
+
 def bounding_box(ax, x_bounds, y_bounds, surface_area, shift_yx=None, **kwargs):
     """Draw bounding box on an axis."""
     assert len(x_bounds) == 2

@@ -29,6 +29,7 @@ nav:
     - Rescaled propagation: examples/rescaled_propagation.ipynb
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
     - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
+    - Polarised multislice: examples/polarised_multislice.ipynb
 
 theme:
   logo: media/logo_symbol_white.png
