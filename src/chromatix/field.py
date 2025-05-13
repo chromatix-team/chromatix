@@ -549,6 +549,22 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
     return field.replace(u=field.u[tuple(crop)])
 
 
+def shift_grid(field: Field, shift_yx: Union[float, Array]) -> Field:
+    """
+    Shift the sampling grid by an arbitrary amount in y and x directions.
+    Args:
+        shift_yx: The shift in y and x directions. Should be an array of
+            shape `[2,]` in the format `[y, x]`.
+    """
+    if isinstance(shift_yx, Number):
+        shift_yx = jnp.array([shift_yx, shift_yx])
+    shift_yx = jnp.array(shift_yx)  # Ensure it is an array
+    if shift_yx.ndim == 1:
+        shift_yx = shift_yx[:, None]
+    assert_rank(shift_yx, 2)
+    return field.replace(_origin=shift_yx)
+
+
 def shift_field(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
     """
     Shift `field` by an integer number of pixels in one or two dimensions,
