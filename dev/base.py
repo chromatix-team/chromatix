@@ -35,6 +35,10 @@ class AbstractField(eqx.Module, strict=True):
         return 2 * jnp.pi / self.wavelength
 
     @property
+    def spatial_dims(self) -> tuple[int, int]:
+        return (self.dims.y, self.dims.x)
+
+    @property
     def spatial_shape(self) -> tuple[int, int]:
         return (self.u.shape[self.dims.y], self.u.shape[self.dims.x])
 
