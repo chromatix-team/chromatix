@@ -11,7 +11,7 @@ from base import (
     AbstractVector,
 )
 from custom_types import Spacing
-from einops import rearrange, repeat
+from einops import rearrange
 from jaxtyping import Array, Complex, Float
 from spectrum import MonochromaticSpectrum, PolyChromaticSpectrum
 from utils import freq_grid, grid, promote_dx
@@ -36,10 +36,6 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=T
         )
 
     @property
-    def wavelength(self) -> Array:
-        return self.spectrum.wavelength
-
-    @property
     def intensity(self):
         spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
         return spectral_density * jnp.abs(self.u) ** 2
@@ -57,14 +53,14 @@ class PolyChromaticScalarField(
     AbstractField, AbstractPolyChromatic, AbstractScalar, strict=True
 ):
     u: Complex[Array, "y x l"]
-    dx: Float[Array, "l 2"]
+    dx: Float[Array, "#l 2"]
     spectrum: PolyChromaticSpectrum
 
     # Internal
     dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("l", -1)])
 
     def __init__(self, u: Array, dx: Spacing, spectrum: PolyChromaticSpectrum):
-        self.dx = repeat(promote_dx(dx), "d -> l d", l=spectrum.density.size)
+        self.dx = rearrange(promote_dx(dx), "d -> 1 d")
         self.spectrum = spectrum
 
         # Parsing u
@@ -73,15 +69,6 @@ class PolyChromaticScalarField(
         assert self.u.shape[-1] == self.wavelength.size, (
             "Expected last dimension of u to be same as wavelengths."
         )
-
-    @property
-    def wavelength(self) -> Array:
-        return self.spectrum.wavelength
-
-    @property
-    def intensity(self):
-        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
-        return spectral_density * jnp.abs(self.u) ** 2
 
     @property
     def grid(self) -> Array:
@@ -103,7 +90,7 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=T
     dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("p", -1)])
 
     def __init__(self, u, dx, spectrum: MonochromaticSpectrum):
-        self.dx = repeat(promote_dx(dx), "d -> l d", l=spectrum.density.size)
+        self.dx = rearrange(promote_dx(dx), "d -> 1 d")
         self.spectrum = spectrum
 
         # Parsing u
@@ -112,14 +99,6 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=T
         assert self.u.shape[-1] == 3, (
             f"Expected last dimension of u to be 3, got {u.shape[-1]}"
         )
-
-    @property
-    def wavelength(self) -> Array:
-        return self.spectrum.wavelength
-
-    @property
-    def intensity(self):
-        return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
 
     @property
     def grid(self) -> Array:
@@ -136,7 +115,7 @@ class PolyChromaticVectorField(
     AbstractField, AbstractPolyChromatic, AbstractVector, strict=True
 ):
     u: Complex[Array, "y x l 3"]
-    dx: Float[Array, "l 1 2"]
+    dx: Float[Array, "#l 1 2"]
     spectrum: PolyChromaticSpectrum
 
     # Internal
@@ -145,7 +124,7 @@ class PolyChromaticVectorField(
     )
 
     def __init__(self, u, dx, spectrum: PolyChromaticSpectrum):
-        self.dx = repeat(promote_dx(dx), "d -> l 1 d", l=spectrum.density.size)
+        self.dx = rearrange(promote_dx(dx), "d -> 1 1 d")
         self.spectrum = spectrum
 
         # Parsing u
@@ -157,15 +136,6 @@ class PolyChromaticVectorField(
         assert self.u.shape[-1] == 3, (
             f"Expected last dimension of u to be 3, got {u.shape[-1]}"
         )
-
-    @property
-    def wavelength(self) -> Array:
-        return rearrange(self.spectrum.wavelength, "l -> l 1")
-
-    @property
-    def intensity(self):
-        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
-        return spectral_density * jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
 
     @property
     def grid(self) -> Array:

@@ -4,6 +4,7 @@ from typing import Self
 
 import equinox as eqx
 import jax.numpy as jnp
+from einops import rearrange
 from jaxtyping import Array, Float
 from spectrum import MonochromaticSpectrum, PolyChromaticSpectrum
 
@@ -14,11 +15,6 @@ class AbstractField(eqx.Module, strict=True):
 
     # Internal for use
     dims: eqx.AbstractClassVar[IntEnum]
-
-    @property
-    @abc.abstractmethod
-    def intensity(self) -> Array:
-        pass
 
     @property
     @abc.abstractmethod
@@ -33,6 +29,10 @@ class AbstractField(eqx.Module, strict=True):
     @property
     def k_grid(self) -> Float[Array, "y x d"]:
         return 2 * jnp.pi * self.f_grid
+
+    @property
+    def k0(self) -> Array:
+        return 2 * jnp.pi / self.wavelength
 
     @property
     def spatial_shape(self) -> tuple[int, int]:
@@ -77,19 +77,9 @@ class AbstractField(eqx.Module, strict=True):
 class AbstractMonoChromatic(eqx.Module, strict=True):
     spectrum: eqx.AbstractVar[MonochromaticSpectrum]
 
-    @property
-    @abc.abstractmethod
-    def wavelength(self) -> Array:
-        pass
-
 
 class AbstractPolyChromatic(eqx.Module, strict=True):
     spectrum: eqx.AbstractVar[PolyChromaticSpectrum]
-
-    @property
-    @abc.abstractmethod
-    def wavelength(self) -> Array:
-        pass
 
 
 class AbstractScalar(eqx.Module, strict=True):
@@ -106,6 +96,15 @@ class AbstractScalar(eqx.Module, strict=True):
             * self.spectrum.density
             * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.y, self.dims.x))
         )
+
+    @property
+    def wavelength(self) -> Array:
+        return self.spectrum.wavelength
+
+    @property
+    def intensity(self):
+        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
+        return spectral_density * jnp.abs(self.u) ** 2
 
 
 class AbstractVector(eqx.Module, strict=True):
@@ -127,3 +126,12 @@ class AbstractVector(eqx.Module, strict=True):
             jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x)
         )
         return area * total_intensity
+
+    @property
+    def wavelength(self) -> Array:
+        return rearrange(self.spectrum.wavelength, "l -> l 1")
+
+    @property
+    def intensity(self):
+        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
+        return spectral_density * jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
