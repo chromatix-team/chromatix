@@ -77,6 +77,91 @@ class AbstractField(eqx.Module, strict=True):
             result = eqx.tree_at(where_fn, self, value)
         return result
 
+    def __add__(self, other: float | Array | Self) -> Self:
+        match other:
+            case float() as f:
+                return self.replace(u=self.u + f)
+            case Array() as arr:
+                # TODO: Make sure shapes match
+                return self.replace(u=self.u + arr)
+            case Self() as s:
+                # TODO: Make sure Field types are the same
+                return self.replace(u=self.u + s.u)
+
+    def __radd__(self, other: float | Array | Self) -> Self:
+        return self + other
+
+    def __sub__(self, other: float | Array) -> Self:
+        match other:
+            case float() as f:
+                return self.replace(u=self.u - f)
+            case Array() as arr:
+                # TODO: Make sure shapes match
+                return self.replace(u=self.u - arr)
+            case _:
+                raise ValueError("Cant subtract fields.")
+
+    def __rsub__(self, other: float | Array) -> Self:
+        return (-1 * self) + other
+
+    def __mul__(self, other: float | Array) -> Self:
+        match other:
+            case float() as f:
+                return self.replace(u=self.u * f)
+            case Array() as arr:
+                # TODO: Make sure shapes match
+                return self.replace(u=self.u * arr)
+            case _:
+                raise ValueError("Cant multiply fields.")
+
+    def __rmul__(self, other: float | Array) -> Self:
+        return self * other
+
+    def __matmul__(self, other: Array) -> Self:
+        return self.replace(u=jnp.matmul(self.u, other))
+
+    def __rmatmul__(self, other: Array) -> Self:
+        return self.replace(u=jnp.matmul(other, self.u))
+
+    def __truediv__(self, other: float | Array) -> Self:
+        match other:
+            case float() as f:
+                return self.replace(u=self.u / f)
+            case Array() as arr:
+                # TODO: Make sure shapes match
+                return self.replace(u=self.u / arr)
+            case _:
+                raise ValueError("Cant divide fields.")
+
+    def __rtruediv__(self, other: float | Array) -> Self:
+        return self.replace(u=other / self.u)
+
+    def __floordiv__(self, other: float | Array) -> Self:
+        match other:
+            case float() as f:
+                return self.replace(u=self.u // f)
+            case Array() as arr:
+                # TODO: Make sure shapes match
+                return self.replace(u=self.u // arr)
+            case _:
+                raise ValueError("Cant divide fields.")
+
+    def __rfloordiv__(self, other: float | Array) -> Self:
+        return self.replace(u=other // self.u)
+
+    def __mod__(self, other: float | Array) -> Self:
+        match other:
+            case float() as f:
+                return self.replace(u=self.u % f)
+            case Array() as arr:
+                # TODO: Make sure shapes match
+                return self.replace(u=self.u % arr)
+            case _:
+                raise ValueError("Cant divide fields.")
+
+    def __rmod__(self, other: float | Array) -> Self:
+        return self.replace(u=other % self.u)
+
 
 class AbstractMonoChromatic(eqx.Module, strict=True):
     spectrum: eqx.AbstractVar[MonochromaticSpectrum]

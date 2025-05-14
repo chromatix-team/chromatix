@@ -17,6 +17,24 @@ from spectrum import MonochromaticSpectrum, PolyChromaticSpectrum
 from utils import freq_grid, grid, promote_dx
 
 
+def EmptyField(amplitude: Array, shape, dx, spectrum) -> AbstractField:
+    u_empty = jnp.zeros((*shape, spectrum.size, amplitude.shape[-1]))
+    return Field(u_empty.squeeze(), dx, spectrum)
+
+
+def Field(u, dx, spectrum) -> AbstractField:
+    match (u.ndim, spectrum.size):
+        case (2, _):
+            field = ScalarField
+        case (3, 1):
+            field = VectorField
+        case (3, _):
+            field = PolyChromaticScalarField
+        case (4, _):
+            field = PolyChromaticVectorField
+    return field(u, dx, spectrum)
+
+
 class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=True):
     u: Complex[Array, "y x"]
     dx: Float[Array, "2"]

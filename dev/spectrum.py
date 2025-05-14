@@ -4,8 +4,12 @@ from jaxtyping import Array, Float
 
 
 class AbstractSpectrum(eqx.Module, strict=True):
-    wavelength: eqx.AbstractVar[Float[Array, "l"]]
-    density: eqx.AbstractVar[Float[Array, "l"]]
+    wavelength: eqx.AbstractVar[Array]
+    density: eqx.AbstractVar[Array]
+
+    @property
+    def size(self) -> int:
+        return self.wavelength.size
 
 
 class MonochromaticSpectrum(AbstractSpectrum, strict=True):
