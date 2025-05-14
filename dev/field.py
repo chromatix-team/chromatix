@@ -1,20 +1,65 @@
 import abc
-from typing import ClassVar
+from enum import IntEnum
+from typing import ClassVar, Self
 
 import equinox as eqx
 import jax.numpy as jnp
 from einops import rearrange
 from jaxtyping import Array, Complex, Float, Real
-import jax
+
+Spacing = float | Real[Array, "1"] | Real[Array, "2"]
+
+
+# TODO: Generic that specrtum is not None?
+class Spectrum(eqx.Module, strict=True):
+    wavelength: Float[Array, "l"]
+    density: Float[Array, "l"] | None
+
+    def __init__(self, wavelength: Array, density: Array | None = None):
+        wavelength = jnp.asarray(wavelength)
+        self.wavelength = eqx.error_if(
+            wavelength,
+            wavelength < 0,
+            f"Wavelength must be larger than 0, got {wavelength}.",
+        )
+
+        # TODO: Check if density and wavelength have same dimensions
+        if density is not None:
+            density = jnp.asarray(density)
+
+        self.density = density
+
+
+def grid(shape: tuple[int, int], spacing: Array) -> Float[Array, "y x d"]:
+    N_y, N_x = shape
+    dx = rearrange(spacing, "... d -> ... 1 1 d")
+    grid = jnp.meshgrid(
+        jnp.linspace(0, (N_y - 1), N_y) - N_y / 2,
+        jnp.linspace(0, (N_x - 1), N_x) - N_x / 2,
+        indexing="ij",
+    )
+    return dx * jnp.stack(grid, axis=-1)
+
+
+def freq_grid(shape: tuple[int, int], spacing: Array) -> Float[Array, "y x d"]:
+    N_y, N_x = shape
+    dk = rearrange(1 / spacing, "... d -> ... 1 1 d")
+    grid = jnp.meshgrid(
+        jnp.fft.fftshift(jnp.fft.fftfreq(N_y)),
+        jnp.fft.fftshift(jnp.fft.fftfreq(N_x)),
+        indexing="ij",
+    )
+    return dk * jnp.stack(grid, axis=-1)
+
 
 # Abstract fields
 class AbstractField(eqx.Module):
     u: eqx.AbstractVar[Array]
     dx: eqx.AbstractVar[Array]
-    spectrum: eqx.AbstractVar[Array] # NOTE: Should we make a spectrum type?
+    spectrum: eqx.AbstractVar[Spectrum]
 
     # Internal for use
-    dims: eqx.AbstractClassVar[dict[str, int]] # NOTE: Turn this into a enum?
+    dims: eqx.AbstractClassVar[IntEnum]
 
     @property
     @abc.abstractmethod
@@ -23,22 +68,26 @@ class AbstractField(eqx.Module):
 
     @property
     @abc.abstractmethod
-    def grid(self) -> Array: 
+    def grid(self) -> Array:
         pass
 
     @property
     @abc.abstractmethod
-    def k_grid(self) -> Array:
+    def f_grid(self) -> Array:
         pass
 
     @property
-    def power(self):
+    def k_grid(self) -> Float[Array, "y x d"]:
+        return 2 * jnp.pi * self.f_grid
+
+    @property
+    def power(self) -> Array:
         area = jnp.prod(self.dx, axis=-1)
-        return area * jnp.sum(self.intensity, axis=(self.dims["y"], self.dims["x"]))
-    
+        return area * jnp.sum(self.intensity, axis=(self.dims.y, self.dims.x))
+
     @property
     def spatial_shape(self) -> tuple[int, int]:
-        return self.u.shape[self.dims["y"]], self.u.shape[self.dims["x"]]
+        return (self.u.shape[self.dims.y], self.u.shape[self.dims.x])
 
     @property
     def dk(self) -> Array:
@@ -67,48 +116,30 @@ class AbstractField(eqx.Module):
 
     @property
     def conj(self) -> Array:
-        # TODO: Add replace method?
         return self.replace(u=jnp.conj(self.u))
 
-    # These are standardised grids without empty dimensions;
-    # and they should be reshaped in the actual field
     @property
-    def _grid(self) -> Float[Array, "*b y x d"]:
-     N_y, N_x = self.spatial_shape
-     dx = rearrange(self.dx, "... d -> ... 1 1 d")
-     grid = jnp.meshgrid(
-            jnp.linspace(0, (N_y - 1), N_y) - N_y / 2,
-            jnp.linspace(0, (N_x - 1), N_x) - N_x / 2,
-            indexing="ij"
-        )
-     return dx * jnp.stack(grid, axis=-1)
-    
-    @property
-    def _freq_grid(self) -> Float[Array, "*b y x d"]:
-        N_y, N_x = self.spatial_shape
-        dk = rearrange( 1/ self.dx, "... d -> ... 1 1 d")
-        grid = jnp.meshgrid(
-            jnp.fft.fftshift(jnp.fft.fftfreq(N_y)),
-            jnp.fft.fftshift(jnp.fft.fftfreq(N_x)),
-            indexing="ij"
-        )
-        return dk * jnp.stack(grid, axis=-1)
+    def wavelength(self) -> Array:
+        #NOTE: MOVE TO SUBCLASS?
+        return self.spectrum.wavelength
 
-
-    def replace(self, **kwargs):
+    def replace(self, **kwargs) -> Self:
         for key, value in kwargs.items():
             where_fn = lambda tree: getattr(tree, key)
             result = eqx.tree_at(where_fn, self, value)
         return result
 
+
+# The shapes are different though - how to set that?
 class Spectral(eqx.Module):
-    spectral_density: eqx.AbstractVar[Array] # TODO: is this the right name?
+    pass
+
 
 class Scalar(eqx.Module):
     pass
 
-class Vectorial(eqx.Module):
 
+class Vectorial(eqx.Module):
     @property
     @abc.abstractmethod
     def jones_vector(self) -> Array:
@@ -119,102 +150,153 @@ class Vectorial(eqx.Module):
 class Coherent(eqx.Module):
     pass
 
-class PartiallyCOherent(eqx.Module):
+
+class PartiallyCoherent(eqx.Module):
     pass
+
+def promote_dx(dx):
+    dx = jnp.asarray(dx)
+    match dx.size:
+        case 1:
+            dx = jnp.stack([dx, dx])
+        case 2:
+            dx = dx
+        case _:
+            raise ValueError(f"dx must be of size 1 or 2, got {dx.size}.")
+    dx = eqx.error_if(
+            dx, jnp.any(dx < 0), f"dx must be larger than 0, got {dx}."
+        )
+    return dx
 
 # Actual field
 class CoherentScalarField(AbstractField, Scalar, Coherent):
-    u: Complex[Array, "*b y x"]
-    dx: Float[Array, "*b 2"]
-    spectrum: Float[Array, "*b 1"]
+    u: Complex[Array, "y x"]
+    dx: Float[Array, "2"]
+    spectrum: Spectrum
 
-    dims: ClassVar[dict[str, int]]= {"y": -2, "x": -1}
+    # Internal
+    dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -2), ("x", -1)])
 
-    def __init__(self, dx: float | Real[Array, "1"] | Real[Array, "2"], spectrum: float, u: Complex[Array, "y x"]):
+    def __init__(self, u: Array, dx: Array, spectrum: Spectrum):
+        self.dx = promote_dx(dx)
+        self.spectrum = spectrum
+
         # Parsing u
-        self.u = jnp.asarray(u)
-
-        # Parsing dx 
-        dx = jnp.asarray(dx)
-        match dx.size:
-            case 1:
-                self.dx = jnp.stack([dx, dx])
-            case 2:
-                self.dx = dx
-            case _:
-                raise ValueError(f"dx must be of size 1 or 2, got {dx.size}")
-        
-        # Parsing spectrum
-        self.spectrum = jnp.asarray(spectrum)
-
-    # The only functions that need to be implemented are intensity, grid, and k_grid
+        u = jnp.asarray(u, dtype=jnp.complex64)
+        self.u = eqx.error_if(
+            u, u.ndim != 2, f"Expected 2-dimensional field, got shape {u.shape}."
+        )
 
     @property
     def intensity(self) -> Float[Array, "*b y x"]:
-        return jnp.abs(self.u)**2
+        return jnp.abs(self.u) ** 2
 
     @property
     def grid(self) -> Float[Array, "*b y x d"]:
-        return self._grid 
+        return grid(self.spatial_shape, self.dx)
 
     @property
-    def k_grid(self) -> Float[Array, "*b y x d"]:
-        # TODO: Technically we're missing a factor 2 pi here!
-        # This should be called fx
-        return self._freq_grid
-    
+    def f_grid(self) -> Float[Array, "*b y x d"]:
+        return freq_grid(self.spatial_shape, self.dx)
 
 
 class SpectralCoherentScalarField(AbstractField, Scalar, Spectral, Coherent):
-    u: Complex[Array, "*b y x l"]
-    dx: Float[Array, "*b #l 2"]
-    spectrum: Float[Array, "*b l"]
-    spectral_density: Float[Array, "*b l"]
+    u: Complex[Array, "y x l"]
+    dx: Float[Array, "l 2"]
+    spectrum: Spectrum
 
-    dims: ClassVar[dict[str, int]]= {"y": -3, "x": -2, "l": -1}
+    # Internal
+    dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("l", -1)])
 
-    def __init__(self, dx: float | Real[Array, "1"] | Real[Array, "2"], spectrum: Float[Array, "l"], spectral_density: Float[Array, "l"], u: Complex[Array, "y x l"]):
-        # TODO; we need some more shape checking here
+    def __init__(self, u, dx, spectrum):
+        self.dx = rearrange(promote_dx(dx), "d -> 1 d")
+        self.spectrum = spectrum
+
         # Parsing u
-        self.u = jnp.asarray(u)
-
-        # Parsing dx 
-        dx = jnp.asarray(dx)
-        match dx.size:
-            case 1:
-                self.dx = rearrange(jnp.stack([dx, dx]), "c -> 1 c")
-            case 2:
-                self.dx = rearrange(dx, "c -> 1 c")
-            case _:
-                raise ValueError(f"dx must be of size 1 or 2, got {dx.size}")
-        
-        # Parsing spectrum
-        self.spectrum = jnp.asarray(spectrum)
-        self.spectral_density = jnp.asarray(spectral_density)
-
+        self.u = jnp.asarray(u, dtype=jnp.complex64)
+        assert self.u.ndim == 3, f"Expected 3-dimensional field, got shape {u.shape}."
+        assert self.u.shape[-1] == self.wavelength.size, f"Expected last dimension of u to be same as wavelengths."
 
     @property
     def intensity(self):
-        spectral_density = rearrange(self.spectral_density, "... l -> ... 1 1 l")
-        return spectral_density * jnp.abs(self.u)**2
+        spectral_density = rearrange(
+            self.spectrum.density, "... l -> ... 1 1 l"
+        )
+        return spectral_density * jnp.abs(self.u) ** 2
 
     @property
     def grid(self) -> Array:
-        return rearrange(self._grid, "... l y x d-> ... y x l d")
+        _grid = grid(self.spatial_shape, self.dx)
+        return rearrange(_grid, "... l y x d-> ... y x l d")
 
     @property
-    def k_grid(self) -> Array:
-        # TODO: Technically we're missing a factor 2 pi here!
-        # This should be called fx
-        return rearrange(self._freq_grid, "... l y x d-> ... y x l d")
-        
-    
+    def f_grid(self) -> Array:
+        _freq_grid = freq_grid(self.spatial_shape, self.dx)
+        return rearrange(_freq_grid, "... l y x d-> ... y x l d")
+
+
 class CoherentVectorField(AbstractField, Vectorial, Coherent):
-    pass
+    u: Complex[Array, "y x 3"]
+    dx: Float[Array, "1 2"]
+    spectrum: Spectrum
+
+    # Internal
+    dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("p", -1)])
+
+    def __init__(self, u, dx, spectrum):
+        self.dx = promote_dx(dx)
+        self.spectrum = spectrum
+
+        # Parsing u
+        self.u = jnp.asarray(u, dtype=jnp.complex64)
+        assert self.u.ndim == 3, f"Expected 3-dimensional field, got shape {u.shape}."
+        assert self.u.shape[-1] == 3, f"Expected last dimension of u to be 3, got {u.shape[-1]}"
+
+    @property
+    def intensity(self):
+        return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dim.p)
+
+    @property
+    def grid(self) -> Array:
+        _grid = grid(self.spatial_shape, self.dx)
+        return rearrange(_grid, "... y x d-> ... y x 1 d") 
+
+    @property
+    def f_grid(self) -> Array:
+        _f_grid =freq_grid(self.spatial_shape, self.dx)
+        return rearrange(_f_grid, "... y x d-> ... y x 1 d")
 
 class SpectralCoherentVectorField(AbstractField, Vectorial, Spectral, Coherent):
-    pass
+    u: Complex[Array, "y x l 3"]
+    dx: Float[Array, "l 1 2"]
+    spectrum: Spectrum
 
+    # Internal
+    dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -4), ("x", -3), ("l", -2), ("p", -1)])
 
+    def __init__(self, u, dx, spectrum):
+        self.dx = rearrange(promote_dx(dx), "d -> 1 1 d")
+        self.spectrum = spectrum
 
+        # Parsing u
+        self.u = jnp.asarray(u, dtype=jnp.complex64)
+        assert self.u.ndim == 4, f"Expected 3-dimensional field, got shape {u.shape}."
+        assert self.u.shape[-2] == self.wavelength.size, f"Expected last dimension of u to be same as wavelengths."
+        assert self.u.shape[-1] == 3, f"Expected last dimension of u to be 3, got {u.shape[-1]}"
 
+    @property
+    def intensity(self):
+        spectral_density = rearrange(
+            self.spectrum.density, "... l -> ... l 1"
+        )
+        return spectral_density * jnp.abs(self.u) ** 2
+
+    @property
+    def grid(self) -> Array:
+        _grid = grid(self.spatial_shape, self.dx)
+        return rearrange(_grid, "... l y x 2-> ... y x l 1 2")
+
+    @property
+    def f_grid(self) -> Array:
+        _f_grid = freq_grid(self.spatial_shape, self.dx)
+        return rearrange(_f_grid, "... y x l 1 2-> ... y x l 1 2")
