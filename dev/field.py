@@ -14,7 +14,7 @@ Spacing = float | Real[Array, "1"] | Real[Array, "2"]
 
 
 # Abstract fields
-class AbstractField(eqx.Module):
+class AbstractField(eqx.Module, strict=True):
     u: eqx.AbstractVar[Array]
     dx: eqx.AbstractVar[Array]
 
@@ -85,7 +85,7 @@ class AbstractField(eqx.Module):
         return result
 
 
-class MonoChromatic(eqx.Module):
+class AbstractMonoChromatic(eqx.Module, strict=True):
     spectrum: eqx.AbstractVar[MonochromaticSpectrum]
 
     @property
@@ -93,7 +93,7 @@ class MonoChromatic(eqx.Module):
     def wavelength(self) -> Array:
         pass
 
-class PolyChromatic(eqx.Module):
+class AbstractPolyChromatic(eqx.Module, strict=True):
     spectrum: eqx.AbstractVar[PolyChromaticSpectrum]
 
     @property
@@ -105,7 +105,7 @@ class Scalar(eqx.Module):
     pass
 
 
-class Vector(eqx.Module):
+class AbstractVector(eqx.Module, strict=True):
     @property
     @abc.abstractmethod
     def jones_vector(self) -> Array:
@@ -113,7 +113,7 @@ class Vector(eqx.Module):
 
 
 # Actual field
-class ScalarField(AbstractField, MonoChromatic, Scalar):
+class ScalarField(AbstractField, AbstractMonoChromatic, Scalar):
     u: Complex[Array, "y x"]
     dx: Float[Array, "2"]
     spectrum: MonochromaticSpectrum
@@ -148,15 +148,15 @@ class ScalarField(AbstractField, MonoChromatic, Scalar):
         return freq_grid(self.spatial_shape, self.dx)
 
 
-class PolyChromaticScalarField(AbstractField, PolyChromatic, Scalar):
+class PolyChromaticScalarField(AbstractField, AbstractPolyChromatic, Scalar):
     u: Complex[Array, "y x l"]
     dx: Float[Array, "#l 2"]
-    spectrum: PolyChromatic
+    spectrum: PolyChromaticSpectrum
 
     # Internal
     dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("l", -1)])
 
-    def __init__(self, u: Array, dx: Spacing, spectrum: PolyChromatic):
+    def __init__(self, u: Array, dx: Spacing, spectrum: PolyChromaticSpectrum):
         self.dx = rearrange(promote_dx(dx), "d -> 1 d")
         self.spectrum = spectrum
 
@@ -187,7 +187,7 @@ class PolyChromaticScalarField(AbstractField, PolyChromatic, Scalar):
         return rearrange(_freq_grid, "... l y x d-> ... y x l d")
 
 
-class VectorField(AbstractField, MonoChromatic, Vector):
+class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector):
     u: Complex[Array, "y x 3"]
     dx: Float[Array, "1 2"]
     spectrum: MonochromaticSpectrum
@@ -222,7 +222,7 @@ class VectorField(AbstractField, MonoChromatic, Vector):
         _f_grid =freq_grid(self.spatial_shape, self.dx)
         return rearrange(_f_grid, "... y x d-> ... y x 1 d")
 
-class PolyChromaticVectorField(AbstractField, PolyChromatic, Vector):
+class PolyChromaticVectorField(AbstractField, AbstractPolyChromatic, AbstractVector):
     u: Complex[Array, "y x l 3"]
     dx: Float[Array, "#l 1 2"]
     spectrum: PolyChromaticSpectrum
