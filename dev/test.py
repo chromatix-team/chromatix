@@ -1,7 +1,7 @@
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from field import AbstractField, ScalarField, PolyChromaticScalarField
+from field import AbstractField, ScalarField, VectorField, PolyChromaticScalarField, PolyChromaticVectorField
 from spectrum import Spectrum 
 
 
@@ -66,6 +66,33 @@ print(field.intensity.shape)
 print(field.power.shape)
 print(field.grid.shape)
 print(field.k_grid.shape)
+
+
+@eqx.filter_jit
+def forward(u):
+    field = VectorField(u, spacing, Spectrum(0.532))
+    return phase_change(field, 1.0)
+field = jax.vmap(forward)(jnp.ones((5, 512, 512, 3)))
+print("Vmapped monochromatic vector")
+print(field.intensity.shape)
+print(field.power.shape)
+print(field.grid.shape)
+print(field.k_grid.shape)
+
+
+
+spectrum = Spectrum([0.1, 0.532], [0.2, 0.4])
+@eqx.filter_jit
+def forward(u):
+    field = PolyChromaticVectorField(u, spacing, spectrum)
+    return phase_change(field, 1.0)
+field = jax.vmap(forward)(jnp.ones((5, 512, 512, 2, 3)))
+print("Vmapped polychromatic vector")
+print(field.intensity.shape)
+print(field.power.shape)
+print(field.grid.shape)
+print(field.k_grid.shape)
+
 
 
 """

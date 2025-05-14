@@ -32,13 +32,14 @@ class AbstractField(eqx.Module, strict=True):
         pass
 
     @property
+    @abc.abstractmethod
+    def power(self) -> Array:
+        pass        
+
+    @property
     def k_grid(self) -> Float[Array, "y x d"]:
         return 2 * jnp.pi * self.f_grid
 
-    @property
-    def power(self) -> Array:
-        area = jnp.prod(self.dx, axis=-1)
-        return area * jnp.sum(self.intensity, axis=(self.dims.y, self.dims.x))
 
     @property
     def spatial_shape(self) -> tuple[int, int]:
@@ -99,10 +100,14 @@ class AbstractPolyChromatic(eqx.Module, strict=True):
 class AbstractScalar(eqx.Module):
     pass
 
-
 class AbstractVector(eqx.Module, strict=True):
+    u: eqx.AbstractVar[Array]
+    dims: eqx.AbstractClassVar[IntEnum]
+
     @property
-    @abc.abstractmethod
     def jones_vector(self) -> Array:
-        pass
+        norm = jnp.linalg.norm(self.u, axis=self.dims.p, keepdims=True)
+        norm = jnp.where(norm == 0, 1, norm)  # set to 1 to avoid division by zero
+        return self.u / norm
+
 
