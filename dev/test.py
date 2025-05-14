@@ -86,8 +86,7 @@ def point_source(
 @eqx.filter_jit
 def forward(shape):
     spectrum = Spectrum(0.532)
-    spacing = 0.25
-    field = point_source(shape, spacing, spectrum, 1.0, 1.35)
+    field = point_source(shape, 0.25, spectrum, 1.0, 1.35)
     field = phase_change(field, 1.0)
     return exact_propagate(field, 100.0, 1.35)
 
@@ -106,8 +105,7 @@ print("\n")
 @eqx.filter_vmap
 def forward(z):
     spectrum = Spectrum(0.532)
-    spacing = 0.25
-    field = point_source((512, 512), spacing, spectrum, 1.0, 1.35)
+    field = point_source((512, 512), 0.25, spectrum, 1.0, 1.35)
     field = phase_change(field, 1.0)
     return exact_propagate(field, z, 1.35)
 
@@ -214,10 +212,9 @@ print("\n")
 @eqx.filter_vmap
 def forward(z):
     spectrum = Spectrum([0.1, 0.3, 0.532, 0.7])
-    spacing = 0.25
     field = point_source(
         (512, 512),
-        spacing,
+        0.25,
         spectrum,
         1.0,
         1.35,
@@ -236,6 +233,42 @@ print(f"Power: {field.power.shape}")
 print(f"Grid: {field.grid.shape}")
 print(f"k_grid : {field.k_grid.shape}")
 print("\n")
+
+
+@eqx.filter_jit
+def forward(z):
+    spectrum = Spectrum([0.1, 0.3, 0.532, 0.7])
+    field = point_source(
+        (512, 512),
+        -0.25,
+        spectrum,
+        1.0,
+        1.35,
+        amplitude=jnp.ones((3,)),
+    )
+    field = phase_change(field, 1.0)
+    return exact_propagate(field, z, 1.35)
+
+
+try:
+    field = forward(10.0)
+except:
+    print("Failed, as spacing < 0.")
+
+
+@eqx.filter_jit
+def forward(u):
+    spectrum = Spectrum([0.1, 0.532], [0.2, 0.4])
+    spacing = 0.1
+    field = Field(u, spacing, spectrum)
+    field = phase_change(field, 1.0)
+    return exact_propagate(field, 100.0, 1.35)
+
+
+try:
+    field = jax.vmap(forward)(jnp.ones((5, 512, 512, 5, 3)))
+except:
+    print("Failed, as shapes inconsistent")
 
 
 """
