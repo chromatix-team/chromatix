@@ -1,7 +1,8 @@
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from field import AbstractField, CoherentScalarField, SpectralCoherentScalarField, Spectrum
+from field import AbstractField, ScalarField, PolyChromaticScalarField
+from spectrum import Spectrum 
 
 
 # Testing grid stuff
@@ -20,7 +21,7 @@ spacing = 0.25
 # %%
 @eqx.filter_jit
 def forward(u):
-    field = CoherentScalarField(u, spacing, spectrum)
+    field = ScalarField(u, spacing, spectrum)
     return phase_change(field, 1.0)
 
 
@@ -46,7 +47,7 @@ spectrum = Spectrum([0.1, 0.532, 1.0], [0.2, 0.4, 0.1])
 
 @eqx.filter_jit
 def forward(u):
-    field = SpectralCoherentScalarField(u, spacing, spectrum)
+    field = PolyChromaticScalarField(u, spacing, spectrum)
     return phase_change(field, 1.0)
 
 
