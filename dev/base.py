@@ -27,6 +27,16 @@ class AbstractField(eqx.Module, strict=True):
         pass
 
     @property
+    @abc.abstractmethod
+    def power(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def intensity(self):
+        pass
+
+    @property
     def k_grid(self) -> Float[Array, "y x d"]:
         return 2 * jnp.pi * self.f_grid
 
@@ -178,22 +188,8 @@ class AbstractScalar(eqx.Module, strict=True):
     dims: eqx.AbstractClassVar[IntEnum]
 
     @property
-    def power(self):
-        area = jnp.prod(self.dx, axis=-1)
-        return (
-            area
-            * self.spectrum.density.squeeze()
-            * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.y, self.dims.x))
-        )
-
-    @property
     def wavelength(self) -> Array:
         return self.spectrum.wavelength
-
-    @property
-    def intensity(self):
-        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
-        return spectral_density * jnp.abs(self.u) ** 2
 
 
 class AbstractVector(eqx.Module, strict=True):
@@ -210,7 +206,7 @@ class AbstractVector(eqx.Module, strict=True):
 
     @property
     def power(self):
-        area = jnp.prod(self.dx.squeeze(-2), axis=-1)
+        area = jnp.prod(self.dx, axis=-1)
         total_intensity = self.spectrum.density * jnp.sum(
             jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x)
         )

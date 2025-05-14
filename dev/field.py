@@ -54,17 +54,22 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=T
         )
 
     @property
-    def intensity(self):
-        spectral_density = rearrange(self.spectrum.density, "... 1 -> ... 1 1")
-        return spectral_density * jnp.abs(self.u) ** 2
-
-    @property
     def grid(self) -> Float[Array, "y x d"]:
         return grid(self.spatial_shape, self.dx)
 
     @property
     def f_grid(self) -> Float[Array, "y x d"]:
         return freq_grid(self.spatial_shape, self.dx)
+
+    @property
+    def power(self):
+        area = jnp.prod(self.dx, axis=-1)
+        intensity = jnp.abs(self.u) ** 2
+        return area * jnp.sum(intensity, axis=self.spatial_dims)
+
+    @property
+    def intensity(self):
+        return jnp.abs(self.u) ** 2
 
 
 class PolyChromaticScalarField(
@@ -98,17 +103,29 @@ class PolyChromaticScalarField(
         _freq_grid = freq_grid(self.spatial_shape, self.dx)
         return rearrange(_freq_grid, "... l y x d-> ... y x l d")
 
+    @property
+    def power(self):
+        area = jnp.prod(self.dx, axis=-1)
+        intensity = jnp.abs(self.u) ** 2
+        power_density = jnp.sum(intensity, axis=self.spatial_dims)
+        return area * self.spectrum.density * power_density
+
+    @property
+    def intensity(self):
+        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
+        return spectral_density * jnp.abs(self.u) ** 2
+
 
 class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=True):
     u: Complex[Array, "y x 3"]
-    dx: Float[Array, "1 2"]
+    dx: Float[Array, "2"]
     spectrum: MonochromaticSpectrum
 
     # Internal
     dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("p", -1)])
 
     def __init__(self, u, dx, spectrum: MonochromaticSpectrum):
-        self.dx = rearrange(promote_dx(dx), "d -> 1 d")
+        self.dx = promote_dx(dx)
         self.spectrum = spectrum
 
         # Parsing u
@@ -121,19 +138,30 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=T
     @property
     def grid(self) -> Array:
         _grid = grid(self.spatial_shape, self.dx)
-        return rearrange(_grid, "... p y x d-> ... y x p d")
+        return rearrange(_grid, "... y x d-> ... y x 1 d")
 
     @property
     def f_grid(self) -> Array:
         _f_grid = freq_grid(self.spatial_shape, self.dx)
-        return rearrange(_f_grid, "... p y x d-> ... y x p d")
+        return rearrange(_f_grid, "... y x d-> ... y x 1 d")
+
+    @property
+    def power(self):
+        area = jnp.prod(self.dx, axis=-1)
+        intensity = jnp.abs(self.u) ** 2
+        power_density = jnp.sum(intensity, axis=(self.dims.p, *self.spatial_dims))
+        return area * power_density
+
+    @property
+    def intensity(self):
+        return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
 
 
 class PolyChromaticVectorField(
     AbstractField, AbstractPolyChromatic, AbstractVector, strict=True
 ):
     u: Complex[Array, "y x l 3"]
-    dx: Float[Array, "#l 1 2"]
+    dx: Float[Array, "#l 2"]
     spectrum: PolyChromaticSpectrum
 
     # Internal
@@ -142,7 +170,7 @@ class PolyChromaticVectorField(
     )
 
     def __init__(self, u, dx, spectrum: PolyChromaticSpectrum):
-        self.dx = rearrange(promote_dx(dx), "d -> 1 1 d")
+        self.dx = rearrange(promote_dx(dx), "d -> 1 d")
         self.spectrum = spectrum
 
         # Parsing u
@@ -158,9 +186,20 @@ class PolyChromaticVectorField(
     @property
     def grid(self) -> Array:
         _grid = grid(self.spatial_shape, self.dx)
-        return rearrange(_grid, "... l p y x d-> ... y x l p d")
+        return rearrange(_grid, "... l y x d-> ... y x l 1 d")
 
     @property
     def f_grid(self) -> Array:
         _f_grid = freq_grid(self.spatial_shape, self.dx)
-        return rearrange(_f_grid, "... l p y x d-> ... y x l p d")
+        return rearrange(_f_grid, "... l y x d-> ... y x l 1 d")
+
+    @property
+    def power(self):
+        area = jnp.prod(self.dx, axis=-1)
+        intensity = jnp.abs(self.u) ** 2
+        power_density = jnp.sum(intensity, axis=(self.dims.p, *self.spatial_dims))
+        return area * self.spectrum.density * power_density
+
+    @property
+    def intensity(self):
+        return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
