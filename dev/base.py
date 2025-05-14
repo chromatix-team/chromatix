@@ -32,11 +32,6 @@ class AbstractField(eqx.Module, strict=True):
         pass
 
     @property
-    @abc.abstractmethod
-    def power(self) -> Array:
-        pass        
-
-    @property
     def k_grid(self) -> Float[Array, "y x d"]:
         return 2 * jnp.pi * self.f_grid
 
@@ -97,11 +92,22 @@ class AbstractPolyChromatic(eqx.Module, strict=True):
     def wavelength(self) -> Array:
         pass
 
-class AbstractScalar(eqx.Module):
-    pass
+class AbstractScalar(eqx.Module, strict=True):
+    u: eqx.AbstractVar[Array]
+    dx: eqx.AbstractVar[Array]
+    spectrum: eqx.AbstractVar[MonochromaticSpectrum]
+    dims: eqx.AbstractClassVar[IntEnum]
+    
+    @property
+    def power(self):
+        area = jnp.prod(self.dx, axis=-1)
+        return area * self.spectrum.density * jnp.sum(jnp.abs(self.u)**2, axis=(self.dims.y, self.dims.x))
+
 
 class AbstractVector(eqx.Module, strict=True):
     u: eqx.AbstractVar[Array]
+    dx: eqx.AbstractVar[Array]
+    spectrum: eqx.AbstractVar[MonochromaticSpectrum]
     dims: eqx.AbstractClassVar[IntEnum]
 
     @property
@@ -110,4 +116,8 @@ class AbstractVector(eqx.Module, strict=True):
         norm = jnp.where(norm == 0, 1, norm)  # set to 1 to avoid division by zero
         return self.u / norm
 
-
+    @property
+    def power(self):
+        area = jnp.prod(self.dx.squeeze(-2), axis=-1)
+        total_intensity = self.spectrum.density * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x))
+        return area * total_intensity

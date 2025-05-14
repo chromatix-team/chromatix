@@ -11,7 +11,7 @@ from utils import promote_dx, grid, freq_grid
 from base import AbstractField, AbstractMonoChromatic, AbstractPolyChromatic, AbstractScalar, AbstractVector
 from custom_types import Spacing
 
-class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar):
+class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=True):
     u: Complex[Array, "y x"]
     dx: Float[Array, "2"]
     spectrum: MonochromaticSpectrum
@@ -34,14 +34,12 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar):
         return self.spectrum.wavelength
     
     @property
-    def intensity(self) -> Float[Array, "y x"]:
-        return jnp.abs(self.u) ** 2
+    def intensity(self):
+        spectral_density = rearrange(
+            self.spectrum.density, "... l -> ... 1 1 l"
+        )
+        return spectral_density * jnp.abs(self.u) ** 2
     
-    @property
-    def power(self):
-        area = jnp.prod(self.dx, axis=-1)
-        return area * jnp.sum(self.intensity, axis=(self.dims.y, self.dims.x))
-
     @property
     def grid(self) -> Float[Array, "y x d"]:
         return grid(self.spatial_shape, self.dx)
@@ -51,7 +49,7 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar):
         return freq_grid(self.spatial_shape, self.dx)
 
 
-class PolyChromaticScalarField(AbstractField, AbstractPolyChromatic, AbstractScalar):
+class PolyChromaticScalarField(AbstractField, AbstractPolyChromatic, AbstractScalar, strict=True):
     u: Complex[Array, "y x l"]
     dx: Float[Array, "l 2"]
     spectrum: PolyChromaticSpectrum
@@ -80,11 +78,6 @@ class PolyChromaticScalarField(AbstractField, AbstractPolyChromatic, AbstractSca
         return spectral_density * jnp.abs(self.u) ** 2
 
     @property
-    def power(self):
-        area = jnp.prod(self.dx, axis=-1)
-        return area * jnp.sum(self.intensity, axis=(self.dims.y, self.dims.x))
-    
-    @property
     def grid(self) -> Array:
         _grid = grid(self.spatial_shape, self.dx)
         return rearrange(_grid, "... l y x d-> ... y x l d")
@@ -95,7 +88,7 @@ class PolyChromaticScalarField(AbstractField, AbstractPolyChromatic, AbstractSca
         return rearrange(_freq_grid, "... l y x d-> ... y x l d")
 
 
-class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector):
+class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=True):
     u: Complex[Array, "y x 3"]
     dx: Float[Array, "1 2"]
     spectrum: MonochromaticSpectrum
@@ -121,12 +114,6 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector):
         return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
 
     @property
-    def power(self):
-        area = jnp.prod(self.dx.squeeze(-2), axis=-1)
-        total_intensity = jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x))
-        return area * total_intensity
-    
-    @property
     def grid(self) -> Array:
         _grid = grid(self.spatial_shape, self.dx)
         return rearrange(_grid, "... p y x d-> ... y x p d") 
@@ -136,7 +123,7 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector):
         _f_grid =freq_grid(self.spatial_shape, self.dx)
         return rearrange(_f_grid, "... p y x d-> ... y x p d")
 
-class PolyChromaticVectorField(AbstractField, AbstractPolyChromatic, AbstractVector):
+class PolyChromaticVectorField(AbstractField, AbstractPolyChromatic, AbstractVector, strict=True):
     u: Complex[Array, "y x l 3"]
     dx: Float[Array, "l 1 2"]
     spectrum: PolyChromaticSpectrum
@@ -165,12 +152,6 @@ class PolyChromaticVectorField(AbstractField, AbstractPolyChromatic, AbstractVec
         )
         return spectral_density * jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
 
-    @property
-    def power(self):
-        area = jnp.prod(self.dx.squeeze(-2), axis=-1)
-        total_intensity = self.spectrum.density * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x))
-        return area * total_intensity
-    
 
     @property
     def grid(self) -> Array:
