@@ -5,7 +5,6 @@ from typing import Self
 import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
-
 from spectrum import MonochromaticSpectrum, PolyChromaticSpectrum
 
 
@@ -34,7 +33,6 @@ class AbstractField(eqx.Module, strict=True):
     @property
     def k_grid(self) -> Float[Array, "y x d"]:
         return 2 * jnp.pi * self.f_grid
-
 
     @property
     def spatial_shape(self) -> tuple[int, int]:
@@ -84,6 +82,7 @@ class AbstractMonoChromatic(eqx.Module, strict=True):
     def wavelength(self) -> Array:
         pass
 
+
 class AbstractPolyChromatic(eqx.Module, strict=True):
     spectrum: eqx.AbstractVar[PolyChromaticSpectrum]
 
@@ -92,16 +91,21 @@ class AbstractPolyChromatic(eqx.Module, strict=True):
     def wavelength(self) -> Array:
         pass
 
+
 class AbstractScalar(eqx.Module, strict=True):
     u: eqx.AbstractVar[Array]
     dx: eqx.AbstractVar[Array]
     spectrum: eqx.AbstractVar[MonochromaticSpectrum]
     dims: eqx.AbstractClassVar[IntEnum]
-    
+
     @property
     def power(self):
         area = jnp.prod(self.dx, axis=-1)
-        return area * self.spectrum.density * jnp.sum(jnp.abs(self.u)**2, axis=(self.dims.y, self.dims.x))
+        return (
+            area
+            * self.spectrum.density
+            * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.y, self.dims.x))
+        )
 
 
 class AbstractVector(eqx.Module, strict=True):
@@ -119,5 +123,7 @@ class AbstractVector(eqx.Module, strict=True):
     @property
     def power(self):
         area = jnp.prod(self.dx.squeeze(-2), axis=-1)
-        total_intensity = self.spectrum.density * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x))
+        total_intensity = self.spectrum.density * jnp.sum(
+            jnp.abs(self.u) ** 2, axis=(self.dims.p, self.dims.y, self.dims.x)
+        )
         return area * total_intensity

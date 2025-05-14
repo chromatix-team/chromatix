@@ -1,8 +1,14 @@
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from field import AbstractField, ScalarField, VectorField, PolyChromaticScalarField, PolyChromaticVectorField
-from spectrum import Spectrum 
+from field import (
+    AbstractField,
+    PolyChromaticScalarField,
+    PolyChromaticVectorField,
+    ScalarField,
+    VectorField,
+)
+from spectrum import Spectrum
 
 
 # Testing grid stuff
@@ -18,6 +24,8 @@ def phase_change(field: AbstractField, z, n=1.0) -> AbstractField:
 
 spectrum = Spectrum(0.532)
 spacing = 0.25
+
+
 # %%
 @eqx.filter_jit
 def forward(u):
@@ -46,6 +54,7 @@ print("\n")
 
 # %%
 spectrum = Spectrum([0.1, 0.532, 1.0], [0.2, 0.4, 0.1])
+
 
 @eqx.filter_jit
 def forward(u):
@@ -76,6 +85,8 @@ print("\n")
 def forward(u):
     field = VectorField(u, spacing, Spectrum(0.532))
     return phase_change(field, 1.0)
+
+
 field = jax.vmap(forward)(jnp.ones((5, 512, 512, 3)))
 print("Vmapped MonoChromatic Vector")
 print(f"Intensity: {field.intensity.shape}")
@@ -86,10 +97,14 @@ print("\n")
 
 
 spectrum = Spectrum([0.1, 0.532], [0.2, 0.4])
+
+
 @eqx.filter_jit
 def forward(u):
     field = PolyChromaticVectorField(u, spacing, spectrum)
     return phase_change(field, 1.0)
+
+
 field = jax.vmap(forward)(jnp.ones((5, 512, 512, 2, 3)))
 print("Vmapped PolyChromatic Vector")
 print(f"Intensity: {field.intensity.shape}")
@@ -97,7 +112,6 @@ print(f"Power: {field.power.shape}")
 print(f"Grid: {field.grid.shape}")
 print(f"k_grid : {field.k_grid.shape}")
 print("\n")
-
 
 
 """

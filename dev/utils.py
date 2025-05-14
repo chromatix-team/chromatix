@@ -1,7 +1,8 @@
+import equinox as eqx
 import jax.numpy as jnp
 from einops import rearrange
 from jaxtyping import Array, Float
-import equinox as eqx
+
 
 def grid(shape: tuple[int, int], spacing: Array) -> Float[Array, "y x d"]:
     N_y, N_x = shape
@@ -24,6 +25,7 @@ def freq_grid(shape: tuple[int, int], spacing: Array) -> Float[Array, "y x d"]:
     )
     return dk * jnp.stack(grid, axis=-1)
 
+
 def promote_dx(dx):
     dx = jnp.asarray(dx)
     match dx.size:
@@ -33,7 +35,5 @@ def promote_dx(dx):
             dx = dx
         case _:
             raise ValueError(f"dx must be of size 1 or 2, got {dx.size}.")
-    dx = eqx.error_if(
-            dx, jnp.any(dx < 0), f"dx must be larger than 0, got {dx}."
-        )
+    dx = eqx.error_if(dx, jnp.any(dx < 0), f"dx must be larger than 0, got {dx}.")
     return dx
