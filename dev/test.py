@@ -38,7 +38,6 @@ def exact_propagate(
 
 def kernel_propagate(field: AbstractField, propagator: Array) -> AbstractField:
     axes = field.spatial_dims
-    # TODO: Should we make a fourier field type?
     u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
     return field.replace(u=u)
 
