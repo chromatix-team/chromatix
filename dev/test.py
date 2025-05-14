@@ -102,6 +102,27 @@ print(f"k_grid : {field.k_grid.shape}")
 print("\n")
 
 
+@eqx.filter_jit
+@eqx.filter_vmap
+def forward(z):
+    spectrum = Spectrum(0.532)
+    spacing = 0.25
+    field = point_source((512, 512), spacing, spectrum, 1.0, 1.35)
+    field = phase_change(field, 1.0)
+    return exact_propagate(field, z, 1.35)
+
+
+field = forward(jnp.linspace(10, 100, 10))
+print("Vmapped over propagation, scalar")
+print(f"field: {field}")
+print(f"field shape: {field.shape}")
+print(f"Intensity: {field.intensity.shape}")
+print(f"Power: {field.power.shape}")
+print(f"Grid: {field.grid.shape}")
+print(f"k_grid : {field.k_grid.shape}")
+print("\n")
+
+
 # %%
 @eqx.filter_jit
 def forward(u):
@@ -182,6 +203,34 @@ def forward(u):
 field = jax.vmap(forward)(jnp.ones((5, 512, 512, 2, 3)))
 print("Vmapped PolyChromatic Vector")
 print(f"field: {field.shape}")
+print(f"Intensity: {field.intensity.shape}")
+print(f"Power: {field.power.shape}")
+print(f"Grid: {field.grid.shape}")
+print(f"k_grid : {field.k_grid.shape}")
+print("\n")
+
+
+@eqx.filter_jit
+@eqx.filter_vmap
+def forward(z):
+    spectrum = Spectrum([0.1, 0.3, 0.532, 0.7])
+    spacing = 0.25
+    field = point_source(
+        (512, 512),
+        spacing,
+        spectrum,
+        1.0,
+        1.35,
+        amplitude=jnp.ones((3,)),
+    )
+    field = phase_change(field, 1.0)
+    return exact_propagate(field, z, 1.35)
+
+
+field = forward(jnp.linspace(10, 100, 10))
+print("Vmapped over propagation, vector, Polychromatic")
+print(f"field: {field}")
+print(f"field shape: {field.shape}")
 print(f"Intensity: {field.intensity.shape}")
 print(f"Power: {field.power.shape}")
 print(f"Grid: {field.grid.shape}")

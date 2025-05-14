@@ -55,7 +55,7 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=T
 
     @property
     def intensity(self):
-        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
+        spectral_density = rearrange(self.spectrum.density, "... 1 -> ... 1 1")
         return spectral_density * jnp.abs(self.u) ** 2
 
     @property

@@ -182,7 +182,7 @@ class AbstractScalar(eqx.Module, strict=True):
         area = jnp.prod(self.dx, axis=-1)
         return (
             area
-            * self.spectrum.density
+            * self.spectrum.density.squeeze()
             * jnp.sum(jnp.abs(self.u) ** 2, axis=(self.dims.y, self.dims.x))
         )
 
