@@ -1,6 +1,11 @@
-from typing import Optional, Tuple, Union
-
 import numpy as np
+import jax.numpy as jnp
+from typing import Optional, Union, Tuple
+
+from .permittivity_tensors import (
+    permittivity_from_vector,
+    calc_scattering_potential_unscaled,
+)
 
 try:
     import cv2
@@ -9,10 +14,12 @@ try:
 except ModuleNotFoundError:
     USE_CV2 = False
 
+from jax.typing import ArrayLike
+
 
 def sqr_dist_to_line(
-    z: np.ndarray, y: np.ndarray, x: np.ndarray, start: np.ndarray, n: np.ndarray
-) -> np.ndarray:
+    z: ArrayLike, y: ArrayLike, x: ArrayLike, start: ArrayLike, n: ArrayLike
+) -> ArrayLike:
     """
     Returns an array with each pixel being assigned to the square distance to
     that line and an array with the distance along the line.
@@ -27,82 +34,105 @@ def sqr_dist_to_line(
 
 
 def draw_line(
-    arr: np.ndarray,
-    start: np.ndarray,
-    stop: np.ndarray,
+    obj_shape: ArrayLike,
+    start: ArrayLike,
+    stop: ArrayLike,
     thickness: float = 0.3,
     intensity: float = 1.0,
-) -> np.ndarray:
+) -> ArrayLike:
     """
     Draw a line in a 3D object with a given thickness and intensity.
-
     Args:
-        arr: The object to draw the line in.
+        obj_shape: The shape of the object to draw the line in.
         start: The start of the line.
         end: The end of the line.
         thickness: The thickness of the line.
         intensity: The intensity of the line.
     """
-    direction = np.subtract(stop, start)
-    line_length = np.sqrt(np.sum(np.square(direction)))
+    direction = jnp.subtract(stop, start)
+    line_length = jnp.sqrt(jnp.sum(jnp.square(direction)))
     n = direction / line_length
 
     sigma2 = 2 * thickness**2
 
-    z, y, x = np.meshgrid(
-        np.arange(arr.shape[0]),
-        np.arange(arr.shape[1]),
-        np.arange(arr.shape[2]),
+    z, y, x = jnp.meshgrid(
+        jnp.arange(obj_shape[0]),
+        jnp.arange(obj_shape[1]),
+        jnp.arange(obj_shape[2]),
         indexing="ij",
     )
     d2, t = sqr_dist_to_line(z, y, x, start, n)
 
     line_weight = (
         (t > 0) * (t < line_length)
-        + (t <= 0) * np.exp(-(t**2) / sigma2)
-        + (t >= line_length) * np.exp(-((t - line_length) ** 2) / sigma2)
+        + (t <= 0) * jnp.exp(-(t**2) / sigma2)
+        + (t >= line_length) * jnp.exp(-((t - line_length) ** 2) / sigma2)
     )
-    return arr + intensity * np.exp(-d2 / sigma2) * line_weight
+    return intensity * jnp.exp(-d2 / sigma2) * line_weight
+
+
+def update_object(
+    arr: ArrayLike,
+    intensity_arr: ArrayLike,
+    chi: Optional[ArrayLike] = None,
+) -> ArrayLike:
+    """
+    Update the array with the intensity array and the scattering potential.
+    """
+    if chi is None:
+        updated_arr = arr + intensity_arr
+    else:
+        updated_arr = arr + intensity_arr[:, :, :, None, None] * chi
+    return updated_arr
 
 
 def filaments_3d(
     sz: Tuple[int, int, int],
     intensity: float = 1.0,
-    radius: Union[float, Tuple[float, float, float]] = 0.8,
+    radius: float = 0.8,
     rand_offset: float = 0.05,
     rel_theta: float = 1.0,
     num_filaments: int = 50,
     apply_seed: bool = True,
     thickness: float = 0.3,
-) -> np.ndarray:
+    ri_anisotropic: Tuple[float, float] = (1.0, 1.0),
+    ri_medium: float = 1.0,
+    calc_chi: bool = False,
+) -> ArrayLike:
     """
     Create a 3D representation of filaments.
+    # Arguments
+    - sz: A 3D shape tuple representing the size of the object.
+    - `radius`: A tuple of real numbers (or a single real number) representing
+        the relative radius of the volume in which the filaments will be
+        created. Default is 0.8. If a tuple is used, the filamets will be
+        created in a corresponding elliptical volume. Note that the radius is
+        only enforced in the version `filaments_3d` which creates the array
+        rather than adding.
+    - `rand_offset`: A tuple of real numbers representing the random offsets of
+        the filaments in relation to the size. Default is 0.05.
+    - `rel_theta`: A real number representing the relative theta range of the
+        filaments. Default is 1.0.
+    - `num_filaments`: An integer representing the number of filaments to be
+        created. Default is 50.
+    - `apply_seed`: A boolean representing whether to apply a seed to the random
+        number generator. Default is True.
+    - `thickness`: A real number representing the thickness of the filaments in
+        pixels. Default is 0.8.
+    - `ri_anisotropic`: A tuple of real numbers representing the refractive
+        indices of the filaments. Default is (1.0, 1.0).
+    - `ri_medium`: A real number representing the refractive index of the
+        surrounding medium. Default is 1.0.
+    - `calc_chi`: A boolean representing whether to calculate the scattering
+        potential. Default is False.
 
-    Args:
-        sz: A 3D shape tuple representing the size of the object.
-        radius: A tuple of real numbers (or a single real number) representing
-            the relative radius of the volume in which the filaments will be
-            created. Default is 0.8. If a tuple is used, the filamets will be
-            created in a corresponding elliptical volume. Note that the radius
-            is only enforced in the version `filaments_3d` which creates the
-            array rather than adding.
-        rand_offset: A tuple of real numbers representing the random offsets of
-            the filaments in relation to the size. Default is 0.05.
-        rel_theta: A real number representing the relative theta range of the
-            filaments. Default is 1.0.
-        num_filaments: An integer representing the number of filaments to be
-            created. Default is 50.
-        apply_seed: A boolean representing whether to apply a seed to the random
-            number generator. Default is ``True``.
-        thickness: A real number representing the thickness of the filaments in
-            pixels. Default is 0.8.
-
+    The result is added to the obj input array.
     This code is based on the SyntheticObjects.jl package by Hossein Zarei
-    Oshtolagh and Rainer Heintzmann.
+    Oshtolagh and Rainer Heintzmann, with scattering potential added by
+    Geneva Anderberg.
     """
 
-    sz = np.array(sz)
-    radius = np.array(radius)
+    sz = jnp.array(sz)
 
     # Save the state of the rng to reset it after the function is done
     rng_state = np.random.get_state()
@@ -110,39 +140,48 @@ def filaments_3d(
         np.random.seed(42)
 
     # Create the object
-    obj = np.zeros(sz, dtype=np.float32)
+    obj = jnp.zeros(sz, dtype=np.float32)
+    if calc_chi:
+        obj = jnp.zeros((*sz, 3, 3), dtype=np.float32)
 
     mid = sz // 2
 
+    n_o, n_e = ri_anisotropic
     # Draw random lines equally distributed over the 3D sphere
     for n in range(num_filaments):
-        phi = 2 * np.pi * np.random.rand()
+        phi = 2 * jnp.pi * np.random.rand()
         # Theta should be scaled such that the distribution over the unit sphere is uniform
-        theta = np.arccos(rel_theta * (1 - 2 * np.random.rand()))
-        pos = (sz * radius / 2) * np.array(
+        theta = jnp.arccos(rel_theta * (1 - 2 * np.random.rand()))
+        orientation = jnp.array(
             [
-                np.sin(theta) * np.cos(phi),
-                np.sin(theta) * np.sin(phi),
-                np.cos(theta),
+                jnp.sin(theta) * jnp.cos(phi),
+                jnp.sin(theta) * jnp.sin(phi),
+                jnp.cos(theta),
             ]
         )
-        pos_offset = np.array(rand_offset * sz * (np.random.rand(3) - 0.5))
+        if calc_chi:
+            epsilon_r = permittivity_from_vector(n_o, n_e, orientation)
+            chi = calc_scattering_potential_unscaled(epsilon_r, ri_medium)
+        else:
+            chi = None
+        pos = (sz * radius / 2) * orientation
+        pos_offset = jnp.array(rand_offset * sz * (np.random.rand(3) - 0.5))
         # Draw line
-        obj = draw_line(
-            obj,
+        drawing = draw_line(
+            obj.shape,
             pos + pos_offset + mid,
             mid + pos_offset - pos,
             thickness=thickness,
             intensity=intensity,
         )
-
+        obj = update_object(obj, drawing, chi)
     # Reset the rng to the state before this function was called
     np.random.set_state(rng_state)
     return obj
 
 
 def pollen_3d(
-    sz: Tuple[int, int, int],
+    sz: tuple[int, int, int],
     intensity: float = 1.0,
     radius: float = 0.8,
     dphi: float = 0.0,
@@ -213,7 +252,7 @@ def pollen_3d(
 
 
 def siemens_star(
-    num_pixels: int = 512, num_spokes: int = 32, radius: Optional[int] = None
+    num_pixels: int = 512, num_spokes: int = 32, radius: int | None = None
 ) -> np.ndarray:
     """
     Generates a 2D Siemens star image of shape ``num_pixels``. A single input
@@ -253,7 +292,7 @@ def siemens_star(
 if USE_CV2:
 
     def draw_disks(
-        shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
+        shape: tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
     ) -> np.ndarray:
         """
         Create a grayscale image with disks drawn at each provided coordinate.
@@ -277,7 +316,7 @@ if USE_CV2:
 else:
 
     def draw_disks(
-        shape: Tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
+        shape: tuple[int, int], coordinates: np.ndarray, radius: int, color: int = 255
     ) -> np.ndarray:
         """
         Create a grayscale image with disks drawn at each provided coordinate.
@@ -311,8 +350,8 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
         N: int,
         num_points: int,
         radius: int,
-        shape: Tuple[int, int],
-        z_range: Tuple[int, int],
+        shape: tuple[int, int, int],
+        z_range: tuple[int, int],
     ):
         """
         Create a dataset of random 3D coordinates and their associated image.
@@ -406,7 +445,6 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
                     self.radius,
                     color=255,
                 )  # TODO add weight
-                print(self.z_values[idx, i])
                 self.z[idx, self.z_indices[idx] == i] = self.z_values[idx, i]
             return (
                 np.array([self.x[idx], self.y[idx], self.z[idx]]).T,
@@ -419,7 +457,7 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
             ]  # TODO add weight
             return coords, image
 
-    def __call__(self) -> Tuple[np.ndarray, np.ndarray]:
+    def __call__(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get a new sample. Automatically iterates through samples of coordinates
         with every call. Will cause the random coordinates to be regenerated
