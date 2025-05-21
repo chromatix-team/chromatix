@@ -26,6 +26,8 @@ __all__ = [
     "microlens_array",
     "hexagonal_microlens_array",
     "rectangular_microlens_array",
+    "thick_plano_convex_lens",
+    "thick_plano_convex_ff_lens",
 ]
 
 
