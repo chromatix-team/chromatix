@@ -161,10 +161,12 @@ def plane_wave(
     scalar: bool = True,
 ) -> ScalarField | VectorField:
     """
-    Generates plane wave of given ``power``.
+    Generates plane wave of given ``power``, as ``exp(1j)`` at each location of
+    the field.
 
-    Can also be given ``pupil`` and ``kykx`` vector to control the angle of the
-    plane wave.
+    Can also be given ``pupil`` and ``kykx`` vector to control the angle of
+    the plane wave. If a ``kykx`` wave vector is provided, the plane wave is
+    constructed as ``exp(1j * jnp.sum(kykx * field.grid, axis=0))``.
 
     Args:
         shape: The shape (height and width) of the ``Field`` to be created.
@@ -177,8 +179,10 @@ def plane_wave(
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
-        kykx: Defines the orientation of the plane wave. Should be an
-            array of shape `[2,]` in the format `[ky, kx]`.
+        kykx: Defines the orientation of the plane wave. Should be an array of
+            shape `[2,]` in the format `[ky, kx]`. We assume that these are wave
+            vectors, i.e. that they have already been multiplied by ``2 * pi
+            / wavelength``.
         pupil: If provided, will be called on the field to apply a pupil.
         scalar: Whether the result should be ``ScalarField`` (if True) or
             ``VectorField`` (if False). Defaults to True.
@@ -195,7 +199,7 @@ def plane_wave(
     field = create(dx, spectrum, spectral_density, shape=shape)
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     amplitude = _broadcast_1d_to_polarization(amplitude, field.ndim)
-    u = amplitude * jnp.exp(1j * 2 * jnp.pi * jnp.sum(kykx * field.grid, axis=0))
+    u = amplitude * jnp.exp(1j * jnp.sum(kykx * field.grid, axis=0))
     field = field.replace(u=u)
     if pupil is not None:
         field = pupil(field)
