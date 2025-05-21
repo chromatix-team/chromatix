@@ -1,3 +1,5 @@
+from typing import Literal
+
 import jax
 import jax.numpy as jnp
 from chex import PRNGKey, assert_equal_shape, assert_rank
@@ -8,7 +10,7 @@ from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils.fft import fft, ifft
 
 from ..field import ScalarField, VectorField
-from ..utils import _broadcast_2d_to_spatial, center_pad
+from ..utils import _broadcast_2d_to_spatial, center_pad, l2_sq_norm
 from .polarizers import polarizer
 from .propagation import (
     compute_asm_propagator,
@@ -104,6 +106,7 @@ def multislice_thick_sample(
     n: ScalarLike,
     thickness_per_slice: ScalarLike,
     N_pad: int,
+    NA: ScalarLike | None = None,
     propagator: ArrayLike | None = None,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     reverse_propagate_distance: ScalarLike | None = None,
@@ -137,6 +140,15 @@ def multislice_thick_sample(
             a ConcretizationError will arise when traced!). Use padding
             calculator utilities from ``chromatix.functional.propagation`` to
             calculate the padding.
+        NA: If provided, will be used to define the numerical aperture (limiting
+            the captured frequencies) of the lens that is imaging the center of
+            the volume. If not provided (the default case), this function will
+            return the scattered field directly which may have undesirable high
+            frequencies.
+        propagator: If provided, will be used as the propagation kernel at
+            each plane of the sample. By default, the propagation kernel is
+            constructed automatically prior to looping through the planes of
+            the sample.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `(2,)` in the format ``[ky, kx]``.
         reverse_propagate_distance: If provided, propagates field at the end
@@ -155,27 +167,52 @@ def multislice_thick_sample(
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator is None:
-       propagator = compute_asm_propagator(field, thickness_per_slice, n, kykx)
-    # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
-    if return_stack:
-        _fields = []
-    for absorption, dn in zip(absorption_stack, dn_stack):
-        absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
-        dn = _broadcast_2d_to_spatial(dn, field.ndim)
+        propagator = compute_asm_propagator(
+            field, thickness_per_slice, n, kykx
+        )
+
+    def _scatter_through_plane(i: int, field: ScalarField) -> Array:
+        absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.ndim)
+        dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
+        field = kernel_propagate(
+            field,
+            propagator,
+        )
         field = thin_sample(field, absorption, dn, thickness_per_slice)
-        field = kernel_propagate(field, propagator)
-        if return_stack:
-            _fields.append(field.u)  # pyright: ignore
+        return field
+
+    def _accumulate_field_at_each_plane(i: int, fields: Array) -> Array:
+        fields = fields.at[i].set(
+            _scatter_through_plane(i - 1, field.replace(u=fields[i - 1])).u
+        )
+        return fields
+
     if return_stack:
-        field = field.replace(u=jnp.concatenate(_fields, axis=-5))  # pyright: ignore
+        fields = jnp.zeros((dn_stack.shape[0] + 1,) + field.shape, dtype=field.u.dtype)
+        fields = fields.at[0].set(field.u)
+        fields = jax.lax.fori_loop(
+            1, dn_stack.shape[0] + 1, _accumulate_field_at_each_plane, fields
+        )
+        field = field.replace(u=jnp.concatenate(fields[1:], axis=-5))
         return crop(field, N_pad)
-    # Propagate field backwards to the middle (or chosen distance) of the stack
-    if reverse_propagate_distance is None:
-        reverse_propagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
-    field = exact_propagate(
-        field, z=-reverse_propagate_distance, n=n, kykx=kykx, N_pad=0
-    )
-    return crop(field, N_pad)
+    else:
+        field = jax.lax.fori_loop(0, dn_stack.shape[0], _scatter_through_plane, field)
+        # Propagate field backwards to the middle (or chosen distance) of the stack
+        if reverse_propagate_distance is None:
+            reverse_propagate_distance = thickness_per_slice * dn_stack.shape[0] / 2
+        defocus_propagator = compute_asm_propagator(
+            field, -reverse_propagate_distance, n, kykx=kykx
+        )
+        if NA is not None:
+            # NOTE(dd/2024-12-12): @copypaste(ff_lens) Maybe eventually we should
+            # just have some functions for creating masks but not applying them
+            # to fields. Here we're creating a custom mask for the NA of the lens
+            # imaging the desired plane of the scattering sample.
+            mask = l2_sq_norm(field.k_grid) <= ((NA / field.spectrum) ** 2)
+            mask = jnp.fft.ifftshift(mask, axes=field.spatial_dims)
+            defocus_propagator *= mask
+        field = kernel_propagate(field, defocus_propagator)
+        return crop(field, N_pad)
 
 
 def fluorescent_multislice_thick_sample(
