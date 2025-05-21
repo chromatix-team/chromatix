@@ -160,7 +160,14 @@ def linear_phase(
     grid = create_grid(shape, spacing)
     grid = rotate_grid(grid, rotation)
     phase = grid[1] - grid[1].min()
-    phase = 2 * jnp.pi * dn * jnp.asarray(max_thickness) * (phase / phase.max()) / jnp.asarray(wavelength)
+    phase = (
+        2
+        * jnp.pi
+        * dn
+        * jnp.asarray(max_thickness)
+        * (phase / phase.max())
+        / jnp.asarray(wavelength)
+    )
     return phase
 
 
@@ -191,7 +198,9 @@ def sawtooth_phase(
     grid = rotate_grid(grid, rotation)
     phase = grid[1] - grid[1].min()
     phase = phase % period
-    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / jnp.asarray(wavelength)
+    phase = (
+        2 * jnp.pi * dn * thickness * (phase / phase.max()) / jnp.asarray(wavelength)
+    )
     return phase
 
 
@@ -210,7 +219,9 @@ def sinusoid_phase(
     grid = rotate_grid(grid, rotation)
     phase = grid[1] - grid[1].min()
     phase = jnp.sin(2 * jnp.pi * phase / period)
-    phase = 2 * jnp.pi * dn * thickness * (phase / phase.max()) / jnp.asarray(wavelength)
+    phase = (
+        2 * jnp.pi * dn * thickness * (phase / phase.max()) / jnp.asarray(wavelength)
+    )
     return phase
 
 

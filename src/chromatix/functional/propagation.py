@@ -363,9 +363,9 @@ def kernel_propagate(
             smoothly to 0 using the chosen boundary function.
     """
     _boundaries = {"tukey": tukey_pupil, "super_gaussian": super_gaussian_pupil}
-    assert (
-        absorbing_boundary is None or absorbing_boundary in _boundaries
-    ), f"The absorbing_boundary must be None or in {_boundaries.keys()}."
+    assert absorbing_boundary is None or absorbing_boundary in _boundaries, (
+        f"The absorbing_boundary must be None or in {_boundaries.keys()}."
+    )
     axes = field.spatial_dims
     u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
     field = field.replace(u=u)

@@ -338,10 +338,10 @@ class RandDiskGenerator:  # TODO avoid overlapping disks
                 the z coordinates.
         """
 
-        assert (
-            len(shape) == 3
-        ), "Shape must specify three dimensions, shape parameter is: {}".format(
-            len(shape)
+        assert len(shape) == 3, (
+            "Shape must specify three dimensions, shape parameter is: {}".format(
+                len(shape)
+            )
         )
         self.N = N
         self.radius = radius

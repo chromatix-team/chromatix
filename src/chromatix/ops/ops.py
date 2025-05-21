@@ -44,9 +44,9 @@ def fourier_convolution(
     """
     for i in range(len(axes) - 1):
         assert axes[i + 1] == (axes[i] + 1), "Axes to convolve over must be contiguous"
-    assert (
-        image.ndim == kernel.ndim
-    ), f"Input ({image.ndim}D) and kernel ({kernel.ndim}D) must have same number of dimensions"
+    assert image.ndim == kernel.ndim, (
+        f"Input ({image.ndim}D) and kernel ({kernel.ndim}D) must have same number of dimensions"
+    )
     # Get padded shape to prevent circular convolution
     padded_shape = [
         k1 + k2
