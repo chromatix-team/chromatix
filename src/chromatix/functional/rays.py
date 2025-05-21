@@ -7,13 +7,28 @@ from chromatix.utils import l2_sq_norm
 from chromatix.utils.fft import fft, ifft
 
 
-__all__ = ["ray_transfer", "compute_plano_convex_spherical_lens_abcd"]
+__all__ = [
+    "ray_transfer",
+    "compute_free_space_abcd",
+    "compute_thin_spherical_lens_abcd",
+    "compute_plano_convex_spherical_lens_abcd",
+]
 
 
 def compute_free_space_abcd(
     d: ScalarLike,
 ) -> Array:
     ABCD = jnp.array([[1, d], [0, 1]])
+    return ABCD
+
+
+def compute_thin_spherical_lens_abcd(
+    f: ScalarLike,
+    inverse: bool = False,
+) -> Array:
+    if inverse:
+        f = -f
+    ABCD = jnp.array([[1, 0], [-1 / f, 1]])
     return ABCD
 
 
@@ -51,11 +66,14 @@ def ray_transfer(
     D = ABCD[1, 1]
     k = 2 * jnp.pi * n / field.spectrum
     input_phase = k / (2 * B) * (A - magnification) * l2_sq_norm(field.grid)
-    transfer_phase = (jnp.pi * field.spectrum * B / magnification) * l2_sq_norm(
+    transfer_phase = (jnp.pi * (field.spectrum / n) * B / magnification) * l2_sq_norm(
         field.k_grid
     )
     output_phase = (
-        k / (2 * B) * (D - 1 / magnification) * l2_sq_norm(field.grid / magnification)
+        k
+        / (2 * B)
+        * (D - 1 / magnification)
+        * l2_sq_norm(field.grid / (magnification**2))
     )
     fft_input = field.u * jnp.exp(1j * input_phase)
     axes = field.spatial_dims
