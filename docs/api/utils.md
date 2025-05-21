@@ -11,6 +11,3 @@
 
 ## Shapes
 ::: chromatix.utils.shapes
-
-## Data
-:::chromatix.utils.data
