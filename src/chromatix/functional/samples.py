@@ -167,9 +167,7 @@ def multislice_thick_sample(
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator is None:
-        propagator = compute_asm_propagator(
-            field, thickness_per_slice, n, kykx
-        )
+        propagator = compute_asm_propagator(field, thickness_per_slice, n, kykx)
 
     def _scatter_through_plane(i: int, field: ScalarField) -> Array:
         absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.ndim)
@@ -179,11 +177,11 @@ def multislice_thick_sample(
             propagator,
         )
         field = thin_sample(field, absorption, dn, thickness_per_slice)
-        return field
+        return field  # pyright: ignore
 
     def _accumulate_field_at_each_plane(i: int, fields: Array) -> Array:
         fields = fields.at[i].set(
-            _scatter_through_plane(i - 1, field.replace(u=fields[i - 1])).u
+            _scatter_through_plane(i - 1, field.replace(u=fields[i - 1])).u  # pyright: ignore
         )
         return fields
 
