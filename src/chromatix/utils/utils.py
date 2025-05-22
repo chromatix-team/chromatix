@@ -152,9 +152,9 @@ def bounding_box(ax, x_bounds, y_bounds, surface_area, shift_yx=None, **kwargs):
     """Draw bounding box on an axis."""
     assert len(x_bounds) == 2
     assert len(y_bounds) == 2
-    assert len(surface_area) == 2
     if isinstance(surface_area, int) or isinstance(surface_area, float):
         surface_area = [surface_area, surface_area]
+    assert len(surface_area) == 2
     if shift_yx is None:
         shift_yx = [0, 0]
     else:

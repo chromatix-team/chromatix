@@ -3,6 +3,7 @@ from functools import partial
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from jax import jit
 from scipy.special import fresnel
 
 import chromatix.functional as cf
@@ -235,3 +236,36 @@ def test_transform_multiple():
     )
 
     assert field_after_second_propagation.intensity.squeeze()[256, 256] != 0.0
+
+
+# check jittable
+def test_jit():
+    asm_propagate_jit = jit(
+        cf.asm_propagate, static_argnames=("N_pad", "mode", "bandlimit", "use_czt")
+    )
+    shape = (1024, 1024)  # [px, px]
+    N_pad = (shape[0] // 2, shape[1] // 2)  # [px, px] padding to linearize the FFT
+    spectrum = 0.532  # wavelength [um]
+    dxi = 2 * spectrum
+    D = dxi * shape[0]  # field shape
+    w = D / 10  # width of aperture
+    z = 10 * D  # propagation distance
+    dxi = D / np.array(shape)
+    spacing = dxi[..., np.newaxis]
+    n = 1  # refractive index of medium
+    field = cf.plane_wave(
+        shape, spacing, spectrum, n, pupil=partial(cf.square_pupil, w=w)
+    )
+    zoom_factor = 4
+    shift_yx = [0, w / 2]
+    asm_propagate_jit(
+        field,
+        z,
+        n,
+        N_pad=N_pad,
+        mode="same",
+        bandlimit=True,
+        use_czt=True,
+        output_dx=spacing / zoom_factor,
+        shift_yx=shift_yx,
+    )

@@ -287,9 +287,9 @@ class Field(struct.PyTreeNode):
         """
         Return the spatial limits of the field: (y_min, y_max), (x_min, x_max).
         """
-        return (float(self.grid[0].min()), float(self.grid[0].max())), (
-            float(self.grid[1].min()),
-            float(self.grid[1].max()),
+        return (self.grid[0].min(), self.grid[0].max()), (
+            self.grid[1].min(),
+            self.grid[1].max(),
         )
 
     def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
