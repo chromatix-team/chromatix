@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import pytest
+
 from chromatix.utils import (
     create_grid,
     grid_spatial_to_pupil,

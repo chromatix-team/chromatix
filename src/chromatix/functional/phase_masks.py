@@ -4,19 +4,16 @@ from chex import assert_rank
 from jax import Array
 from jax.scipy.ndimage import map_coordinates
 
+from chromatix.field import Field, ScalarField, VectorField
+from chromatix.ops.quantization import quantize
 from chromatix.typing import ArrayLike, ScalarLike
-
-from ..field import Field, ScalarField, VectorField
-from ..ops.quantization import quantize
-from ..utils.initializers import (
+from chromatix.utils.initializers import (
     axicon_phase,
     linear_phase,
     sawtooth_phase,
-    seidel_aberrations,
     sinusoid_phase,
-    zernike_aberrations,
 )
-from ..utils.shapes import _broadcast_2d_to_spatial
+from chromatix.utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = [
     "phase_change",

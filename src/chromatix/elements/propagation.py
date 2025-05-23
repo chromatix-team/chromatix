@@ -12,9 +12,7 @@ from ..field import Field
 from ..functional import (
     asm_propagate,
     compute_asm_propagator,
-    compute_exact_propagator,
     compute_transfer_propagator,
-    exact_propagate,
     kernel_propagate,
     transfer_propagate,
     transform_propagate,
@@ -50,6 +48,13 @@ class Propagate(nn.Module):
     then this element has a trainable refractive index, initialized to 1.33.
 
     !!! warning
+        The underlying propagation method now defaults to ``method=asm``,
+        ``bandlimit=True`` and ``remove_evanescent=False``, which corresponds
+        to bandlimited angular spectrum (BLAS) as proposed in "Band-Limited
+        Angular Spectrum Method for Numerical Simulation of Free-Space
+        Propagation in Far and Near Fields" (Matsumina et al., 2009).
+
+    !!! warning
         By default this element caches the propagation kernel using the option
         ``cache_propagator``. Please be aware that this kernel gets placed
         inside the variables dict when initialising the model, so you'll have to
@@ -72,15 +77,18 @@ class Propagate(nn.Module):
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
         method: The propagation method, which can be "transform", "transfer",
-            "exact", or "asm." Defaults to "exact", which is propagation
-            without the Fresnel approximation and with evanescent waves
-            cancelled.
-        mode: Defines the cropping of the output if the method is "transfer" or
-            "exact". Defaults to "same", which returns a ``Field`` of the same
-            shape, unlike the functional methods.
+            or "asm". Defaults to "asm", which is propagation without the
+            Fresnel approximation.
+        bandlimit: Whether to bandlimit the field before propagation for "asm".
+            Defaults to True.
+        remove_evanescent: Whether to remove evanescent waves when using the
+            "asm" method. Defaults to False.
+        mode: Defines the cropping of the output if the method is NOT
+            "transform". Defaults to "same", which returns a ``Field`` of the
+            same shape, unlike the functional methods.
         cache_propagator: Whether to compute and store the propagation kernel
             or not. If True, ``z`` and ``n`` cannot be trainable. Defaults
-            to True.
+            to ``True``.
     """
 
     z: ArrayLike | Callable[[PRNGKey], Array]
@@ -88,7 +96,9 @@ class Propagate(nn.Module):
     N_pad: int = 0
     cval: float = 0
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
-    method: Literal["transform", "transfer", "exact", "asm"] = "exact"
+    method: Literal["transform", "transfer", "asm"] = "asm"
+    bandlimit: bool = True
+    remove_evanescent: bool = False
     mode: Literal["full", "same"] = "same"
     cache_propagator: bool = True
 
@@ -98,10 +108,8 @@ class Propagate(nn.Module):
             isinstance(self.z, Trainable) or isinstance(self.n, Trainable)
         ):
             raise ValueError("Cannot cache propagation kernel if z or n are trainable.")
-        if self.cache_propagator and self.method not in ["transfer", "exact", "asm"]:
-            raise ValueError(
-                "Can only cache kernel for 'transfer', 'exact', or 'asm' methods."
-            )
+        if self.cache_propagator and self.method not in ["transfer", "asm"]:
+            raise ValueError("Can only cache kernel for 'transfer' or 'asm' methods.")
         z = register(self, "z")
         n = register(self, "n")
         if self.cache_propagator:
@@ -118,17 +126,15 @@ class Propagate(nn.Module):
                     "kernel",
                     lambda: compute_transfer_propagator(*propagator_args),
                 )
-            elif self.method == "exact":
-                propagator = self.variable(
-                    "state",
-                    "kernel",
-                    lambda: compute_exact_propagator(*propagator_args),
-                )
             elif self.method == "asm":
                 propagator = self.variable(
                     "state",
                     "kernel",
-                    lambda: compute_asm_propagator(*propagator_args),
+                    lambda: compute_asm_propagator(
+                        *propagator_args,
+                        remove_evanescent=self.remove_evanescent,
+                        bandlimit=self.bandlimit,
+                    ),
                 )
             else:
                 raise NotImplementedError
@@ -154,16 +160,6 @@ class Propagate(nn.Module):
                 kykx=self.kykx,
                 mode=self.mode,
             )
-        elif self.method == "exact":
-            return exact_propagate(
-                field,
-                z,
-                n,
-                N_pad=self.N_pad,
-                cval=self.cval,
-                kykx=self.kykx,
-                mode=self.mode,
-            )
         elif self.method == "asm":
             return asm_propagate(
                 field,
@@ -173,10 +169,12 @@ class Propagate(nn.Module):
                 cval=self.cval,
                 kykx=self.kykx,
                 mode=self.mode,
+                remove_evanescent=self.remove_evanescent,
+                bandlimit=self.bandlimit,
             )
         else:
             raise NotImplementedError(
-                "Method must be one of 'transform', 'transfer', or 'exact'."
+                "Method must be one of: 'transform', 'transfer', 'asm'"
             )
 
 
@@ -206,9 +204,9 @@ class KernelPropagate(nn.Module):
             to 0.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
-        mode: Defines the cropping of the output if the method is "transfer" or
-            "exact". Defaults to "same", which returns a ``Field`` of the same
-            shape, unlike the functional methods.
+        mode: Defines the cropping of the output if the method is NOT
+            "transform". Defaults to "same", which returns a ``Field`` of the
+            same shape, unlike the functional methods.
     """
 
     propagator: ArrayLike | Callable[[PRNGKey], Array]

@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from jax import Array
 
 from chromatix.field import Field
 from chromatix.typing import ScalarLike
@@ -10,6 +11,7 @@ __all__ = [
     "rectangular_pupil",
     "super_gaussian_pupil",
     "tukey_pupil",
+    "gaussian_pupil",
 ]
 
 
@@ -51,3 +53,12 @@ def tukey_pupil(field: Field, w: ScalarLike) -> Field:
         0.5 * (1 + jnp.cos((2 * jnp.pi / jnp.array(1 - alpha)) * (grid - alpha / 2))),
     )
     return field * mask
+
+
+def gaussian_pupil(field: Field, w: float, offset: Array | None = None) -> Field:
+    """Applies a Gaussian pupil of waist w to the field."""
+    grid = field.grid
+    if offset is not None:
+        grid = grid - offset
+    envelope = jnp.exp(-l2_sq_norm(grid) / w**2)
+    return field * envelope

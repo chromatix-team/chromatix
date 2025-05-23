@@ -1,3 +1,0 @@
-# Fourier Ptychography
-
-**Coming soon!**

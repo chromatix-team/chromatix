@@ -3,6 +3,7 @@ repo_url: https://github.com/chromatix-team/chromatix/
 
 nav:
   - Home: index.md
+  - Hackathon: hackathon.md
   - Getting started:
     - Installing: installing.md
     - Chromatix 101: 101.ipynb
@@ -20,14 +21,16 @@ nav:
     - Utilities: api/utils.md
   - Examples:
     - Holoscope: examples/holoscope.ipynb
+    - High NA lenses: examples/highNA_PSF.ipynb
     - Computer Generated Holography: examples/cgh.ipynb
     - Digital Micromirror Device: examples/dmd.ipynb
     - Scalable Angular Spectrum: examples/sas.ipynb
     - Bandlimited Angular Spectrum: examples/bandlimited_angular_spectrum.ipynb
-    - Fourier Ptychography: examples/fourier_ptychography.md
-    - Synchrotron X-ray Holography: examples/tomography.md
+    - Rescaled propagation: examples/rescaled_propagation.ipynb
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
     - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
+    - Polarised multislice: examples/polarised_multislice.ipynb
+    - Modified Born Series: examples/modified_born.ipynb
 
 theme:
   logo: media/logo_symbol_white.png

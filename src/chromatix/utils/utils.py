@@ -161,3 +161,76 @@ def matvec(x: Array, y: Array) -> Array:
     Mostly used in polarisation calculations.
     Example [..., N, M] x [...., M] -> [...., N]"""
     return jnp.matmul(x, y[..., None]).squeeze(-1)
+
+
+def outer(x: Array, y: Array, in_axis: int = -1) -> Array:
+    """Calculates batched outer product (Numpy flattens input matrices)
+    Includes additional in_axis for which axis to use.
+    Output axes will always be last two.
+    """
+    _x = jnp.moveaxis(x, in_axis, -1)
+    _y = jnp.moveaxis(y, in_axis, -1)
+    return _x[..., None, :] * _y[..., :, None]
+
+
+def bounding_box(ax, x_bounds, y_bounds, surface_area, shift_yx=None, **kwargs):
+    """Draw bounding box on an axis."""
+    assert len(x_bounds) == 2
+    assert len(y_bounds) == 2
+    assert len(surface_area) == 2
+    if isinstance(surface_area, int) or isinstance(surface_area, float):
+        surface_area = [surface_area, surface_area]
+    if shift_yx is None:
+        shift_yx = [0, 0]
+    else:
+        assert len(shift_yx) == 2
+    ax.axvline(
+        x=x_bounds[0] + shift_yx[1],
+        ymin=0.5 + (y_bounds[0] + shift_yx[0]) / float(surface_area[1]),
+        ymax=0.5 + (y_bounds[1] + shift_yx[0]) / float(surface_area[1]),
+        **kwargs,
+    )
+    ax.axvline(
+        x=x_bounds[1] + shift_yx[1],
+        ymin=0.5 + (y_bounds[0] + shift_yx[0]) / float(surface_area[1]),
+        ymax=0.5 + (y_bounds[1] + shift_yx[0]) / float(surface_area[1]),
+        **kwargs,
+    )
+    ax.axhline(
+        y=y_bounds[0] + shift_yx[0],
+        xmin=0.5 + (x_bounds[0] + shift_yx[1]) / float(surface_area[0]),
+        xmax=0.5 + (x_bounds[1] + shift_yx[1]) / float(surface_area[0]),
+        **kwargs,
+    )
+    ax.axhline(
+        y=y_bounds[1] + shift_yx[0],
+        xmin=0.5 + (x_bounds[0] + shift_yx[1]) / float(surface_area[0]),
+        xmax=0.5 + (x_bounds[1] + shift_yx[1]) / float(surface_area[0]),
+        **kwargs,
+    )
+
+
+def plot_field(
+    field, quantity="amplitude", ax=None, cmap="gray", flipud=True, **kwargs
+):
+    if ax is None:
+        import matplotlib.pyplot as plt
+
+        _, ax = plt.subplots(1, 1)
+
+    if quantity == "amplitude":
+        u = field.amplitude.squeeze()
+    elif quantity == "phase":
+        u = field.phase.squeeze()
+    elif quantity == "intensity":
+        u = field.intensity.squeeze()
+    elif quantity == "power":
+        u = field.power.squeeze()
+    else:
+        raise ValueError(f"Unknown quantity {quantity}")
+    if flipud:
+        # flip up-down as y-axis goes from top to bottom
+        u = jnp.flipud(u)
+    ylim, xlim = field.spatial_limits
+    ax.imshow(u, cmap=cmap, extent=[*xlim, *ylim], **kwargs)
+    return ax

@@ -1,7 +1,8 @@
 import numpy as np
-from chromatix.ops.ops import fourier_convolution
 from jax import jit
 from scipy.signal import convolve
+
+from chromatix.ops.ops import fourier_convolution
 
 
 def test_fourier_convolution():
@@ -47,6 +48,6 @@ def test_no_fast_shape_fourier_convolution_3d():
         lambda A, B: fourier_convolution(A, B, axes=(0, 1, 2), fast_fft_shape=False)
     )(A, B)
     result_scipy = convolve(A, B, method="fft", mode="same")
-    assert np.allclose(
-        result_scipy, result_chromatix, atol=1e-3
-    ), "Fourier convolution not correct"
+    assert np.allclose(result_scipy, result_chromatix, atol=1e-3), (
+        "Fourier convolution not correct"
+    )

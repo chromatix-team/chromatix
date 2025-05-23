@@ -15,7 +15,12 @@ from chromatix.functional.sources import (
 )
 from chromatix.typing import ArrayLike, ScalarLike
 
-__all__ = ["PointSource", "ObjectivePointSource", "PlaneWave", "GenericField"]
+__all__ = [
+    "PointSource",
+    "ObjectivePointSource",
+    "PlaneWave",
+    "GenericField",
+]
 
 FieldPupil = Callable[[Field], Field]
 

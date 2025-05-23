@@ -3,19 +3,22 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 from chex import PRNGKey, assert_equal_shape, assert_rank
+import numpy as np
 from jax import Array
+from jax.lax import scan
+from jax.typing import ArrayLike
 
 from chromatix.field import crop, pad
 from chromatix.typing import ArrayLike, ScalarLike
+from chromatix.utils import matvec, outer
 from chromatix.utils.fft import fft, ifft
 
 from ..field import ScalarField, VectorField
 from ..utils import _broadcast_2d_to_spatial, center_pad, l2_sq_norm
 from .polarizers import polarizer
 from .propagation import (
-    compute_asm_propagator,
-    exact_propagate,
     asm_propagate,
+    compute_asm_propagator,
     kernel_propagate,
 )
 
@@ -111,6 +114,8 @@ def multislice_thick_sample(
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     reverse_propagate_distance: ScalarLike | None = None,
     return_stack: bool = False,
+    remove_evanescent: bool = False,
+    bandlimit: bool = False,
 ) -> ScalarField:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick sample. The
@@ -126,6 +131,10 @@ def multislice_thick_sample(
     ``reverse_propagate_distance`` if provided.
 
     Returns a ``ScalarField`` with the result of the perturbation.
+
+    !!! warning
+        The underlying propagation method now defaults to the angular spectrum
+        method (ASM) with ``bandlimit=False`` and ``remove_evanescent=False``.
 
     Args:
         field: The complex field to be perturbed.
@@ -161,13 +170,24 @@ def multislice_thick_sample(
             ``absorption_stack`` instead of the field defocused to the middle of
             the sample after scattering through the whole sample. If ``True``,
             ``reverse_propagate_distance`` is ignored. Defaults to ``False``.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            ``False``.
+        bandlimit: Whether to bandlimit the field before propagation. Defaults
+            to ``False``.
     """
     assert_equal_shape([absorption_stack, dn_stack])
     field = pad(field, N_pad)
     absorption_stack = center_pad(absorption_stack, (0, N_pad, N_pad))
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator is None:
-        propagator = compute_asm_propagator(field, thickness_per_slice, n, kykx)
+        propagator = compute_asm_propagator(
+            field,
+            thickness_per_slice,
+            n,
+            kykx,
+            remove_evanescent=remove_evanescent,
+            bandlimit=bandlimit,
+        )
 
     def _scatter_through_plane(i: int, field: ScalarField) -> Array:
         absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.ndim)
@@ -225,7 +245,9 @@ def fluorescent_multislice_thick_sample(
     propagator_forward: ArrayLike | None = None,
     propagator_backward: ArrayLike | None = None,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
-) -> ScalarField:
+    remove_evanescent: bool = False,
+    bandlimit: bool = False,
+) -> Array:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick,
     transparent, and fluorescent sample, i.e. a sample consisting of some
@@ -249,6 +271,10 @@ def fluorescent_multislice_thick_sample(
 
     Returns an ``Array`` with the result of the scattered fluorescence volume.
 
+    !!! warning
+        The underlying propagation method now defaults to the angular spectrum
+        method (ASM) with ``bandlimit=False`` and ``remove_evanescent=False`.
+
     Args:
         field: The complex field to be perturbed.
         fluorescence_stack: The sample fluorescence amplitude for each slice
@@ -270,6 +296,10 @@ def fluorescent_multislice_thick_sample(
             through the sample.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `(2,)` in the format ``[ky, kx]``.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            ``False``.
+        bandlimit: Whether to bandlimit the field before propagation. Defaults
+            to ``False``.
     """
     keys = jax.random.split(key, num=num_samples)
     original_field_shape = field.shape
@@ -278,10 +308,22 @@ def fluorescent_multislice_thick_sample(
     field = pad(field, N_pad)
     dn_stack = center_pad(dn_stack, (0, N_pad, N_pad))
     if propagator_forward is None:
-        propagator_forward = compute_asm_propagator(field, thickness_per_slice, n, kykx)
+        propagator_forward = compute_asm_propagator(
+            field,
+            thickness_per_slice,
+            n,
+            kykx,
+            remove_evanescent=remove_evanescent,
+            bandlimit=bandlimit,
+        )
     if propagator_backward is None:
         propagator_backward = compute_asm_propagator(
-            field, -thickness_per_slice, n, kykx
+            field,
+            -thickness_per_slice,
+            n,
+            kykx,
+            remove_evanescent=remove_evanescent,
+            bandlimit=bandlimit,
         )
 
     def _forward(i, field_and_fluorescence_stack):
@@ -336,61 +378,84 @@ def fluorescent_multislice_thick_sample(
     return intensity_stack
 
 
-# depolarised wave
-def PTFT(k: ArrayLike, km: ScalarLike) -> Array:
-    Q = jnp.zeros((3, 3, *k.shape[1:]))
-
-    # Setting diagonal
-    Q_diag = 1 - k**2 / km**2
-    Q = Q.at[jnp.diag_indices(3)].set(Q_diag)
-
-    # Calculating off-diagonal elements
-    def q_ij(i, j):
-        return -k[i] * k[j] / km**2
-
-    # Setting upper diagonal
-    Q = Q.at[0, 1].set(q_ij(0, 1))
-    Q = Q.at[0, 2].set(q_ij(0, 2))
-    Q = Q.at[1, 2].set(q_ij(1, 2))
-
-    # Setting lower diagonal, mirror symmetry
-    Q = Q.at[1, 0].set(q_ij(0, 1))
-    Q = Q.at[2, 0].set(q_ij(0, 2))
-    Q = Q.at[2, 1].set(q_ij(1, 2))
-
-    # We move the axes to the back, easier matmul
-    return jnp.moveaxis(Q.squeeze(-1), (0, 1), (-2, -1))
-
-
-def bmatvec(a, b):
-    return jnp.matmul(a, b[..., None]).squeeze(-1)
-
-
-def thick_sample_vector(
-    field: VectorField, scatter_potential: ArrayLike, dz: ScalarLike, n: ScalarLike
+def thick_polarised_sample(
+    field: VectorField,
+    potential: ArrayLike,
+    n_background: ArrayLike,
+    dz: ArrayLike,
+    NA: float = 1.0,
 ) -> VectorField:
-    def P_op(u: Array) -> Array:
-        phase_factor = jnp.exp(1j * kz * dz)
-        return ifft(bmatvec(Q, phase_factor * fft(u)))
+    """Implements a thick sample method polarised samples per
+    'Multislice computational model for birefringent scattering'
+    https://doi.org/10.1364/OPTICA.472077
+
+    Args:
+        field (VectorField): _description_
+        potential (ArrayLike): _description_
+        n_background (ArrayLike): _description_
+        dz (ArrayLike): _description_
+        NA (float, optional): _description_. Defaults to 1.0.
+
+    Returns:
+        VectorField: _description_
+    """
 
     def Q_op(u: Array) -> Array:
-        return ifft(bmatvec(Q, fft(u)))
+        # correct
+        """Polarisation transfer operator"""
+        return crop(ifft(matvec(Q, fft(pad(u)))))
 
     def H_op(u: Array) -> Array:
-        phase_factor = -1j * dz / 2 * jnp.exp(1j * kz * dz) / kz
-        return ifft(bmatvec(Q, phase_factor * fft(u)))
+        # correct
+        """Vectorial scattering operator"""
+        prefactor = jnp.where(kz > 0, -1j / 2 * jnp.exp(1j * kz * dz) / kz * dz, 0)
+        return crop(ifft(matvec(Q, prefactor * fft(pad(u)))))
 
-    # Calculating k vector and PTFT
-    # We shift k to align in k-space so we dont need shift just like Q
-    km = 2 * jnp.pi * n / field.spectrum
-    k = jnp.fft.ifftshift(field.k_grid, axes=field.spatial_dims)
-    kz = jnp.sqrt(km**2 - jnp.sum(k**2, axis=0))
-    k = jnp.concatenate([kz[None, ...], k], axis=0)
-    Q = PTFT(k, km)
+    def P_op(u: Array) -> Array:
+        """Vectorial free space operator"""
+        prefactor = jnp.where(kz > 0, jnp.exp(1j * kz * dz), 0)
+        return crop(ifft(matvec(Q, prefactor * fft(pad(u)))))
 
-    def propagate_slice(u, potential_slice):
-        scatter_field = bmatvec(potential_slice, Q_op(u))
-        return P_op(u) + H_op(scatter_field), None
+    def propagate_slice(u: Array, potential_slice: Array) -> tuple[Array, None]:
+        scatter_field = matvec(potential_slice, Q_op(u))
+        new_field = P_op(u) + H_op(scatter_field)
+        return new_field, new_field
 
-    u, _ = jax.lax.scan(propagate_slice, field.u, scatter_potential)
+    def pad(u):
+        return jnp.pad(u, padding)
+
+    def crop(u):
+        return u[:, : field.spatial_shape[0], : field.spatial_shape[1]]
+
+    # Padding for circular convolution
+    padded_shape = 2 * np.array(field.spatial_shape)
+    n_pad = padded_shape - np.array(field.spatial_shape)
+    padding = ((0, 0), (0, n_pad[0]), (0, n_pad[1]), (0, 0), (0, 0))
+
+    # Getting k_grid
+    k_grid = (
+        2
+        * jnp.pi
+        * jnp.stack(
+            jnp.meshgrid(
+                jnp.fft.fftfreq(n=padded_shape[0], d=field.dx.squeeze()[0]),
+                jnp.fft.fftfreq(n=padded_shape[1], d=field.dx.squeeze()[1]),
+                indexing="ij",
+            )
+        )[:, None, ..., None, None]
+    )
+    km = 2 * jnp.pi * n_background / field.spectrum
+    kz = jnp.sqrt(
+        jnp.maximum(0.0, km**2 - jnp.sum(k_grid**2, axis=0))
+    )  # chop off evanescent waves
+    k_grid = jnp.concatenate([kz[None, ...], k_grid], axis=0)
+
+    # Getting PTFT and band limiting
+    Q = (-outer(k_grid / km, k_grid / km, in_axis=0) + jnp.eye(3)).squeeze(-3)
+    Q = jnp.where(
+        jnp.sum(k_grid[1:, ..., None] ** 2, axis=0) <= NA**2 * km**2, Q, 0
+    )  # Add the NA here
+
+    # Running scan over sample
+    u, intermediates = scan(propagate_slice, field.u, potential)
     return field.replace(u=u)

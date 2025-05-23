@@ -13,6 +13,9 @@
 | [**FAQ**](https://chromatix.readthedocs.io/en/latest/FAQ/)
 | [**Chromatix Documentation**](https://chromatix.readthedocs.io/en/latest/)
 
+> :rotating_light:**We're organising a Chromatix Hackathon at Janelia Research Campus May 27th - 31st. See [here](https://chromatix.readthedocs.io/en/latest/hackathon/) for more info and how to apply! :rotating_light:**
+
+
 Welcome to `chromatix`, a differentiable wave optics library built using `jax` which combines JIT-compilation, (multi-)GPU support, and automatic differentiation with a convenient programming style inspired by deep learning libraries. This makes `chromatix` a great fit for inverse problems in optics. We intend `chromatix` to be used by researchers in computational optics, so `chromatix` provides a set of optical element "building blocks" that can be composed together in a style similar to neural network layers. This means we take care of the more tedious details of writing fast optical simulations, while still leaving a lot of control over what is simulated and/or optimized up to you! Chromatix is still in active development, so **expect sharp edges**.
 
 Here are some of the cool things we've already built with `chromatix`:
@@ -20,6 +23,7 @@ Here are some of the cool things we've already built with `chromatix`:
 - [**Holoscope**](docs/examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
 - [**Computer Generated Holography**](docs/examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
 - [**Aberration Phase Retrieval**](docs/examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
+
 
 ## Installation
 
@@ -34,6 +38,12 @@ or for an editable install for development, first clone the repository and then 
 $ git clone https://github.com/chromatix-team/chromatix
 $ cd chromatix
 $ pip install -e .
+# install dependencies for development
+$ pip install pytest ruff pre-commit
+# install pre-commit hooks for formatting
+pre-commit install
+# test
+$ pytest
 ```
 Check out [the documentation](https://chromatix.readthedocs.io/en/latest/installing/) for more details on installation.
 

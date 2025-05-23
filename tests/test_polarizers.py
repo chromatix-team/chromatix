@@ -1,10 +1,11 @@
 from functools import partial
 
-import chromatix.functional as cf
 import jax.numpy as jnp
 import numpy as np
 import pytest
 from chex import assert_axis_dimension
+
+import chromatix.functional as cf
 
 
 def test_inits():
