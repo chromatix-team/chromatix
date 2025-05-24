@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import Any, TypeVar
+from typing import Any
 
 import jax.numpy as jnp
 from chex import assert_equal_shape, assert_rank

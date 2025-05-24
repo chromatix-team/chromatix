@@ -6,7 +6,6 @@ from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import l2_sq_norm
 from chromatix.utils.fft import fft, ifft
 
-
 __all__ = [
     "ray_transfer",
     "compute_free_space_abcd",

@@ -5,7 +5,7 @@ from jax.scipy.ndimage import map_coordinates
 
 from chromatix import Field
 
-from ..ops.quantization import quantize, binarize
+from ..ops.quantization import binarize, quantize
 from ..utils.shapes import _broadcast_2d_to_spatial
 
 __all__ = ["amplitude_change", "interpolated_amplitude_change"]

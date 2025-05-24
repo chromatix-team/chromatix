@@ -1,4 +1,4 @@
-from typing import Callable, Literal
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -6,19 +6,16 @@ import numpy as np
 from jax import Array
 from jax.scipy.signal import fftconvolve
 
-from chromatix.functional.convenience import optical_fft
-from chromatix.functional.pupils import tukey_pupil, super_gaussian_pupil
-from chromatix.typing import ArrayLike, ScalarLike
-from chromatix.utils.fft import fft, ifft
-
 from chromatix.field import Field, ScalarField, VectorField, crop, pad, shift_grid
-from chromatix.utils.czt import czt
-
+from chromatix.functional.convenience import optical_fft
+from chromatix.functional.pupils import super_gaussian_pupil, tukey_pupil
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import (
     _broadcast_1d_to_grid,
     _broadcast_1d_to_innermost_batch,
     l2_sq_norm,
 )
+from chromatix.utils.czt import czt
 
 __all__ = [
     "transform_propagate",

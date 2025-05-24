@@ -1,12 +1,9 @@
-from typing import Literal
-
 import jax
 import jax.numpy as jnp
-from chex import PRNGKey, assert_equal_shape, assert_rank
 import numpy as np
+from chex import PRNGKey, assert_equal_shape, assert_rank
 from jax import Array
 from jax.lax import scan
-from jax.typing import ArrayLike
 
 from chromatix.field import crop, pad
 from chromatix.typing import ArrayLike, ScalarLike
@@ -17,7 +14,6 @@ from ..field import ScalarField, VectorField
 from ..utils import _broadcast_2d_to_spatial, center_pad, l2_sq_norm
 from .polarizers import polarizer
 from .propagation import (
-    asm_propagate,
     compute_asm_propagator,
     kernel_propagate,
 )

@@ -1,10 +1,10 @@
 import math
-from typing import no_type_check, Sequence
+from typing import Sequence, no_type_check
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange
-import jax
 from jax import Array
 from scipy.special import comb  # type: ignore
 
