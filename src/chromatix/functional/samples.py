@@ -1,29 +1,26 @@
-from typing import Optional, Tuple, Union
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-from chex import assert_equal_shape, assert_rank
+from chex import PRNGKey, assert_equal_shape, assert_rank
 from jax import Array
 from jax.lax import scan
-from jax.typing import ArrayLike
 
 from chromatix.field import crop, pad
+from chromatix.typing import ArrayLike, ScalarLike
 from chromatix.utils import matvec, outer
 from chromatix.utils.fft import fft, ifft
 
 from ..field import ScalarField, VectorField
-from ..utils import _broadcast_2d_to_spatial, center_pad
+from ..utils import _broadcast_2d_to_spatial, center_pad, l2_sq_norm
 from .polarizers import polarizer
 from .propagation import (
-    asm_propagate,
     compute_asm_propagator,
     kernel_propagate,
 )
 
 
 def jones_sample(
-    field: VectorField, absorption: Array, dn: Array, thickness: Union[float, Array]
+    field: VectorField, absorption: ArrayLike, dn: ArrayLike, thickness: ScalarLike
 ) -> VectorField:
     """
     Perturbs an incoming ``VectorField`` as if it went through a thin sample
@@ -64,7 +61,7 @@ def jones_sample(
 
 
 def thin_sample(
-    field: ScalarField, absorption: Array, dn: Array, thickness: Union[float, Array]
+    field: ScalarField, absorption: ArrayLike, dn: ArrayLike, thickness: ScalarLike
 ) -> ScalarField:
     """
     Perturbs an incoming ``ScalarField`` as if it went through a thin sample
@@ -103,14 +100,16 @@ def thin_sample(
 
 def multislice_thick_sample(
     field: ScalarField,
-    absorption_stack: Array,
-    dn_stack: Array,
-    n: float,
-    thickness_per_slice: float,
+    absorption_stack: ArrayLike,
+    dn_stack: ArrayLike,
+    n: ScalarLike,
+    thickness_per_slice: ScalarLike,
     N_pad: int,
-    propagator: Optional[Array] = None,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-    reverse_propagate_distance: Optional[float] = None,
+    NA: ScalarLike | None = None,
+    propagator: ArrayLike | None = None,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    reverse_propagate_distance: ScalarLike | None = None,
+    return_stack: bool = False,
     remove_evanescent: bool = False,
     bandlimit: bool = False,
 ) -> ScalarField:
@@ -146,11 +145,27 @@ def multislice_thick_sample(
             a ConcretizationError will arise when traced!). Use padding
             calculator utilities from ``chromatix.functional.propagation`` to
             calculate the padding.
+        NA: If provided, will be used to define the numerical aperture (limiting
+            the captured frequencies) of the lens that is imaging the center of
+            the volume. If not provided (the default case), this function will
+            return the scattered field directly which may have undesirable high
+            frequencies.
+        propagator: If provided, will be used as the propagation kernel at
+            each plane of the sample. By default, the propagation kernel is
+            constructed automatically prior to looping through the planes of
+            the sample.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `(2,)` in the format ``[ky, kx]``.
         reverse_propagate_distance: If provided, propagates field at the end
             backwards by this amount from the top of the stack. By default,
             field is propagated backwards to the middle of the sample.
+        return_stack: If ``True``, returns the 3D stack of intermediate
+            scattered fields at each plane of the thick sample. This 3D
+            stack is returned as a ``Field`` where the innermost batch
+            dimension is the number of planes in the provided ``dn_stack``/
+            ``absorption_stack`` instead of the field defocused to the middle of
+            the sample after scattering through the whole sample. If ``True``,
+            ``reverse_propagate_distance`` is ignored. Defaults to ``False``.
         remove_evanescent: If ``True``, removes evanescent waves. Defaults to
             ``False``.
         bandlimit: Whether to bandlimit the field before propagation. Defaults
@@ -169,41 +184,68 @@ def multislice_thick_sample(
             remove_evanescent=remove_evanescent,
             bandlimit=bandlimit,
         )
-    # NOTE(ac+dd): Unrolling this loop is much faster than ``jax.scan``-likes.
-    for absorption, dn in zip(absorption_stack, dn_stack):
-        absorption = _broadcast_2d_to_spatial(absorption, field.ndim)
-        dn = _broadcast_2d_to_spatial(dn, field.ndim)
-        field = thin_sample(field, absorption, dn, thickness_per_slice)
-        field = kernel_propagate(field, propagator)
-    # Propagate field backwards to the middle (or chosen distance) of the stack
-    if reverse_propagate_distance is None:
-        reverse_propagate_distance = thickness_per_slice * absorption_stack.shape[0] / 2
-    field = asm_propagate(
-        field,
-        z=-reverse_propagate_distance,
-        n=n,
-        kykx=kykx,
-        N_pad=0,
-        remove_evanescent=remove_evanescent,
-        bandlimit=bandlimit,
-    )
-    return crop(field, N_pad)
+
+    def _scatter_through_plane(i: int, field_u: Array) -> Array:
+        absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.ndim)
+        dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
+        field_i = field.replace(u=field_u)
+        field_i = kernel_propagate(
+            field_i,
+            propagator,
+        )
+        field_i = thin_sample(field_i, absorption, dn, thickness_per_slice)
+        return field_i.u  # pyright: ignore
+
+    def _accumulate_field_at_each_plane(i: int, fields: Array) -> Array:
+        fields = fields.at[i].set(
+            _scatter_through_plane(i - 1, field.replace(u=fields[i - 1])).u  # pyright: ignore
+        )
+        return fields
+
+    if return_stack:
+        fields = jnp.zeros((dn_stack.shape[0] + 1,) + field.shape, dtype=field.u.dtype)
+        fields = fields.at[0].set(field.u)
+        fields = jax.lax.fori_loop(
+            1, dn_stack.shape[0] + 1, _accumulate_field_at_each_plane, fields
+        )
+        field = field.replace(u=jnp.concatenate(fields[1:], axis=-5))
+        return crop(field, N_pad)
+    else:
+        field = field.replace(
+            u=jax.lax.fori_loop(0, dn_stack.shape[0], _scatter_through_plane, field.u)
+        )
+        # Propagate field backwards to the middle (or chosen distance) of the stack
+        if reverse_propagate_distance is None:
+            reverse_propagate_distance = thickness_per_slice * dn_stack.shape[0] / 2
+        defocus_propagator = compute_asm_propagator(
+            field, -reverse_propagate_distance, n, kykx=kykx
+        )
+        if NA is not None:
+            # NOTE(dd/2024-12-12): @copypaste(ff_lens) Maybe eventually we should
+            # just have some functions for creating masks but not applying them
+            # to fields. Here we're creating a custom mask for the NA of the lens
+            # imaging the desired plane of the scattering sample.
+            mask = l2_sq_norm(field.k_grid) <= ((NA / field.spectrum) ** 2)
+            mask = jnp.fft.ifftshift(mask, axes=field.spatial_dims)
+            defocus_propagator *= mask
+        field = kernel_propagate(field, defocus_propagator)
+        return crop(field, N_pad)
 
 
 def fluorescent_multislice_thick_sample(
     field: ScalarField,
     fluorescence_stack: Array,
     dn_stack: Array,
-    n: float,
-    thickness_per_slice: float,
+    n: ScalarLike,
+    thickness_per_slice: ScalarLike,
     N_pad: int,
-    key: jax.random.PRNGKey,
+    key: PRNGKey,
     num_samples: int = 1,
-    propagator_forward: Optional[Array] = None,
-    propagator_backward: Optional[Array] = None,
+    propagator_forward: ArrayLike | None = None,
+    propagator_backward: ArrayLike | None = None,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     remove_evanescent: bool = False,
     bandlimit: bool = False,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
 ) -> Array:
     """
     Perturbs incoming ``ScalarField`` as if it went through a thick,

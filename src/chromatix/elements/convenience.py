@@ -1,8 +1,7 @@
-from typing import Optional, Tuple, Union
-
 import flax.linen as nn
 import jax.numpy as jnp
-from chex import Array
+
+from chromatix.typing import ScalarLike
 
 from ..field import Field
 from ..ops import binarize, quantize
@@ -31,8 +30,8 @@ class ScaleAndBias(nn.Module):
     broadcastable to the shape of the incoming ``Field``.
     """
 
-    bias: Union[float, Array]
-    scale: Union[float, Array]
+    bias: ScalarLike
+    scale: ScalarLike
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -61,7 +60,7 @@ class Quantize(nn.Module):
     """
 
     bit_depth: int
-    range: Optional[Tuple[int, int]] = None
+    range: tuple[int, int] | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:

@@ -1,17 +1,19 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable
 
 import flax.linen as nn
 import numpy as np
-from chex import Array, PRNGKey
+from chex import PRNGKey
+from jax import Array
 
 from chromatix.elements.utils import register
-from chromatix.field import Field
+from chromatix.field import Field, ScalarField, VectorField
 from chromatix.functional.sources import (
     generic_field,
     objective_point_source,
     plane_wave,
     point_source,
 )
+from chromatix.typing import ArrayLike, ScalarLike
 
 __all__ = [
     "PointSource",
@@ -19,6 +21,8 @@ __all__ = [
     "PlaneWave",
     "GenericField",
 ]
+
+FieldPupil = Callable[[Field], Field]
 
 
 class PointSource(nn.Module):
@@ -49,20 +53,20 @@ class PointSource(nn.Module):
         epsilon: Value added to denominators for numerical stability.
     """
 
-    shape: Tuple[int, int]
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    z: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
-    pupil: Optional[Callable[[Field], Field]] = None
+    shape: tuple[int, int]
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    z: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    pupil: FieldPupil | None = None
     scalar: bool = True
-    epsilon: float = (np.finfo(np.float32).eps,)
+    epsilon: float = float(np.finfo(np.float32).eps)
 
     @nn.compact
-    def __call__(self) -> Field:
+    def __call__(self) -> ScalarField | VectorField:
         power = register(self, "power")
         z = register(self, "z")
         n = register(self, "n")
@@ -111,20 +115,20 @@ class ObjectivePointSource(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    shape: Tuple[int, int]
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    f: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    NA: Union[float, Callable[[PRNGKey], float]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
-    offset: Union[Array, Tuple[float, float]] = (0.0, 0.0)
+    shape: tuple[int, int]
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array]
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    offset: ArrayLike | tuple[float, float] = (0.0, 0.0)
     scalar: bool = True
 
     @nn.compact
-    def __call__(self, z: float) -> Field:
+    def __call__(self, z: ScalarLike) -> ScalarField | VectorField:
         f = register(self, "f")
         n = register(self, "n")
         NA = register(self, "NA")
@@ -176,18 +180,18 @@ class PlaneWave(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    shape: Tuple[int, int]
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    amplitude: Union[float, Array, Callable[[PRNGKey], Array]] = 1.0
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
-    pupil: Optional[Callable[[Field], Field]] = None
+    shape: tuple[int, int]
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    amplitude: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
+    pupil: FieldPupil | None = None
     scalar: bool = True
 
     @nn.compact
-    def __call__(self) -> Field:
+    def __call__(self) -> ScalarField | VectorField:
         kykx = register(self, "kykx")
         power = register(self, "power")
         amplitude = register(self, "amplitude")
@@ -227,17 +231,17 @@ class GenericField(nn.Module):
             ``VectorField`` (if False). Defaults to True.
     """
 
-    dx: Union[float, Array]
-    spectrum: Union[float, Array]
-    spectral_density: Union[float, Array]
-    amplitude: Union[Array, Callable[[PRNGKey], Array]]
-    phase: Union[Array, Callable[[PRNGKey], Array]]
-    power: Union[float, Callable[[PRNGKey], float]] = 1.0
-    pupil: Optional[Callable[[Field], Field]] = None
+    dx: ScalarLike
+    spectrum: ScalarLike
+    spectral_density: ScalarLike
+    amplitude: ArrayLike | Callable[[PRNGKey], Array]
+    phase: ArrayLike | Callable[[PRNGKey], Array]
+    power: ScalarLike | Callable[[PRNGKey], Array] = 1.0
+    pupil: FieldPupil | None = None
     scalar: bool = True
 
     @nn.compact
-    def __call__(self) -> Field:
+    def __call__(self) -> ScalarField | VectorField:
         amplitude = register(self, "amplitude")
         phase = register(self, "phase")
         power = register(self, "power")

@@ -1,10 +1,12 @@
-from typing import Callable, Literal, Optional, Tuple, Union
+from typing import Callable, Literal
 
 import flax.linen as nn
-from chex import Array, PRNGKey
+from chex import PRNGKey
+from jax import Array
 
 from chromatix.elements.utils import Trainable, register
 from chromatix.field import crop, pad
+from chromatix.typing import ArrayLike
 
 from ..field import Field
 from ..functional import (
@@ -89,11 +91,11 @@ class Propagate(nn.Module):
             to ``True``.
     """
 
-    z: Union[float, Array, Callable[[PRNGKey], Array]]
-    n: Union[float, Callable[[PRNGKey], Array]]
+    z: ArrayLike | Callable[[PRNGKey], Array]
+    n: ArrayLike | Callable[[PRNGKey], Array]
     N_pad: int = 0
     cval: float = 0
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
     method: Literal["transform", "transfer", "asm"] = "asm"
     bandlimit: bool = True
     remove_evanescent: bool = False
@@ -134,6 +136,8 @@ class Propagate(nn.Module):
                         bandlimit=self.bandlimit,
                     ),
                 )
+            else:
+                raise NotImplementedError
             field = kernel_propagate(field, propagator.value)
             if self.mode == "same":
                 field = crop(field, self.N_pad)
@@ -205,12 +209,12 @@ class KernelPropagate(nn.Module):
             same shape, unlike the functional methods.
     """
 
-    propagator: Union[Array, Callable[[PRNGKey], Array]]
-    z: Optional[Union[float, Array]] = None
-    n: Optional[float] = None
+    propagator: ArrayLike | Callable[[PRNGKey], Array]
+    z: ArrayLike | None = None
+    n: ArrayLike | None = None
     N_pad: int = 0
     cval: float = 0
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0)
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0)
     mode: Literal["full", "same"] = "same"
 
     @nn.compact
