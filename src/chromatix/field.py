@@ -287,7 +287,7 @@ class Field(struct.PyTreeNode):
         return self.replace(u=jnp.conj(self.u))
 
     @property
-    def spatial_limits(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    def spatial_limits(self) -> tuple[tuple[float, float], tuple[float, float]]:
         """
         Return the spatial limits of the field: (y_min, y_max), (x_min, x_max).
         """
@@ -421,19 +421,14 @@ class ScalarField(Field):
                 that is is no longer centered at the origin. Should be an array
                 of shape `[2,]` in the format `[y, x]`.
         """
-        # Parsing dx
-        _dx = jnp.atleast_1d(dx)
-        if _dx.ndim == 1:
-            _dx = jnp.stack([_dx, _dx])
-        assert_rank(_dx, 2)  # dx should have shape (2, C) here
-
-        # Parsing spectrum and density
-        _spectrum = jnp.atleast_1d(spectrum)
-        _spectral_density = jnp.atleast_1d(spectral_density)
-        assert_equal_shape([_spectrum, _spectral_density])
-        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
-
-        # Parsing u
+        dx = jnp.atleast_1d(dx)
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        spectrum = jnp.atleast_1d(spectrum)
+        spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([spectrum, spectral_density])
+        spectral_density = spectral_density / jnp.sum(spectral_density)
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
             u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
@@ -442,20 +437,16 @@ class ScalarField(Field):
             "Field must be Array with at least 5 dimensions: (B... H W C 1)."
         )
         assert u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
         if origin is None:
             origin = jnp.zeros((2, 1))
-        elif isinstance(origin, Tuple):
+        elif isinstance(origin, tuple):
             origin = jnp.array(origin)
         elif isinstance(origin, Number):
             origin = jnp.array([origin, origin])
         if origin.ndim == 1:
             origin = origin[:, None]
-        assert_rank(origin, 2)  # shift_yx should have shape (2, C) here
+        assert_rank(origin, 2)  # origin should have shape (2, C) here
+        assert origin.shape[0] == 2
         return cls(u, dx, spectrum, spectral_density, origin)
 
 
@@ -505,20 +496,14 @@ class VectorField(Field):
                 that is is no longer centered at the origin. Should be an array
                 of shape `[2,]` in the format `[y, x]`.
         """
-
-        # Parsing dx
-        _dx = jnp.atleast_1d(dx)
-        if _dx.ndim == 1:
-            _dx = jnp.stack([_dx, _dx])
-        assert_rank(_dx, 2)  # dx should have shape (2, C) here
-
-        # Parsing spectrum and density
-        _spectrum = jnp.atleast_1d(spectrum)
-        _spectral_density = jnp.atleast_1d(spectral_density)
-        assert_equal_shape([_spectrum, _spectral_density])
-        _spectral_density = _spectral_density / jnp.sum(_spectral_density)
-
-        # Parsing u
+        dx = jnp.atleast_1d(dx)
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        spectrum = jnp.atleast_1d(spectrum)
+        spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([spectrum, spectral_density])
+        spectral_density = spectral_density / jnp.sum(spectral_density)
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
             u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
@@ -527,14 +512,15 @@ class VectorField(Field):
             "Field must be Array with at least 5 dimensions: (B... H W C 3)."
         )
         assert u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
         if origin is None:
             origin = jnp.zeros((2, 1))
-        assert_rank(origin, 2)  # shift_yx should have shape (2, C) here
+        elif isinstance(origin, tuple):
+            origin = jnp.array(origin)
+        elif isinstance(origin, Number):
+            origin = jnp.array([origin, origin])
+        if origin.ndim == 1:
+            origin = origin[:, None]
+        assert_rank(origin, 2)  # origin should have shape (2, C) here
         assert origin.shape[0] == 2
         return cls(u, dx, spectrum, spectral_density, origin)
 
