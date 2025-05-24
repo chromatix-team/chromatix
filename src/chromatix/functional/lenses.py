@@ -130,16 +130,18 @@ def high_na_ff_lens(
 
     # NOTE: This only works for single wavelength so far?
     # NOTE: What about non-square cases?
-    zoom_factor = (
-        2
-        * NA
-        * output_shape[0]
-        * output_dx
-        / field.spectrum.squeeze()
-        / (field.shape[1] - 1)
-    )
+    FoV_out = output_shape[0] * output_dx
+    zoom_factor = 2 * NA * FoV_out / ((field.shape[1] - 1) * field.spectrum.squeeze())
+
+    # Correction factors
+    s_grid = field.k_grid * field.spectrum.squeeze() / n
+    sz_sq = 1 - NA**2 * l2_sq_norm(s_grid)
+    sz = jnp.sqrt(jnp.maximum(sz_sq, 0.0))
+    k = 2 * jnp.pi * n / field.spectrum.squeeze()
+    defocus = jnp.where(sz != 0.0, jnp.exp(1j * k * sz * f) / sz, 0.0)
+
     u = zoomed_fft(
-        x=spherical_u,
+        x=spherical_u * defocus,
         k_start=-zoom_factor * jnp.pi,
         k_end=zoom_factor * jnp.pi,
         output_shape=output_shape,
@@ -147,10 +149,7 @@ def high_na_ff_lens(
         axes=field.spatial_dims,
     )
 
-    out_field = create(
-        output_dx, field.spectrum, field.spectral_density, shape=output_shape
-    )
-    return out_field.replace(u=u)
+    return create(output_dx, field.spectrum, field.spectral_density, u)
 
 
 def df_lens(
