@@ -55,9 +55,9 @@ def test_first_ten_zernikes():
             coefficients=[1],
         )
         assert phase.shape == size
-        assert jnp.allclose(
-            phase.squeeze(), 2 * jnp.pi * expected[idx] / wavelength
-        ), f"Mismatch in Zernike polynomial {idx}."
+        assert jnp.allclose(phase.squeeze(), 2 * jnp.pi * expected[idx] / wavelength), (
+            f"Mismatch in Zernike polynomial {idx}."
+        )
 
 
 def piston(mask):
