@@ -189,15 +189,16 @@ def multislice_thick_sample(
             bandlimit=bandlimit,
         )
 
-    def _scatter_through_plane(i: int, field: ScalarField) -> Array:
+    def _scatter_through_plane(i: int, field_u: Array) -> Array:
         absorption = _broadcast_2d_to_spatial(absorption_stack[i], field.ndim)
         dn = _broadcast_2d_to_spatial(dn_stack[i], field.ndim)
-        field = kernel_propagate(
-            field,
+        field_i = field.replace(u=field_u)
+        field_i = kernel_propagate(
+            field_i,
             propagator,
         )
-        field = thin_sample(field, absorption, dn, thickness_per_slice)
-        return field  # pyright: ignore
+        field_i = thin_sample(field_i, absorption, dn, thickness_per_slice)
+        return field_i.u  # pyright: ignore
 
     def _accumulate_field_at_each_plane(i: int, fields: Array) -> Array:
         fields = fields.at[i].set(
@@ -214,7 +215,9 @@ def multislice_thick_sample(
         field = field.replace(u=jnp.concatenate(fields[1:], axis=-5))
         return crop(field, N_pad)
     else:
-        field = jax.lax.fori_loop(0, dn_stack.shape[0], _scatter_through_plane, field)
+        field = field.replace(
+            u=jax.lax.fori_loop(0, dn_stack.shape[0], _scatter_through_plane, field.u)
+        )
         # Propagate field backwards to the middle (or chosen distance) of the stack
         if reverse_propagate_distance is None:
             reverse_propagate_distance = thickness_per_slice * dn_stack.shape[0] / 2
