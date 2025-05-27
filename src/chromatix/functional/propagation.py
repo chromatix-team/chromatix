@@ -237,7 +237,6 @@ def transfer_propagate(
         absorbing_boundary=absorbing_boundary,
         absorbing_boundary_width=absorbing_boundary_width,
         output_dx=output_dx,
-        
         output_shape=output_shape,
         shift_yx=shift_yx,
         use_czt=use_czt,
