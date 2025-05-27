@@ -5,6 +5,7 @@ from .phase_masks import *
 from .polarizers import *
 from .propagation import *
 from .pupils import *
+from .rays import *
 from .samples import *
 from .sensors import *
 from .sources import *

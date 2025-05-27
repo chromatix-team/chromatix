@@ -1,13 +1,14 @@
-from typing import Callable, Tuple, Union
+from typing import Callable
 
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 
 from chromatix.elements.utils import register
-
-from ..field import Field
-from ..functional.amplitude_masks import amplitude_change
-from ..ops import binarize
+from chromatix.field import Field
+from chromatix.functional.amplitude_masks import amplitude_change
+from chromatix.ops import binarize
+from chromatix.typing import ArrayLike
 
 __all__ = ["AmplitudeMask"]
 
@@ -27,7 +28,7 @@ class AmplitudeMask(nn.Module):
         is_binary: binarize the amplitude mask if True.
     """
 
-    amplitude: Union[Array, Callable[[PRNGKey, Tuple[int, int]], Array]]
+    amplitude: ArrayLike | Callable[[PRNGKey, tuple[int, int]], Array]
     is_binary: bool
 
     @nn.compact

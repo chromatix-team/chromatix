@@ -1,27 +1,30 @@
-from typing import Literal, Tuple, Union
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from chex import Array
+from jax import Array
+from jax.scipy.signal import fftconvolve
 
-from chromatix.field import crop, pad
+from chromatix.field import Field, ScalarField, VectorField, crop, pad, shift_grid
 from chromatix.functional.convenience import optical_fft
-from chromatix.utils.fft import fft, ifft
-
-from ..field import Field
-from ..utils import _broadcast_1d_to_grid, _broadcast_1d_to_innermost_batch, l2_sq_norm
+from chromatix.functional.pupils import super_gaussian_pupil, tukey_pupil
+from chromatix.typing import ArrayLike, ScalarLike
+from chromatix.utils import (
+    _broadcast_1d_to_grid,
+    _broadcast_1d_to_innermost_batch,
+    l2_sq_norm,
+)
+from chromatix.utils.czt import czt
 
 __all__ = [
     "transform_propagate",
     "compute_sas_precompensation",
     "transform_propagate_sas",
     "transfer_propagate",
-    "exact_propagate",
     "asm_propagate",
     "kernel_propagate",
     "compute_transfer_propagator",
-    "compute_exact_propagator",
     "compute_asm_propagator",
     "compute_padding_transform",
     "compute_padding_transfer",
@@ -31,9 +34,9 @@ __all__ = [
 
 def transform_propagate(
     field: Field,
-    z: float,
-    n: float,
-    N_pad: Union[int, Tuple[int, int]],
+    z: ScalarLike,
+    n: ScalarLike,
+    N_pad: int | tuple[int, int],
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -81,10 +84,10 @@ def transform_propagate(
 
 
 def compute_sas_precompensation(
-    field: Field,
-    z: float,
-    n: float,
-) -> Field:
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+) -> Array:
     sz = np.array(field.spatial_shape)
     kz = 2 * z * jnp.pi * n / field.spectrum
     s = field.spectrum * field.k_grid / n
@@ -105,8 +108,8 @@ def compute_sas_precompensation(
 
 def transform_propagate_sas(
     field: Field,
-    z: float,
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -141,10 +144,10 @@ def transform_propagate_sas(
     # Don't change this pad_factor, only 2 is supported
     pad_factor = 2
     sz = np.array(field.spatial_shape)
-    N_pad = sz // pad_factor
+    N_pad = tuple(sz // pad_factor)
     field = pad(field, N_pad, cval=cval)
 
-    def _forward(field: Field, z) -> Tuple[Array, Array]:
+    def _forward(field: Field, z: ScalarLike) -> tuple[Array, Array]:
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
         field = transform_propagate(
@@ -152,7 +155,7 @@ def transform_propagate_sas(
         )
         return field.u, field._dx
 
-    def _inverse(field: Field, z) -> Tuple[Array, Array]:
+    def _inverse(field: Field, z: ScalarLike) -> tuple[Array, Array]:
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
@@ -167,11 +170,17 @@ def transform_propagate_sas(
 
 def transfer_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    output_dx: ArrayLike | None = None,
+    output_shape: tuple[int, int] | None = None,
+    use_czt: bool = True,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -190,55 +199,48 @@ def transfer_propagate(
                 ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format [ky, kx].
+        shift_yx: If provided, defines a shift in the destination
+            plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+        output_dx: If provided, defines a different output sampling at the output
+            plane.
+        output_shape: If provided, defines the output shape of the field. Should be
+            a tuple of integers. If not provided and ``dx`` is provided, the
+            output shape will default to that of the input field.
+        use_czt: Whether or not to use chirp Z-transform for different output
+            sampling. Defaults to True if `output_dx` or `output_shape` is provided, and
+            to False if neither is provided.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
+    if output_dx is None and output_shape is None:
+        # If neither output_dx nor output_shape is provided, use the default ASM propagation
+        # as FFT is faster than CZT
+        use_czt = False
     propagator = compute_transfer_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator)
-    if mode == "same":
-        field = crop(field, N_pad)
-    return field
-
-
-def exact_propagate(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    N_pad: int,
-    cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-    mode: Literal["full", "same"] = "full",
-) -> Field:
-    """
-    Propagate ``field`` for a distance ``z`` using exact transfer method.
-
-    This method removes evanescent waves.
-
-    Args:
-        field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or a 1D array.
-        n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for
-            the propagation FFT. Use padding calculator utilities from
-            ``chromatix.functional.propagation`` to compute the padding.
-            !!! warning
-                The pad value hould not be a Jax array, otherwise a
-                ConcretizationError will arise when traced!
-        cval: The background value to use when padding the Field. Defaults to 0
-            for zero padding.
-        kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
-        mode: Either "full" or "same". If "same", the shape of the output
-            ``Field`` will match the shape of the incoming ``Field``. Defaults
-            to "full", in which case the output shape will include padding.
-    """
-    field = pad(field, N_pad, cval=cval)
-    propagator = compute_exact_propagator(field, z, n, kykx)
-    field = kernel_propagate(field, propagator)
+    field = kernel_propagate(
+        field,
+        propagator,
+        absorbing_boundary=absorbing_boundary,
+        absorbing_boundary_width=absorbing_boundary_width,
+        output_dx=output_dx,
+        output_shape=output_shape,
+        shift_yx=shift_yx,
+        use_czt=use_czt,
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
@@ -246,13 +248,19 @@ def exact_propagate(
 
 def asm_propagate(
     field: Field,
-    z: Union[float, Array],
-    n: float,
+    z: ScalarLike,
+    n: ScalarLike,
     N_pad: int,
     cval: float = 0,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    remove_evanescent: bool = False,
     bandlimit: bool = False,
-    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    output_dx: ArrayLike | None = None,
+    output_shape: tuple[int, int] = None,
+    use_czt: bool = True,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -272,42 +280,180 @@ def asm_propagate(
                 ConcretizationError will arise when traced!
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format `[ky, kx]`.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            False.
         bandlimit: If ``True``, bandlimited the kernel according to "Band-
             Limited Angular Spectrum Method for Numerical Simulation of Free-
             Space Propagation in Far and Near Fields" (2009) by Matsushima and
             Shimobaba. Defaults to ``False``.
-        shift_yx: If provided, defines a shift in microns in the destination
+        shift_yx: If provided, defines a shift in the destination
             plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+        output_dx: If provided, defines a different output sampling at the output
+            plane.
+        output_shape: If provided, defines the output shape of the field. Should be
+            a tuple of integers. If not provided and ``dx`` is provided, the
+            output shape will default to that of the input field.
+        use_czt: Whether or not to use chirp Z-transform for different output
+            sampling. Defaults to True if `output_dx` or `output_shape` is provided, and
+            to False if neither is provided.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
-    propagator = compute_asm_propagator(field, z, n, kykx, bandlimit, shift_yx)
-    field = kernel_propagate(field, propagator)
+    if output_dx is None and output_shape is None:
+        # If neither output_dx nor output_shape is provided, use the default ASM propagation
+        # as FFT is faster than CZT
+        use_czt = False
+    propagator = compute_asm_propagator(
+        field,
+        z,
+        n,
+        kykx,
+        bandlimit,
+        shift_yx if not use_czt else (0.0, 0.0),
+        remove_evanescent=remove_evanescent,
+    )
+    field = kernel_propagate(
+        field,
+        propagator,
+        absorbing_boundary=absorbing_boundary,
+        absorbing_boundary_width=absorbing_boundary_width,
+        output_dx=output_dx,
+        output_shape=output_shape,
+        shift_yx=shift_yx,
+        use_czt=use_czt,
+    )
     if mode == "same":
         field = crop(field, N_pad)
     return field
 
 
-def kernel_propagate(field: Field, propagator: Array) -> Field:
+def kernel_propagate(
+    field: Field,
+    propagator: ArrayLike,
+    absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
+    absorbing_boundary_width: float = 0.65,
+    output_dx: ArrayLike | None = None,
+    output_shape: tuple[int, int] | None = None,
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    use_czt: bool = False,
+) -> Field:
     """
     Propagate an incoming ``Field`` by the given propagation kernel
     (``propagator``). This amounts to performing a Fourier convolution of the
-    ``field`` and the ``propagator``.
+    ``field`` and the ``propagator``. Can optionally apply an absorbing boundary
+    (a tapered pupil function) to the field after propagation.
+
+    Args:
+        field: ``Field`` to be propagated.
+        propagator: The propagation kernel.
+        absorbing_boundary: An optional string that determines which absorbing
+            boundary condition is applied (either "tukey" or "super_gaussian",
+            for the Tukey or super Gaussian pupils respectively). Either choice
+            will taper the propagated field to 0 at the edges to reduce aliasing
+            at the edges due to wrapping. Defaults to None in which case no
+            absorbing boundary is applied.
+        absorbing_boundary: A float determining the diameter (as a percentage)
+            of the propagated field that will be permitted without being
+            absorbed. The edges of the field beyond this boundary will taper
+            smoothly to 0 using the chosen boundary function.
     """
+    _boundaries = {"tukey": tukey_pupil, "super_gaussian": super_gaussian_pupil}
+    assert absorbing_boundary is None or absorbing_boundary in _boundaries, (
+        f"The absorbing_boundary must be None or in {_boundaries.keys()}."
+    )
     axes = field.spatial_dims
-    u = ifft(fft(field.u, axes=axes) * propagator, axes=axes)
+    if output_dx is None and output_shape is None and not use_czt:
+        # shifting accounted for in `propagator`
+        u = jnp.fft.ifft2(jnp.fft.fft2(field.u, axes=axes) * propagator, axes=axes)
+        field = shift_grid(field, shift_yx)
+    else:
+        if output_shape is None:
+            output_shape = field.spatial_shape
+        if output_dx is None:
+            output_dx = field.dx.squeeze()
+        in_field = field.u
+        in_field_dk = field.dk
+        in_field_k_grid = field.k_grid
+        in_field_extent = field.extent.squeeze()
+        field = shift_grid(field, shift_yx)
+        field = Field.empty_like(field, dx=output_dx, shape=output_shape)
+
+        # Scaling factor in Eq 7 of "Band-limited angular spectrum numerical
+        # propagation method with selective scaling of observation window size
+        # and sample number"
+        alpha = field.dx / in_field_dk
+
+        # output field in k-space
+        # u = fft(in_field, axes=axes, shift=True) * jnp.fft.fftshift(propagator, axes=axes)
+        u = jnp.fft.fftshift(
+            propagator
+            * jnp.fft.fft2(jnp.fft.ifftshift(in_field, axes=axes), axes=axes),
+            axes=axes,
+        )
+
+        if use_czt:
+            (y_min, y_max), (x_min, x_max) = field.spatial_limits
+            limits_min = [y_min, x_min]
+            limits_max = [y_max, x_max]
+            T = in_field_extent
+
+            # loop over dimensions
+            for d in range(len(axes)):
+                # -- chirp z-transform
+                m = output_shape[d]
+                a = jnp.exp(-1j * 2 * jnp.pi / T[d] * limits_min[d])
+                w = jnp.exp(
+                    1j * (2 * jnp.pi / T[d]) * (limits_max[d] - limits_min[d]) / (m - 1)
+                )
+                u = czt(x=u, m=m, a=a, w=w, axis=axes[d])
+
+                # -- modulate
+                N = (m - 1) // 2
+                u = jnp.moveaxis(u, axes[d], -1)
+                C = w ** (-N * jnp.arange(m)) * (a**N)
+                u *= C  # applied to last dimension
+                u = jnp.moveaxis(u, -1, axes[d])
+
+            u *= jnp.prod(1 / alpha)
+
+        else:
+            # Eq 9 of "Band-limited angular spectrum numerical propagation method
+            # with selective scaling of observation window size and sample number"
+            # (2012)
+            wn = alpha * in_field_k_grid
+            f = jnp.prod(jnp.exp(-1j * jnp.pi / alpha * wn**2), axis=0)
+            B = u * jnp.prod((1 / alpha) * jnp.exp(1j * jnp.pi / alpha * wn**2), axis=0)
+            mod_terms = jnp.prod(
+                field.dx * jnp.exp(1j * jnp.pi / alpha * field.grid**2),
+                axis=0,
+            )
+            u = mod_terms * fftconvolve(B, f, mode="same", axes=axes)
+
+    if absorbing_boundary is not None:
+        pupil = _boundaries[absorbing_boundary]
+        field = pupil(field, absorbing_boundary_width)
     return field.replace(u=u)
 
 
 def compute_transfer_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
     """
     Compute propagation kernel for Fresnel propagation.
@@ -327,43 +473,14 @@ def compute_transfer_propagator(
     return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
 
 
-def compute_exact_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
-) -> Array:
-    """
-    Compute propagation kernel for propagation with no Fresnel approximation.
-
-    This version of the propagation kernel removes evanescent waves. Returns
-    an array that can be multiplied with the Fourier transform of the incoming
-    Field, as performed by kernel_propagate.
-
-    Args:
-        field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or an array of shape (Z 1
-            1 1).
-        n: A float that defines the refractive index of the medium.
-        kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format `[ky, kx]`.
-    """
-    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    kernel = jnp.maximum(kernel, 0.0)  # removing evanescent waves
-    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * jnp.sqrt(kernel)
-    kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
-    return jnp.fft.ifftshift(kernel_field, axes=field.spatial_dims)
-
-
 def compute_asm_propagator(
-    field: Field,
-    z: Union[float, Array],
-    n: float,
-    kykx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    field: ScalarField | VectorField,
+    z: ScalarLike,
+    n: ScalarLike,
+    kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
-    shift_yx: Union[Array, Tuple[float, float]] = (0.0, 0.0),
+    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    remove_evanescent: bool = False,
 ) -> Array:
     """
     Compute propagation kernel for propagation with no Fresnel approximation.
@@ -384,13 +501,18 @@ def compute_asm_propagator(
             Limited Angular Spectrum Method for Numerical Simulation of Free-
             Space Propagation in Far and Near Fields" (2009) by Matsushima and
             Shimobaba. Defaults to ``False``.
-        shift_yx: If provided, defines a shift in microns in the destination
+        shift_yx: If provided, defines a shift in the destination
             plane. Should be an array of shape `[2,]` in the format `[y, x]`.
+        remove_evanescent: If ``True``, removes evanescent waves. Defaults to
+            False.
     """
     kykx = _broadcast_1d_to_grid(kykx, field.ndim)
     z = _broadcast_1d_to_innermost_batch(z, field.ndim)
     kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
-    delay = jnp.sqrt(jnp.complex64(kernel))  # keep evanescent modes
+    if remove_evanescent:
+        delay = jnp.sqrt(jnp.maximum(kernel, 0.0))
+    else:
+        delay = jnp.sqrt(jnp.complex64(kernel))
     # shift in output plane
     shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
     out_shift = 2 * jnp.pi * jnp.sum(field.k_grid * shift_yx, axis=0)
@@ -407,12 +529,12 @@ def compute_asm_propagator(
             -1 / 2
         ) / field.spectrum
         k0 = (1 / 2) * (
-            jnp.sign(shift_yx + field.surface_area) * k_limit_p
-            + jnp.sign(shift_yx - field.surface_area) * k_limit_n
+            jnp.sign(shift_yx + field.extent) * k_limit_p
+            + jnp.sign(shift_yx - field.extent) * k_limit_n
         )
         k_width = (
-            jnp.sign(shift_yx + field.surface_area) * k_limit_p
-            - jnp.sign(shift_yx - field.surface_area) * k_limit_n
+            jnp.sign(shift_yx + field.extent) * k_limit_p
+            - jnp.sign(shift_yx - field.extent) * k_limit_n
         )
         k_max = k_width / 2
         # obtain rect filter to bandlimit (Eq. 23)

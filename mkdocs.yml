@@ -20,15 +20,18 @@ nav:
     - Operations: api/ops.md
     - Utilities: api/utils.md
   - Examples:
+    - Fourier Ptychography: examples/fourier_ptychography.ipynb
     - Holoscope: examples/holoscope.ipynb
+    - High NA lenses: examples/highNA_PSF.ipynb
     - Computer Generated Holography: examples/cgh.ipynb
     - Digital Micromirror Device: examples/dmd.ipynb
     - Scalable Angular Spectrum: examples/sas.ipynb
     - Bandlimited Angular Spectrum: examples/bandlimited_angular_spectrum.ipynb
-    - Fourier Ptychography: examples/fourier_ptychography.md
-    - Synchrotron X-ray Holography: examples/tomography.md
+    - Rescaled propagation: examples/rescaled_propagation.ipynb
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
     - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
+    - Polarized multislice: examples/polarized_multislice.ipynb
+    - Modified Born Series: examples/modified_born.ipynb
 
 theme:
   logo: media/logo_symbol_white.png
@@ -47,29 +50,37 @@ theme:
         icon: material/toggle-switch
         name: Switch to light mode
   features:
+    - navigation.instant
+    - navigation.tracking
     - navigation.sections
     - content.code.copy
 
-plugins:
-- mkdocstrings:
-    handlers:
-      python:
-        paths: [src]
-        options:
-          heading_level: 3
-          show_root_toc_entry: false
-- mkdocs-jupyter
-- search:
-    separator: '[\s\-\.]+'
-
 markdown_extensions:
+  - admonition
   - pymdownx.highlight:
       anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
   - pymdownx.superfences
-  - admonition
-  - pymdownx.details
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.tabbed
+  - toc:
+      permalink: true
+
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            heading_level: 3
+            show_root_toc_entry: false
+            show_if_no_docstring: true
+  - mkdocs-jupyter:
+      custom_mathjax_url: "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS_CHTML-full,Safe"
+      execute: false
+      include_requirejs: true
+  - search:
+      separator: '[\s\-\.]+'
 
 extra_css:
 - css/mkdocstrings.css

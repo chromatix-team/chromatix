@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence, Union
+from typing import Any, Callable, Sequence
 
-from chex import Array
 from flax import linen as nn
+from jax import Array
 
 from ..field import Field
 
@@ -29,7 +29,7 @@ class OpticalSystem(nn.Module):
     elements: Sequence[Callable]
 
     @nn.compact
-    def __call__(self, *args: Any, **kwargs: Any) -> Union[Field, Array]:
+    def __call__(self, *args: Any, **kwargs: Any) -> Field | Array:
         """Returns the result of calling all elements in sequence."""
         field = self.elements[0](*args, **kwargs)  # allow field to be initialized
         for element in self.elements[1:]:

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, no_type_check
 
-from chex import Array, PRNGKey
+from chex import PRNGKey
 from flax import linen as nn
+from jax import Array
 
 
 @dataclass
@@ -111,6 +112,7 @@ def trainable(x: Any, rng: bool = True) -> Trainable:
     init = x
     if callable(x) and not rng:
 
+        @no_type_check
         def no_rng_x(key: PRNGKey, *args, **kwargs) -> Array:
             return x(*args, **kwargs)
 
@@ -135,17 +137,12 @@ def register(
     try:
         init = getattr(module, name)
     except AttributeError:
-        print("Variable does not exist.")
+        raise AttributeError
 
     if isinstance(init, Trainable):
         return module.param(f"_{name}", parse_init(init.val), *args)
     else:
-        return module.variable(
-            "state",
-            f"_{name}",
-            parse_init(init),
-            *args,
-        ).value
+        return module.variable("state", f"_{name}", parse_init(init), *args).value
 
 
 def parse_init(x: Any) -> Callable:

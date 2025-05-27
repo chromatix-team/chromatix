@@ -1,8 +1,7 @@
-from typing import Union
-
 import jax.numpy as jnp
-from chex import Array
+from jax import Array
 
+from chromatix.typing import ComplexScalarLike, ScalarLike
 from chromatix.utils.utils import matvec
 
 from ..field import VectorField
@@ -28,7 +27,7 @@ __all__ = [
 ]
 
 
-def jones_vector(theta: float, beta: float) -> Array:
+def jones_vector(theta: ScalarLike, beta: ScalarLike) -> Array:
     """Generates a Jones vector given by [cos(theta), sin(theta)exp(1j*beta)].
 
     Args:
@@ -46,7 +45,7 @@ def jones_vector(theta: float, beta: float) -> Array:
     )
 
 
-def linear(theta: float) -> Array:
+def linear(theta: ScalarLike) -> Array:
     """Generates a Jones vector for linearly polarized
     light with an angle $\theta$ w.r.t. to the horizontal.
 
@@ -81,10 +80,10 @@ def right_circular() -> Array:
 
 def polarizer(
     field: VectorField,
-    J00: Union[float, complex, Array],
-    J01: Union[float, complex, Array],
-    J10: Union[float, complex, Array],
-    J11: Union[float, complex, Array],
+    J00: ComplexScalarLike,
+    J01: ComplexScalarLike,
+    J10: ComplexScalarLike,
+    J11: ComplexScalarLike,
 ) -> VectorField:
     """Applies a Jones matrix with given components to the field.
     Note that the components here refer to the common choice of coordinate
@@ -106,7 +105,7 @@ def polarizer(
     return field.replace(u=matvec(LP, field.u))
 
 
-def linear_polarizer(field: VectorField, angle: float) -> VectorField:
+def linear_polarizer(field: VectorField, angle: ScalarLike) -> VectorField:
     """Applies a linear polarizer with a given angle to the incoming field.
 
     Args:
@@ -159,7 +158,7 @@ def right_circular_polarizer(field: VectorField) -> VectorField:
 
 
 def phase_retarder(
-    field: VectorField, theta: float, eta: float, phi: float
+    field: VectorField, theta: ScalarLike, eta: ScalarLike, phi: ScalarLike
 ) -> VectorField:
     """Applies a general purpose retardation matrix with angle w.r.t horizontal theta,
     relative phase change eta and circularity phi.
@@ -182,7 +181,7 @@ def phase_retarder(
     return polarizer(field, J00, J01, J10, J11)
 
 
-def wave_plate(field: VectorField, theta: float, eta: float) -> VectorField:
+def wave_plate(field: VectorField, theta: ScalarLike, eta: ScalarLike) -> VectorField:
     """Applies a general waveplate with angle theta and delay eta to the field.
 
     Args:
@@ -196,7 +195,7 @@ def wave_plate(field: VectorField, theta: float, eta: float) -> VectorField:
     return phase_retarder(field, theta, eta, phi=0)
 
 
-def halfwave_plate(field: VectorField, theta: float) -> VectorField:
+def halfwave_plate(field: VectorField, theta: ScalarLike) -> VectorField:
     """Applies a halfwave plate with angle theta to the incoming field.
 
     Args:
@@ -209,7 +208,7 @@ def halfwave_plate(field: VectorField, theta: float) -> VectorField:
     return phase_retarder(field, theta, eta=jnp.pi, phi=0)
 
 
-def quarterwave_plate(field: VectorField, theta: float) -> VectorField:
+def quarterwave_plate(field: VectorField, theta: ScalarLike) -> VectorField:
     """Applies a quarterwave plate with angle theta to the incoming field.
 
     Args:
@@ -222,7 +221,9 @@ def quarterwave_plate(field: VectorField, theta: float) -> VectorField:
     return phase_retarder(field, theta, eta=jnp.pi / 2, phi=0)
 
 
-def universal_compensator(field: VectorField, retA: float, retB: float) -> VectorField:
+def universal_compensator(
+    field: VectorField, retA: ScalarLike, retB: ScalarLike
+) -> VectorField:
     """Applies the Universal Polarizer for the LC-PolScope to the incoming field.
 
     Args:

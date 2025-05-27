@@ -21,7 +21,7 @@ def test_first_ten_zernikes():
     grid = create_grid(size, spacing)
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n)
-    rho = jnp.sum(grid**2, axis=0)  # radial coordinate
+    rho = jnp.sqrt(jnp.sum(grid**2, axis=0))  # radial coordinate
     mask = rho <= 1
     radius = rho * mask
     angle = jnp.arctan2(*grid) * mask  # angle coordinate
@@ -55,7 +55,7 @@ def test_first_ten_zernikes():
             coefficients=[1],
         )
         assert phase.shape == size
-        assert jnp.allclose(phase.squeeze(), expected[idx]), (
+        assert jnp.allclose(phase.squeeze(), 2 * jnp.pi * expected[idx] / wavelength), (
             f"Mismatch in Zernike polynomial {idx}."
         )
 

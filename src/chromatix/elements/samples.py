@@ -1,7 +1,10 @@
-from typing import Callable, Union
+from typing import Callable
 
 import flax.linen as nn
-from chex import Array, PRNGKey
+from chex import PRNGKey
+from jax import Array
+
+from chromatix.typing import ArrayLike
 
 from ..field import ScalarField
 from ..functional.samples import thin_sample
@@ -31,9 +34,9 @@ class ThinSample(nn.Module):
             to ``(B... H W 1 1)``
     """
 
-    absorption: Union[Array, Callable[[PRNGKey], Array]]
-    dn: Union[Array, Callable[[PRNGKey], Array]]
-    thickness: Union[Array, Callable[[PRNGKey], Array]]
+    absorption: ArrayLike | Callable[[PRNGKey], Array]
+    dn: ArrayLike | Callable[[PRNGKey], Array]
+    thickness: ArrayLike | Callable[[PRNGKey], Array]
 
     @nn.compact
     def __call__(self, field: ScalarField) -> ScalarField:
