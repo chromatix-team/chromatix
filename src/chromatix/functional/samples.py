@@ -377,14 +377,14 @@ def fluorescent_multislice_thick_sample(
     return intensity_stack
 
 
-def thick_polarised_sample(
+def thick_polarized_sample(
     field: VectorField,
     potential: ArrayLike,
     n_background: ArrayLike,
     dz: ArrayLike,
     NA: float = 1.0,
 ) -> VectorField:
-    """Implements a thick sample method polarised samples per
+    """Implements a thick sample method polarized samples per
     'Multislice computational model for birefringent scattering'
     https://doi.org/10.1364/OPTICA.472077
 
@@ -401,7 +401,7 @@ def thick_polarised_sample(
 
     def Q_op(u: Array) -> Array:
         # correct
-        """Polarisation transfer operator"""
+        """Polarization transfer operator"""
         return crop(ifft(matvec(Q, fft(pad(u)))))
 
     def H_op(u: Array) -> Array:

@@ -180,6 +180,7 @@ def transfer_propagate(
     shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     output_dx: ArrayLike | None = None,
     output_shape: tuple[int, int] | None = None,
+    use_czt: bool = True,
     mode: Literal["full", "same"] = "full",
 ) -> Field:
     """
@@ -217,14 +218,29 @@ def transfer_propagate(
         output_shape: If provided, defines the output shape of the field. Should be
             a tuple of integers. If not provided and ``dx`` is provided, the
             output shape will default to that of the input field.
+        use_czt: Whether or not to use chirp Z-transform for different output
+            sampling. Defaults to True if `output_dx` or `output_shape` is provided, and
+            to False if neither is provided.
         mode: Either "full" or "same". If "same", the shape of the output
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
     field = pad(field, N_pad, cval=cval)
+    if output_dx is None and output_shape is None:
+        # If neither output_dx nor output_shape is provided, use the default ASM propagation
+        # as FFT is faster than CZT
+        use_czt = False
     propagator = compute_transfer_propagator(field, z, n, kykx)
     field = kernel_propagate(
-        field, propagator, absorbing_boundary, absorbing_boundary_width
+        field,
+        propagator,
+        absorbing_boundary=absorbing_boundary,
+        absorbing_boundary_width=absorbing_boundary_width,
+        output_dx=output_dx,
+        
+        output_shape=output_shape,
+        shift_yx=shift_yx,
+        use_czt=use_czt,
     )
     if mode == "same":
         field = crop(field, N_pad)
@@ -373,7 +389,7 @@ def kernel_propagate(
         in_field = field.u
         in_field_dk = field.dk
         in_field_k_grid = field.k_grid
-        in_field_surface_area = field.surface_area.squeeze()
+        in_field_extent = field.extent.squeeze()
         field = shift_grid(field, shift_yx)
         field = Field.empty_like(field, dx=output_dx, shape=output_shape)
 
@@ -394,7 +410,7 @@ def kernel_propagate(
             (y_min, y_max), (x_min, x_max) = field.spatial_limits
             limits_min = [y_min, x_min]
             limits_max = [y_max, x_max]
-            T = in_field_surface_area
+            T = in_field_extent
 
             # loop over dimensions
             for d in range(len(axes)):

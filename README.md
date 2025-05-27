@@ -13,14 +13,12 @@
 | [**FAQ**](https://chromatix.readthedocs.io/en/latest/FAQ/)
 | [**Chromatix Documentation**](https://chromatix.readthedocs.io/en/latest/)
 
-> :rotating_light:**We're organising a Chromatix Hackathon at Janelia Research Campus May 27th - 31st. See [here](https://chromatix.readthedocs.io/en/latest/hackathon/) for more info and how to apply! :rotating_light:**
-
-
 Welcome to `chromatix`, a differentiable wave optics library built using `jax` which combines JIT-compilation, (multi-)GPU support, and automatic differentiation with a convenient programming style inspired by deep learning libraries. This makes `chromatix` a great fit for inverse problems in optics. We intend `chromatix` to be used by researchers in computational optics, so `chromatix` provides a set of optical element "building blocks" that can be composed together in a style similar to neural network layers. This means we take care of the more tedious details of writing fast optical simulations, while still leaving a lot of control over what is simulated and/or optimized up to you! Chromatix is still in active development, so **expect sharp edges**.
 
 Here are some of the cool things we've already built with `chromatix`:
 
 - [**Holoscope**](docs/examples/holoscope.ipynb): PSF engineering to optimally encode a 3D volume into a 2D image.
+- [**Fourier Ptychography**](docs/examples/fourier_ptychography.ipynb): a simple demo of Fourier ptychography.
 - [**Computer Generated Holography**](docs/examples/cgh.ipynb): optimizing a phase mask to produce a 3D hologram.
 - [**Aberration Phase Retrieval**](docs/examples/zernike_fitting.ipynb): fitting Zernike coefficients to a measured aberrated PSF.
 
@@ -53,7 +51,7 @@ Chromatix describes optical systems as sequences of sources and optical elements
 
 ```python
 import chromatix
-import chromatix.elements
+import chromatix.functional as cf
 import jax
 import jax.numpy as jnp
 shape = (512, 512) # number of pixels in simulated field
@@ -63,19 +61,28 @@ spectral_density = 1.0
 f = 100.0 # focal length, microns
 n = 1.33 # refractive index of medium
 NA = 0.8 # numerical aperture of objective
-optical_model = chromatix.OpticalSystem(
-    [
-        chromatix.elements.ObjectivePointSource(shape, spacing, spectrum, spectral_density, f, n, NA),
-        chromatix.elements.PhaseMask(jnp.ones(shape)),
-        chromatix.elements.FFLens(f, n)
-    ]
-)
+
+
+@jax.jit
+def optical_model(z: jax.Array) -> jax.Array:
+    # Field in the Fourier plane due to a point source defocused by z from the
+    # focal plane through an objective
+    field = cf.objective_point_source(
+        shape, spacing, spectrum, spectral_density, 0.0, f, n, NA
+    )
+    #  Flat phase mask in the Fourier plane
+    field = cf.phase_change(field, jnp.ones(shape))
+    # Field at the image plane after the tube lens
+    field = cf.ff_lens(field, f, n)
+    # Return intensity of field
+    return field.intensity
+
+
 # Calculate widefield PSF at multiple defocuses in parallel.
 # We first have to initialize any parameters or state of the system:
-variables = optical_model.init(jax.random.PRNGKey(4), jnp.linspace(-5, 5, num=11))
-widefield_psf = optical_model.apply(variables, jnp.linspace(-5, 5, num=11)).intensity
+widefield_psf = optical_model(jnp.linspace(-5, 5, num=11))
 ```
-When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the spacing at the output: ``optical_model.apply(variables, jnp.linspace(-5, 5, num=11)).dx`` and we would know the pixel spacing of the final PSF.
+When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the phase at the output instead: ``return field.phase`` and we would know the phase of the final PSF instead of the intensity.
 
 Chromatix supports a variety of optical phenomena and elements including:
 
@@ -108,12 +115,31 @@ Chromatix was started by Diptodip Deb ([@diptodip](https://www.github.com/diptod
 * Magdalena Schneider ([@schneidermc](https://github.com/schneidermc))
 * Xi Yang ([@nicolexi](https://github.com/nicolexi))
 
-## Citation
-To cite this repository:
+and many more!
 
-Deb, D.\*, Both, G.\*, Chaware, A., Kohli, A., Allier, C., Cai, C., Schlafly, G., Meng, G., Eybposh, M. H., Schneider, M., Yang, X., & Turaga, S. C. (2023). Chromatix. Zenodo. [https://doi.org/10.5281/zenodo.7803771](https://doi.org/10.5281/zenodo.7803771)
+## Citation
+To cite Chromatix, please refer to our 2025 preprint on bioRxiv:
+
+**Deb, Diptodip**\* and **Both, Gert-Jan**\* and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, Cédric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pégard, Nicolas C. and La Rivière, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C. *Chromatix*. bioRxiv. [https://doi.org/10.1101/2025.04.29.651152](https://doi.org/10.1101/2025.04.29.651152)
 
 \* equal contribution
+
+BibTex:
+```bibtex
+@article {Deb2025.04.29.651152,
+	author = {Deb, Diptodip and Both, Gert-Jan and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, C{\'e}dric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pegard, Nicolas C. and La Rivi{\`e}re, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C.},
+	title = {Chromatix: a differentiable, GPU-accelerated wave-optics library},
+	elocation-id = {2025.04.29.651152},
+	year = {2025},
+	doi = {10.1101/2025.04.29.651152},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2025/05/02/2025.04.29.651152},
+	eprint = {https://www.biorxiv.org/content/early/2025/05/02/2025.04.29.651152.full.pdf},
+	journal = {bioRxiv}
+}
+```
+
+If you want to cite the repository specifically, you can use the following Zenodo citation:
 
 BibTex:
 ```bibtex

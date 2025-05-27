@@ -78,7 +78,7 @@ def ff_lens(
             to the incoming ``Field``.
 
     Returns:
-        The ``Field`` propagated a distance ``f`` after the lens.
+        The ``Field`` propagated a distance ``f`` to and after the lens.
     """
     # Pupil
     if NA is not None:
@@ -101,16 +101,24 @@ def high_na_ff_lens(
     """
     Applies a high NA lens placed a distance ``f`` after the incoming ``Field``.
 
+    !!!warning
+        This function assumes that the incoming ``Field`` contains only a single
+        wavelength and has a square shape.
+
     Args:
         field: The ``Field`` to which the lens will be applied.
+        f: Focal length of the lens.
+        n: Refractive index of the lens.
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
-        camera_shape: The shape of the camera (in pixels).
-        camera_pixel_pitch: The pixel pitch of the camera (in microns).
-        wavelength: The wavelength of the light (in microns).
+        output_shape: The shape of the camera (in pixels). If not provided, the
+            output shape will be the same as the shape of the incoming field.
+        output_dx: The pixel pitch of the camera (in units of distance). If not
+            provided, the output spacing will be the same as the spacing of the
+            incoming field.
 
     Returns:
-        The ``Field`` propagated a distance ``f`` after the lens.
+        The ``Field`` propagated a distance ``f`` to and after the lens.
     """
 
     if field.shape[-1] == 1:
@@ -130,8 +138,8 @@ def high_na_ff_lens(
 
     # NOTE: This only works for single wavelength so far?
     # NOTE: What about non-square cases?
-    FoV_out = output_shape[0] * output_dx
-    zoom_factor = 2 * NA * FoV_out / ((field.shape[1] - 1) * field.spectrum.squeeze())
+    fov_out = output_shape[0] * output_dx
+    zoom_factor = 2 * NA * fov_out / ((field.shape[1] - 1) * field.spectrum.squeeze())
 
     # Correction factors
     s_grid = field.k_grid * field.spectrum.squeeze() / n

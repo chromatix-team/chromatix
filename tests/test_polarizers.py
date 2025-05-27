@@ -49,7 +49,7 @@ def test_linear_polarizer(E0, angle, power):
 
 def test_left_circular_polarizer():
     # right circular light through left ciruclar
-    # polariser shouldnt give any output
+    # polarizer shouldnt give any output
     field = cf.plane_wave(
         (512, 512),
         1.0,
@@ -65,7 +65,7 @@ def test_left_circular_polarizer():
     assert np.allclose(field.power, 0.0)
 
     # Right circular light through right ciruclar
-    # polariser should return right circular light
+    # polarizer should return right circular light
     field = cf.plane_wave(
         (512, 512),
         1.0,
@@ -83,7 +83,7 @@ def test_left_circular_polarizer():
 
 def test_right_circular_polarizer():
     # Left circular light through right ciruclar
-    # polariser shouldnt give any output
+    # polarizer shouldnt give any output
     field = cf.plane_wave(
         (512, 512),
         1.0,
@@ -99,7 +99,7 @@ def test_right_circular_polarizer():
     assert np.allclose(field.power, 0.0)
 
     # Right circular light through right ciruclar
-    # polariser should return right circular light
+    # polarizer should return right circular light
     field = cf.plane_wave(
         (512, 512),
         1.0,
