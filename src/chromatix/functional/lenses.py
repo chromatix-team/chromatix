@@ -131,7 +131,7 @@ def high_na_ff_lens(
         create = VectorField.create
 
     if output_dx is None:
-        output_dx = field.dx.squeeze()
+        output_dx = field._dx
 
     if output_shape is None:
         output_shape = field.spatial_shape
@@ -157,7 +157,7 @@ def high_na_ff_lens(
         axes=field.spatial_dims,
     )
 
-    return create(output_dx, field.spectrum, field.spectral_density, u)
+    return create(output_dx, field._spectrum, field._spectral_density, u=u)
 
 
 def df_lens(
