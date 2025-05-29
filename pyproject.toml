@@ -20,7 +20,7 @@ dependencies = [
   "equinox>=0.12.2",
   "optimistix>=0.0.10",
 ]
-version = "0.3.0"
+version = "0.4.0"
 
 [project.optional-dependencies]
 dev = ["mypy>=0.991", "pytest>=7.2.0", "ruff==0.9.0", "pre-commit>=4.0.0", "matplotlib>=3.10.0"]
