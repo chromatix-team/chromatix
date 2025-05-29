@@ -206,7 +206,9 @@ def plane_wave(
 
     if pupil is not None:
         field = pupil(field)
-    return field * jnp.sqrt(power / field.power)
+    if power is not None:
+        field = field * jnp.sqrt(power / field.power)
+    return field
 
 
 def gaussian_plane_wave(
