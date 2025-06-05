@@ -217,7 +217,7 @@ def gaussian_plane_wave(
     spectrum: ScalarLike,
     spectral_density: ScalarLike,
     waist: ScalarLike,
-    power: float = 1.0,
+    power: ScalarLike | None = 1.0,
     amplitude: ScalarLike = 1.0,
     kykx: ArrayLike | tuple[int, int] = (0.0, 0.0),
     pupil: FieldPupil | None = None,
@@ -235,8 +235,8 @@ def gaussian_plane_wave(
         spectrum: The wavelengths included in the ``Field`` to be created.
         spectral_density: The weights of each wavelength in the ``Field`` to
             be created.
-        power: The total power that the result should be normalized to,
-            defaults to 1.0
+        power: The total power that the result should be normalized to, defaults
+            to 1.0. If ``None``, no normalization occurs.
         amplitude: The amplitude of the electric field. For ``ScalarField`` this
             doesnt do anything, but it is required for ``VectorField`` to set
             the polarization.
