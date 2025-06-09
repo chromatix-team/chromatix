@@ -3,26 +3,21 @@ from typing import ClassVar
 
 import equinox as eqx
 import jax.numpy as jnp
-from base import (
-    AbstractField,
-    AbstractMonoChromatic,
-    AbstractPolyChromatic,
-    AbstractScalar,
-    AbstractVector,
+from chromatix.core.base import (
+    Field,
+    Chromatic,
+    Monochromatic,
+    Scalar,
+    Vector,
 )
-from custom_types import Spacing
+from chromatix.core.typing import Spacing
 from einops import rearrange
 from jaxtyping import Array, Complex, Float
-from spectrum import MonochromaticSpectrum, PolyChromaticSpectrum
+from chromatix.core.spectrum import Spectrum, MonochromaticSpectrum
 from utils import freq_grid, grid, promote_dx
 
 
-def EmptyField(amplitude: Array, shape, dx, spectrum) -> AbstractField:
-    u_empty = jnp.zeros((*shape, spectrum.size, amplitude.shape[-1]))
-    return Field(u_empty.squeeze(), dx, spectrum)
-
-
-def Field(u, dx, spectrum) -> AbstractField:
+def field(u, dx, spectrum) -> Field:
     match (u.ndim, spectrum.size):
         case (2, _):
             field = ScalarField
@@ -35,7 +30,12 @@ def Field(u, dx, spectrum) -> AbstractField:
     return field(u, dx, spectrum)
 
 
-class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=True):
+def empty_field(amplitude: Array, shape, dx, spectrum) -> Field:
+    u_empty = jnp.empty((*shape, spectrum.size, amplitude.shape[-1]))
+    return field(u_empty.squeeze(), dx, spectrum)
+
+
+class ScalarField(Field, Monochromatic, Scalar, strict=True):
     u: Complex[Array, "y x"]
     dx: Float[Array, "2"]
     spectrum: MonochromaticSpectrum
@@ -43,15 +43,11 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=T
     # Internal
     dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -2), ("x", -1)])
 
-    def __init__(self, u: Array, dx: Array, spectrum: MonochromaticSpectrum):
+    def __init__(self, u: Array, dx: Array, spectrum: MonochromaticSpectrum | float):
         self.dx = promote_dx(dx)
         self.spectrum = spectrum
-
-        # Parsing u
-        u = jnp.asarray(u, dtype=jnp.complex64)
-        self.u = eqx.error_if(
-            u, u.ndim != 2, f"Expected 2-dimensional field, got shape {u.shape}."
-        )
+        self.u = jnp.asarray(u, dtype=jnp.complex64)
+        assert self.u.ndim == 2, f"Expected 2-dimensional field, got shape {u.shape}."
 
     @property
     def grid(self) -> Float[Array, "y x d"]:
@@ -72,21 +68,19 @@ class ScalarField(AbstractField, AbstractMonoChromatic, AbstractScalar, strict=T
         return jnp.abs(self.u) ** 2
 
 
-class PolyChromaticScalarField(
-    AbstractField, AbstractPolyChromatic, AbstractScalar, strict=True
+class ChromaticScalarField(
+    Field, Chromatic, Scalar, strict=True
 ):
-    u: Complex[Array, "y x l"]
-    dx: Float[Array, "#l 2"]
-    spectrum: PolyChromaticSpectrum
+    u: Complex[Array, "y x wv"]
+    dx: Float[Array, "#wv 2"]
+    spectrum: Spectrum
 
     # Internal
-    dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("l", -1)])
+    dims: ClassVar[IntEnum] = IntEnum("dims", [("y", -3), ("x", -2), ("wv", -1)])
 
-    def __init__(self, u: Array, dx: Spacing, spectrum: PolyChromaticSpectrum):
+    def __init__(self, u: Array, dx: Spacing, spectrum: Spectrum):
         self.dx = rearrange(promote_dx(dx), "d -> 1 d")
         self.spectrum = spectrum
-
-        # Parsing u
         self.u = jnp.asarray(u, dtype=jnp.complex64)
         assert self.u.ndim == 3, f"Expected 3-dimensional field, got shape {u.shape}."
         assert self.u.shape[-1] == self.wavelength.size, (
@@ -96,12 +90,12 @@ class PolyChromaticScalarField(
     @property
     def grid(self) -> Array:
         _grid = grid(self.spatial_shape, self.dx)
-        return rearrange(_grid, "... l y x d-> ... y x l d")
+        return rearrange(_grid, "... wv y x d-> ... y x wv d")
 
     @property
     def f_grid(self) -> Array:
         _freq_grid = freq_grid(self.spatial_shape, self.dx)
-        return rearrange(_freq_grid, "... l y x d-> ... y x l d")
+        return rearrange(_freq_grid, "... wv y x d-> ... y x wv d")
 
     @property
     def power(self):
@@ -112,11 +106,11 @@ class PolyChromaticScalarField(
 
     @property
     def intensity(self):
-        spectral_density = rearrange(self.spectrum.density, "... l -> ... 1 1 l")
+        spectral_density = rearrange(self.spectrum.density, "... wv -> ... 1 1 wv")
         return spectral_density * jnp.abs(self.u) ** 2
 
 
-class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=True):
+class VectorField(Field, Monochromatic, Vector, strict=True):
     u: Complex[Array, "y x 3"]
     dx: Float[Array, "2"]
     spectrum: MonochromaticSpectrum
@@ -127,8 +121,6 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=T
     def __init__(self, u, dx, spectrum: MonochromaticSpectrum):
         self.dx = promote_dx(dx)
         self.spectrum = spectrum
-
-        # Parsing u
         self.u = jnp.asarray(u, dtype=jnp.complex64)
         assert self.u.ndim == 3, f"Expected 3-dimensional field, got shape {u.shape}."
         assert self.u.shape[-1] == 3, (
@@ -157,23 +149,21 @@ class VectorField(AbstractField, AbstractMonoChromatic, AbstractVector, strict=T
         return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
 
 
-class PolyChromaticVectorField(
-    AbstractField, AbstractPolyChromatic, AbstractVector, strict=True
+class ChromaticVectorField(
+    Field, Chromatic, Vector, strict=True
 ):
-    u: Complex[Array, "y x l 3"]
-    dx: Float[Array, "#l 2"]
-    spectrum: PolyChromaticSpectrum
+    u: Complex[Array, "y x wv 3"]
+    dx: Float[Array, "#wv 2"]
+    spectrum: PolychromaticSpectrum
 
     # Internal
     dims: ClassVar[IntEnum] = IntEnum(
-        "dims", [("y", -4), ("x", -3), ("l", -2), ("p", -1)]
+        "dims", [("y", -4), ("x", -3), ("wv", -2), ("p", -1)]
     )
 
-    def __init__(self, u, dx, spectrum: PolyChromaticSpectrum):
+    def __init__(self, u, dx, spectrum: PolychromaticSpectrum):
         self.dx = rearrange(promote_dx(dx), "d -> 1 d")
         self.spectrum = spectrum
-
-        # Parsing u
         self.u = jnp.asarray(u, dtype=jnp.complex64)
         assert self.u.ndim == 4, f"Expected 4-dimensional field, got shape {u.shape}."
         assert self.u.shape[-2] == self.wavelength.size, (
@@ -186,20 +176,9 @@ class PolyChromaticVectorField(
     @property
     def grid(self) -> Array:
         _grid = grid(self.spatial_shape, self.dx)
-        return rearrange(_grid, "... l y x d-> ... y x l 1 d")
+        return rearrange(_grid, "... wv y x d-> ... y x wv 1 d")
 
     @property
     def f_grid(self) -> Array:
         _f_grid = freq_grid(self.spatial_shape, self.dx)
-        return rearrange(_f_grid, "... l y x d-> ... y x l 1 d")
-
-    @property
-    def power(self):
-        area = jnp.prod(self.dx, axis=-1)
-        intensity = jnp.abs(self.u) ** 2
-        power_density = jnp.sum(intensity, axis=(self.dims.p, *self.spatial_dims))
-        return area * self.spectrum.density * power_density
-
-    @property
-    def intensity(self):
-        return jnp.sum(jnp.abs(self.u) ** 2, axis=self.dims.p)
+        return rearrange(_f_grid, "... wv y x d-> ... y x wv 1 d")
