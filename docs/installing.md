@@ -64,11 +64,13 @@ Another option for development is to use a Python project management tool such
 as [`uv`](https://docs.astral.sh/uv/). After installing `uv`, you can run the
 following commands for an editable install and to run the unit tests:
 ```bash
+$ git clone https://github.com/chromatix-team/chromatix
+$ cd chromatix
 $ uv sync --extra dev
 $ uv run pre-commit install
 $ uv run pytest
 ```
-A virtual environment is created in `.venv`. 
+A virtual environment is created in `.venv`.
 
 ## Using `conda`
 

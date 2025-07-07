@@ -1,9 +1,11 @@
-from typing import Callable, Optional, Union
+from typing import Callable
 
 import flax.linen as nn
 from chex import PRNGKey
+from jax import Array
 
 from chromatix.elements.utils import register
+from chromatix.typing import ScalarLike
 
 from .. import functional as cf
 from ..field import Field
@@ -29,9 +31,9 @@ class ThinLens(nn.Module):
             to the incoming ``Field``.
     """
 
-    f: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
 
     @nn.compact
     def __call__(self, field: Field) -> Field:
@@ -60,9 +62,9 @@ class FFLens(nn.Module):
         inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
-    f: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
     inverse: bool = False
 
     @nn.compact
@@ -93,10 +95,10 @@ class DFLens(nn.Module):
         inverse: Whether to use IFFT (default is False, which uses FFT).
     """
 
-    d: Union[float, Callable[[PRNGKey], float]]
-    f: Union[float, Callable[[PRNGKey], float]]
-    n: Union[float, Callable[[PRNGKey], float]]
-    NA: Optional[Union[float, Callable[[PRNGKey], float]]] = None
+    d: ScalarLike | Callable[[PRNGKey], Array]
+    f: ScalarLike | Callable[[PRNGKey], Array]
+    n: ScalarLike | Callable[[PRNGKey], Array]
+    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
     inverse: bool = False
 
     @nn.compact

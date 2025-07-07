@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import jax.numpy as jnp
-from chex import Array, assert_equal_shape, assert_rank
+from chex import assert_equal_shape, assert_rank
 from einops import rearrange
 from flax import struct
+from jax import Array
+from typing_extensions import Self
+
+from chromatix.typing import ArrayLike, ScalarLike
 
 from .utils.shapes import (
     _broadcast_1d_to_channels,
@@ -84,6 +88,54 @@ class Field(struct.PyTreeNode):
     _dx: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
     _spectrum: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
     _spectral_density: Array = struct.field(pytree_node=False)  # (B... H W C [1 | 3])
+    _origin: Array = struct.field(pytree_node=False)  # (2 B... H W C [1 | 3])
+
+    @classmethod
+    def empty_like(
+        cls,
+        field: Field,
+        dx: ScalarLike | None = None,
+        shape: tuple[int, int] | None = None,
+        spectrum: ScalarLike | None = None,
+        spectral_density: ScalarLike | None = None,
+        origin: ArrayLike | None = None,
+    ) -> Field:
+        """
+        Copy over attributes of ``field`` to a new ``Field`` object, with the
+        option of changing some attributes.
+
+        Note that this function overwrites the field `u` with a new empty field.
+        """
+        if dx is None:
+            dx = field.dx
+        else:
+            if dx.ndim == 1:
+                dx = jnp.stack([dx, dx])
+            assert_rank(dx, 2)  # dx should have shape (2, C) here
+        if shape is None:
+            shape = field.spatial_shape
+        else:
+            assert len(shape) == 2
+        if spectrum is None:
+            spectrum = field.spectrum
+        else:
+            spectrum = jnp.atleast_1d(spectrum)
+        if spectral_density is None:
+            spectral_density = field.spectral_density
+        else:
+            spectral_density = jnp.atleast_1d(spectral_density)
+        if origin is None:
+            origin = field.origin.squeeze()
+        else:
+            if isinstance(origin, Number):
+                origin = jnp.array([origin, origin])
+            origin = jnp.array(origin)
+        origin = origin[:, None]
+        assert_rank(origin, 2)
+        u = jnp.empty(
+            (1, *shape, spectrum.size, field.u.shape[-1]), dtype=field.u.dtype
+        )
+        return cls(u, dx, spectrum, spectral_density, origin)
 
     @property
     def grid(self) -> Array:
@@ -102,7 +154,7 @@ class Field(struct.PyTreeNode):
             indexing="ij",
         )
         grid = rearrange(grid, "d h w -> d " + ("1 " * (self.ndim - 4)) + "h w 1 1")
-        return self.dx * grid
+        return self.dx * grid + self.origin
 
     @property
     def k_grid(self) -> Array:
@@ -134,6 +186,15 @@ class Field(struct.PyTreeNode):
         return _broadcast_2d_to_grid(self._dx, self.ndim)
 
     @property
+    def origin(self) -> Array:
+        """
+        The shift of the sampling place, such that it is no longer centered at
+        the origin. Defined as an array of shape ``(2 1... 1 1 C 1)``
+        specifying the shift in the y and x directions respectively.
+        """
+        return _broadcast_2d_to_grid(self._origin, self.ndim)
+
+    @property
     def dk(self) -> Array:
         """
         The frequency spacing of the samples in the frequency space of ``u``.
@@ -147,11 +208,11 @@ class Field(struct.PyTreeNode):
         return 1 / (self.dx * shape)
 
     @property
-    def surface_area(self) -> Array:
+    def extent(self) -> Array:
         """
-        The surface area of the field in microns. Defined as an array of
-        shape ``(2 1... 1 1 C 1)`` specifying the surface area in the y and x
-        dimensions respectively.
+        The extent (lengths in height and width per wavelength) of the field
+        in units of distance. Defined as an array of shape ``(2 1... 1 1 C 1)``
+        specifying the extent in the y and x dimensions respectively.
         """
         shape = jnp.array(self.spatial_shape)
         shape = _broadcast_1d_to_grid(shape, self.ndim)
@@ -201,17 +262,17 @@ class Field(struct.PyTreeNode):
         return jnp.sum(self.intensity, axis=(-4, -3), keepdims=True) * area
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """Shape of the complex field."""
         return self.u.shape
 
     @property
-    def spatial_shape(self) -> Tuple[int, int]:
+    def spatial_shape(self) -> tuple[int, int]:
         """Only the height and width of the complex field."""
-        return self.u.shape[self.spatial_dims[0] : self.spatial_dims[1] + 1]
+        return (self.u.shape[self.spatial_dims[0]], self.u.shape[self.spatial_dims[1]])
 
     @property
-    def spatial_dims(self) -> Tuple[int, int]:
+    def spatial_dims(self) -> tuple[int, int]:
         """Dimensions representing the height and width of the complex field."""
         return (-4, -3)
 
@@ -221,93 +282,110 @@ class Field(struct.PyTreeNode):
         return self.u.ndim
 
     @property
-    def conj(self) -> Array:
+    def conj(self) -> Self:
         """conjugate of the complex field, as a field of the same shape."""
         return self.replace(u=jnp.conj(self.u))
 
-    def __add__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    @property
+    def spatial_limits(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        """
+        Return the spatial limits of the field: (y_min, y_max), (x_min, x_max).
+        """
+        return (float(self.grid[0].min()), float(self.grid[0].max())), (
+            float(self.grid[1].min()),
+            float(self.grid[1].max()),
+        )
+
+    def __add__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u + other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u + other.u)
         else:
             return NotImplemented
 
-    def __radd__(self, other: Any) -> Field:
+    def __radd__(self, other: Any) -> Self:
         return self + other
 
-    def __sub__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __sub__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u - other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u - other.u)
         else:
             return NotImplemented
 
-    def __rsub__(self, other: Any) -> Field:
+    def __rsub__(self, other: Any) -> Self:
         return (-1 * self) + other
 
-    def __mul__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __mul__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u * other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u * other.u)
         else:
             return NotImplemented
 
-    def __rmul__(self, other: Any) -> Field:
+    def __rmul__(self, other: Any) -> Self:
         return self * other
 
-    def __matmul__(self, other: jnp.array) -> Field:
+    def __matmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(self.u, other))
 
-    def __rmatmul__(self, other: jnp.array) -> Field:
+    def __rmatmul__(self, other: ArrayLike) -> Self:
         return self.replace(u=jnp.matmul(other, self.u.squeeze()))
 
-    def __truediv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __truediv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u / other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u / other.u)
         else:
             return NotImplemented
 
-    def __rtruediv__(self, other: Any) -> Field:
+    def __rtruediv__(self, other: Any) -> Self:
         return self.replace(u=other / self.u)
 
-    def __floordiv__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __floordiv__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u // other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u // other.u)
         else:
             return NotImplemented
 
-    def __rfloordiv__(self, other: Any) -> Field:
+    def __rfloordiv__(self, other: Any) -> Self:
         return self.replace(u=other // self.u)
 
-    def __mod__(self, other: Union[Number, jnp.ndarray, Field]) -> Field:
+    def __mod__(self, other: ScalarLike | ArrayLike | Field) -> Self:
         if isinstance(other, jnp.ndarray) or isinstance(other, Number):
             return self.replace(u=self.u % other)
-        elif isinstance(other, Field):
+        elif isinstance(other, (ScalarField, VectorField)):
             return self.replace(u=self.u % other.u)
         else:
             return NotImplemented
 
-    def __rmod__(self, other: Any) -> Field:
+    def __rmod__(self, other: Any) -> Self:
         return self.replace(u=other % self.u)
+
+    def __pow__(self, other: Any) -> Self:
+        return self.replace(u=self.u**other)
+
+    def __rpow__(self, other: Any) -> Self:
+        return self.replace(u=other**self.u)
 
 
 class ScalarField(Field):
     @classmethod
     def create(
         cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
-    ) -> Field:
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
+        u: Array | None = None,
+        shape: tuple[int, int] | None = None,
+        origin: ArrayLike | None = None,
+    ) -> Self:
         """
         Create a scalar approximation ``Field`` object in a convenient way.
 
@@ -339,10 +417,18 @@ class ScalarField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
+            origin: If provided, defines a shift in the sampling plane such
+                that is is no longer centered at the origin. Should be an array
+                of shape `[2,]` in the format `[y, x]`.
         """
-        dx: Array = jnp.atleast_1d(dx)
-        spectrum: Array = jnp.atleast_1d(spectrum)
-        spectral_density: Array = jnp.atleast_1d(spectral_density)
+        dx = jnp.atleast_1d(dx)
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        spectrum = jnp.atleast_1d(spectrum)
+        spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([spectrum, spectral_density])
+        spectral_density = spectral_density / jnp.sum(spectral_density)
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
             u = jnp.empty((1, *shape, spectrum.size, 1), dtype=jnp.complex64)
@@ -351,23 +437,29 @@ class ScalarField(Field):
             "Field must be Array with at least 5 dimensions: (B... H W C 1)."
         )
         assert u.shape[-1] == 1, "Last dimension must be 1 for scalar fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+        if origin is None:
+            origin = jnp.zeros((2, 1))
+        elif isinstance(origin, tuple):
+            origin = jnp.array(origin)
+        elif isinstance(origin, Number):
+            origin = jnp.array([origin, origin])
+        if origin.ndim == 1:
+            origin = origin[:, None]
+        assert_rank(origin, 2)  # origin should have shape (2, C) here
+        assert origin.shape[0] == 2
+        return cls(u, dx, spectrum, spectral_density, origin)
 
 
 class VectorField(Field):
     @classmethod
     def create(
         cls,
-        dx: Union[float, Array],
-        spectrum: Union[float, Array],
-        spectral_density: Union[float, Array],
-        u: Optional[Array] = None,
-        shape: Optional[Tuple[int, int]] = None,
+        dx: ScalarLike,
+        spectrum: ScalarLike,
+        spectral_density: ScalarLike,
+        u: Array | None = None,
+        shape: tuple[int, int] | None = None,
+        origin: ArrayLike | None = None,
     ) -> Field:
         """
         Create a vectorial ``Field`` object in a convenient way.
@@ -400,10 +492,18 @@ class VectorField(Field):
                 dimensions of the ``Field`` of the form `(H W)`. Not required
                 if ``u`` is provided. If ``u`` is not provided, then ``shape``
                 must be provided.
+            origin: If provided, defines a shift in the sampling plane such
+                that is is no longer centered at the origin. Should be an array
+                of shape `[2,]` in the format `[y, x]`.
         """
-        dx: Array = jnp.atleast_1d(dx)
-        spectrum: Array = jnp.atleast_1d(spectrum)
-        spectral_density: Array = jnp.atleast_1d(spectral_density)
+        dx = jnp.atleast_1d(dx)
+        if dx.ndim == 1:
+            dx = jnp.stack([dx, dx])
+        assert_rank(dx, 2)  # dx should have shape (2, C) here
+        spectrum = jnp.atleast_1d(spectrum)
+        spectral_density = jnp.atleast_1d(spectral_density)
+        assert_equal_shape([spectrum, spectral_density])
+        spectral_density = spectral_density / jnp.sum(spectral_density)
         if u is None:
             assert shape is not None, "Must specify shape if u is None"
             u = jnp.empty((1, *shape, spectrum.size, 3), dtype=jnp.complex64)
@@ -412,12 +512,17 @@ class VectorField(Field):
             "Field must be Array with at least 5 dimensions: (B... H W C 3)."
         )
         assert u.shape[-1] == 3, "Last dimension must be 3 for vectorial fields."
-        assert_equal_shape([spectrum, spectral_density])
-        spectral_density = spectral_density / jnp.sum(spectral_density)
-        if dx.ndim == 1:
-            dx = jnp.stack([dx, dx])
-        assert_rank(dx, 2)  # dx should have shape (2, C) here
-        return cls(u, dx, spectrum, spectral_density)
+        if origin is None:
+            origin = jnp.zeros((2, 1))
+        elif isinstance(origin, tuple):
+            origin = jnp.array(origin)
+        elif isinstance(origin, Number):
+            origin = jnp.array([origin, origin])
+        if origin.ndim == 1:
+            origin = origin[:, None]
+        assert_rank(origin, 2)  # origin should have shape (2, C) here
+        assert origin.shape[0] == 2
+        return cls(u, dx, spectrum, spectral_density, origin)
 
     @property
     def jones_vector(self) -> Array:
@@ -427,7 +532,7 @@ class VectorField(Field):
         return self.u / norm
 
 
-def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -> Field:
+def pad(field: Field, pad_width: int | tuple[int, int], cval: float = 0) -> Field:
     """
     Pad the `field` with zeros in one or two dimensions.
     Args:
@@ -445,7 +550,7 @@ def pad(field: Field, pad_width: Union[int, Tuple[int, int]], cval: float = 0) -
     return field.replace(u=u)
 
 
-def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
+def crop(field: Field, crop_width: int | tuple[int, int]) -> Field:
     """
     Crop the `field` by removing pixels from the edges.
     Args:
@@ -461,9 +566,27 @@ def crop(field: Field, crop_width: Union[int, Tuple[int, int]]) -> Field:
     return field.replace(u=field.u[tuple(crop)])
 
 
-def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
+def shift_grid(field: Field, shift_yx: ScalarLike) -> Field:
     """
-    Shift the `field` by an integer number of pixels in one or two dimensions.
+    Shift the sampling grid by an arbitrary amount in y and x directions.
+    Args:
+        shift_yx: The shift in y and x directions. Should be an array of
+            shape `[2,]` in the format `[y, x]`.
+    """
+    if isinstance(shift_yx, Number):
+        shift_yx = jnp.array([shift_yx, shift_yx])
+    shift_yx = jnp.array(shift_yx)  # Ensure it is an array
+    if shift_yx.ndim == 1:
+        shift_yx = shift_yx[:, None]
+    assert_rank(shift_yx, 2)
+    return field.replace(_origin=shift_yx)
+
+
+def shift_field(field: Field, shiftby: int | tuple[int, int]) -> Field:
+    """
+    Shift `field` by an integer number of pixels in one or two dimensions,
+    while keeping the sampling grid centered at the origin.
+
     Args:
         field: The field to shift.
         shiftby: The number of pixels to shift the field by.
@@ -485,3 +608,45 @@ def shift(field: Field, shiftby: Union[int, Tuple[int, int]]) -> Field:
     u = jnp.pad(field.u[tuple(crop)], pads)
 
     return field.replace(u=u)
+
+
+def cartesian_to_spherical(field: Field, n: float, NA: float, f: float) -> Array:
+    """
+    Converts the field to a spherical basis. This is useful for high NA lenses.
+
+    Args:
+        field: The incoming ``Field`` in pupil space, in Cartesian coordinates.
+        n: Refractive index of the lens.
+        NA: NA of the lens.
+        f: Focal length of the lens.
+
+    Returns:
+        The Field.u in spherical coordinates.
+        !!! warning
+            Caution: does NOT return a full Field object.
+    """
+    pupil_radius = f * NA / n
+    mask = field.grid[0] ** 2 + field.grid[1] ** 2 <= pupil_radius**2
+    sin_theta2 = jnp.sum(field.grid**2, axis=0) * mask / f**2
+    cos_theta = jnp.sqrt(1 - sin_theta2)
+    sin_theta = jnp.sqrt(sin_theta2)
+
+    phi = jnp.arctan2(field.grid[0], field.grid[1])
+    cos_phi = jnp.cos(phi)
+    sin_phi = jnp.sin(phi)
+    sin_2phi = 2 * sin_phi * cos_phi
+    cos_2phi = cos_phi**2 - sin_phi**2
+
+    field_x = field.u[:, :, :, :, 2][..., None]
+    field_y = field.u[:, :, :, :, 1][..., None]
+
+    # Source: Eq. (6) of arXiv:2502.03170
+    e_inf_x = ((cos_theta + 1.0) + (cos_theta - 1.0) * cos_2phi) * field_x + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_y
+    e_inf_y = ((cos_theta + 1.0) - (cos_theta - 1.0) * cos_2phi) * field_y + (
+        cos_theta - 1.0
+    ) * sin_2phi * field_x
+    e_inf_z = -2.0 * sin_theta * (cos_phi * field_x + sin_phi * field_y)
+
+    return jnp.stack([e_inf_z, e_inf_y, e_inf_x], axis=-1).squeeze(-2) / 2
