@@ -1,48 +1,87 @@
-from typing import Callable
-
+import equinox as eqx
 import jax.numpy as jnp
+import numpy as np
 from einops import reduce
-from jax import Array
 from jax.image import scale_and_translate
+from jaxtyping import Array, Float, ScalarLike
 
-from chromatix.typing import ScalarLike
+from chromatix import Resampler
 
 
-def pooling_downsample(
-    data: Array, window_size: tuple[int, int], reduction: str = "mean"
-) -> Array:
-    """
-    Wrapper for downsampling input of shape `(B... H W C P)` along `(H W)`.
+class PoolingPlaneDownsampler(Resampler):
+    out_shape: tuple[int, int] = eqx.field(static=True)
+    out_spacing: ScalarLike | Float[Array, "2"]
 
-    By default, downsampling is performed as a 2D average pooling. Also
-    accepts various reduction functions that will be applied with the given
-    ``window_size``, including `'max'`, `'min'`, `'sum'`, `'prod'`, and the
-    default `'mean'`.
+    def __init__(
+        self, out_shape: tuple[int, int], out_spacing: ScalarLike | Float[Array, "2"]
+    ):
+        self.out_shape = out_shape
+        self.out_spacing = out_spacing
 
-    Args:
-        data: The data to be downsampled of shape `(B... H W C P)`.
-        window_size: A tuple of 2 elements defining the window shape (height
-            and width) for downsampling along `(H W)`.
-        reduction: A string defining the reduction function applied with the
-            given ``window_size``.
-    """
-    return reduce(
-        data,
-        "... (h h_size) (w w_size) c p -> ... h w c p",
-        reduction,
-        h_size=window_size[0],
-        w_size=window_size[1],
-    )
+    def __call__(
+        self, resample_input: Float[Array, "h w ..."], in_spacing: Float[Array, "2"]
+    ) -> Array:
+        return reduce(
+            resample_input,
+            "(h hf) (w wf) ... -> h w ...",
+            "sum",
+            h=self.out_shape[0],
+            w=self.out_shape[1],
+        )
+
+
+class InterpolatingPlaneResampler(Resampler):
+    out_shape: tuple[int, int] = eqx.field(static=True)
+    out_spacing: ScalarLike | Float[Array, "2"]
+    resampling_method: str = eqx.field(static=True)
+
+    def __init__(
+        self,
+        out_shape: tuple[int, int],
+        out_spacing: ScalarLike | Float[Array, "2"],
+        resampling_method: str = "linear",
+    ):
+        self.out_shape = out_shape
+        self.out_spacing = out_spacing
+        self.resampling_method = resampling_method
+
+    def __call__(
+        self, resample_input: Float[Array, "h w ..."], in_spacing: Float[Array, "2"]
+    ) -> Array:
+        in_spacing = jnp.atleast_1d(jnp.asarray(in_spacing).squeeze())
+        assert in_spacing.size == 2, (
+            "Input spacing is an array of shape (2,) representing pixel size in (y x)"
+        )
+        _in_shape, _out_shape = (
+            jnp.asarray(resample_input.shape),
+            jnp.asarray(self.out_shape),
+        )
+        scale = in_spacing / self.out_spacing
+        translation = -0.5 * (_in_shape * scale - _out_shape)
+        # NOTE(dd): Because scale_and_translate expects shape to have same
+        # number of dimensions as input, we have to extend the shape with
+        # any channel/ vectorial dimensions here
+        # extended_shape = out_shape + x.shape
+        resample_output = scale_and_translate(
+            resample_input,
+            self.out_shape,
+            (0, 1),
+            scale,
+            translation,
+            method=self.resampling_method,
+        )
+        resample_output = resample_output / jnp.prod(scale)
+        return resample_output
 
 
 def init_plane_resample(
     out_shape: tuple[int, ...],
-    out_spacing: ScalarLike,
+    out_spacing: ScalarLike | Float[Array, "2"],
     resampling_method: str = "linear",
-) -> Callable[[Array, ScalarLike], Array]:
+) -> Resampler:
     """
     Returns a function that resamples 2D planes to the specified output shape
-    and spacing.
+    and spacing. These functions are instances of ``Resampler``s in Chromatix.
 
     The returned function is allowed to be jitted because the shape of the
     output will no longer depend on the input of this function.
@@ -60,39 +99,12 @@ def init_plane_resample(
     use ``jax.vmap``.
     """
     assert len(out_shape) == 2, "Shape must be tuple of form (H W)"
-    out_spacing = jnp.atleast_1d(out_spacing).squeeze()
-    assert out_spacing.size <= 2, (
+    assert np.atleast_1d(np.asarray(out_spacing).squeeze()).size <= 2, (
         "Spacing is either a float or array of shape (2,) for non-square pixels"
     )
     if resampling_method == "pool":
-
-        def op(x: Array, in_spacing: ScalarLike) -> Array:
-            return reduce(
-                x,
-                "(h hf) (w wf) ... -> h w ...",
-                "sum",
-                h=out_shape[0],
-                w=out_shape[1],
-            )
-
+        return PoolingPlaneDownsampler(out_shape, out_spacing)
     else:
-
-        def op(x: Array, in_spacing: ScalarLike) -> Array:
-            in_spacing = jnp.atleast_1d(in_spacing).squeeze()
-            assert in_spacing.size <= 2, (
-                "Spacing is either a float or array of shape (2,) for non-square pixels"
-            )
-            _in_shape, _out_shape = jnp.array(x.shape[:-2]), jnp.array(out_shape)
-            scale = in_spacing / out_spacing
-            translation = -0.5 * (_in_shape * scale - _out_shape)
-            # NOTE(dd): Because scale_and_translate expects shape to have same
-            # number of dimensions as input, we have to extend the shape with
-            # any channel/ vectorial dimensions here
-            extended_shape = out_shape + x.shape[2:]
-            x = scale_and_translate(
-                x, extended_shape, (0, 1), scale, translation, method=resampling_method
-            )
-            x = x / jnp.prod(scale)
-            return x
-
-    return op
+        return InterpolatingPlaneResampler(
+            out_shape, out_spacing, resampling_method=resampling_method
+        )
