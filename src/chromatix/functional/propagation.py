@@ -209,7 +209,10 @@ def transfer_propagate(
             absorbed. The edges of the field beyond this boundary will taper
             smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format [ky, kx].
+            be an array of shape `(2,)` in the format `[ky, kx]`. We assume that
+            these are wave vectors, i.e. that they have already been multiplied
+            by ``2 * pi / wavelength``. Defaults to `(0.0, 0.0)` for on-axis
+            propagation (no tilting).
         shift_yx: If provided, defines a shift in the destination
             plane. Should be an array of shape `[2,]` in the format `[y, x]`.
         output_dx: If provided, defines a different output sampling at the output
@@ -296,7 +299,10 @@ def asm_propagate(
             absorbed. The edges of the field beyond this boundary will taper
             smoothly to 0 using the chosen boundary function.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format `[ky, kx]`.
+            be an array of shape `(2,)` in the format `[ky, kx]`. We assume that
+            these are wave vectors, i.e. that they have already been multiplied
+            by ``2 * pi / wavelength``. Defaults to `(0.0, 0.0)` for on-axis
+            propagation (no tilting).
         remove_evanescent: If ``True``, removes evanescent waves. Defaults to
             False.
         bandlimit: If ``True``, bandlimited the kernel according to "Band-
@@ -475,7 +481,10 @@ def compute_transfer_propagator(
             added to the resulting ``Field``).
         n: A float that defines the (isotropic) refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format `[ky, kx]`.
+            be an array of shape `(2,)` in the format `[ky, kx]`. We assume that
+            these are wave vectors, i.e. that they have already been multiplied
+            by ``2 * pi / wavelength``. Defaults to `(0.0, 0.0)` for on-axis
+            propagation (no tilting).
     """
     z = jnp.asarray(z)
     kykx = jnp.asarray(kykx)
@@ -511,7 +520,10 @@ def compute_asm_propagator(
             added to the resulting ``Field``).
         n: A float that defines the (isotropic) refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format `[ky, kx]`.
+            be an array of shape `(2,)` in the format `[ky, kx]`. We assume that
+            these are wave vectors, i.e. that they have already been multiplied
+            by ``2 * pi / wavelength``. Defaults to `(0.0, 0.0)` for on-axis
+            propagation (no tilting).
         bandlimit: If ``True``, bandlimited the kernel according to "Band-
             Limited Angular Spectrum Method for Numerical Simulation of Free-
             Space Propagation in Far and Near Fields" (2009) by Matsushima and

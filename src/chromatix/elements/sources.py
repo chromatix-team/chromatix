@@ -393,8 +393,8 @@ class PlaneWave(eqx.Module):
             this doesnt do anything but scale the field (which will be undone
             if ``power`` is not ``None``), but it is required for vectorial
             ``Field``s to set the polarization.
-        kykx: Defines the orientation of the plane wave. Should be a tuple or
-            an array of shape `(2,)` in the format `ky kx`. We assume that these
+        kykx: Defines the orientation of the plane wave. Should be a tuple or an
+            array of shape `(2,)` in the format `[ky kx]`. We assume that these
             are wave vectors, i.e. that they have already been multiplied by ``2
             * pi / wavelength``.
         pupil: A function that applies a pupil to the field if provided.
@@ -472,8 +472,8 @@ class PlaneWave(eqx.Module):
                 ``Field``s this doesnt do anything but scale the field (which
                 will be undone if ``power`` is not ``None``), but it is required
                 for vectorial ``Field``s to set the polarization.
-            kykx: Defines the orientation of the plane wave. Should be a tuple
-                or an array of shape `(2,)` in the format `ky kx`. We assume
+            kykx: Defines the orientation of the plane wave. Should be a tuple or
+                an array of shape `(2,)` in the format `[ky kx]`. We assume
                 that these are wave vectors, i.e. that they have already been
                 multiplied by ``2 * pi / wavelength``.
             pupil: A function that applies a pupil to the field if provided.

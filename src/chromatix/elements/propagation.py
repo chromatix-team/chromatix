@@ -58,7 +58,10 @@ class Propagate(eqx.Module):
         cval: The value to pad with if ``pad_width`` is greater than 0. Defaults
             to 0.
         kykx: If provided, defines the orientation of the propagation. Should
-            be an array of shape `[2,]` in the format `[ky, kx]`.
+            be an array of shape `(2,)` in the format `[ky, kx]`. We assume that
+            these are wave vectors, i.e. that they have already been multiplied
+            by ``2 * pi / wavelength``. Defaults to `(0.0, 0.0)` for on-axis
+            propagation (no tilting).
         method: The propagation method, which can be "transform", "transfer",
             or "asm". Defaults to "asm", which is propagation as a Fourier
             convolution (two Fourier transforms) without the Fresnel
@@ -188,8 +191,6 @@ class KernelPropagate(eqx.Module):
     Attributes:
         propagator: The propagation kernel to use (can be created using e.g.
             [`compute_asm_propagator`](chromatix.functional.propagation.compute_asm_propagator)).
-        z: Distance(s) to propagate. Defaults to None.
-        n: Refractive index. Defaults to None.
         pad_width: The padding for propagation (will be used as both height and
             width padding). To automatically calculate the padding, use padding
             calculation functions from  ``chromatix.functional``. This must be
@@ -197,37 +198,26 @@ class KernelPropagate(eqx.Module):
             will cause circular convolutions (edge artifacts) when propagating.
         cval: The value to pad with if ``pad_width`` is greater than 0. Defaults
             to 0.
-        kykx: If provided, defines the orientation of the propagation. Should be
-            an array of shape `[2,]` in the format `[ky, kx]`.
         mode: Defines the cropping of the output if the method is NOT
             "transform". Defaults to "same", which returns a ``Field`` of the
             same shape, unlike the functional methods.
     """
 
     propagator: Array
-    z: ScalarLike | Float[Array, "z"]
-    n: ScalarLike
     pad_width: int = eqx.field(static=True)
     cval: ScalarLike
-    kykx: Float[Array, "2"] | tuple[float, float]
     mode: Literal["full", "same"] = eqx.field(static=True)
 
     def __init__(
         self,
         propagator: Array,
-        z: ScalarLike | Float[Array, "z"],
-        n: ScalarLike,
         pad_width: int = 0,
-        cval: float = 0,
-        kykx: Float[Array, "2"] | tuple[float, float] = (0.0, 0.0),
+        cval: float = 0.0,
         mode: Literal["full", "same"] = "same",
     ):
         self.propagator = propagator
-        self.z = z
-        self.n = n
         self.pad_width = pad_width
         self.cval = cval
-        self.kykx = kykx
         self.mode = mode
 
     def __call__(self, field: Field) -> Field:
