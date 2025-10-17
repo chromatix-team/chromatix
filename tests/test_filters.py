@@ -14,7 +14,7 @@ def test_gaussian_kernel():
 
 
 @pytest.mark.skip(
-    reason="""Locally passes, fails on GH due to 
+    reason="""Locally passes, fails on GH due to
     scipy gaussian filter giving different results."""
 )
 def test_gaussian_filter():

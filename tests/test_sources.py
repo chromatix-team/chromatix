@@ -15,10 +15,10 @@ import chromatix.functional as cf
     ],
 )
 def test_plane_wave(power, shape, pupil):
-    field = cf.plane_wave(shape, 0.1, 0.532, 1.0, power=power, pupil=pupil)
+    field = cf.plane_wave(shape, 0.1, (0.532, 1.0), power=power, pupil=pupil)
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *shape, 1, 1))
+    assert_shape(field.u, (*shape, 1))
 
 
 @pytest.mark.parametrize(
@@ -32,8 +32,7 @@ def test_plane_wave_vectorial(power, amplitude, shape, pupil):
     field = cf.plane_wave(
         shape,
         0.1,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         power=power,
         amplitude=amplitude,
         pupil=pupil,
@@ -41,7 +40,7 @@ def test_plane_wave_vectorial(power, amplitude, shape, pupil):
     )
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *shape, 1, 3))
+    assert_shape(field.u, (*shape, 1, 3))
 
 
 def test_spectral_plane_wave():
@@ -49,10 +48,9 @@ def test_spectral_plane_wave():
     field = cf.plane_wave(
         (16, 16),
         0.1,
-        [0.1, 0.532, 1.0],
-        [1.0, 1.0, 1.0],
+        ([0.1, 0.532, 1.0], [1.0, 1.0, 1.0]),
     )
-    assert_shape(field.u, (1, 16, 16, 3, 1))
+    assert_shape(field.u, (16, 16, 3))
 
 
 @pytest.mark.parametrize(
@@ -63,10 +61,10 @@ def test_spectral_plane_wave():
     ],
 )
 def test_point_source(power, z, shape, pupil):
-    field = cf.point_source(shape, 0.1, 0.532, 1.0, z, 1.33, power=power, pupil=pupil)
+    field = cf.point_source(shape, 0.1, (0.532, 1.0), z, 1.33, power=power, pupil=pupil)
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *shape, 1, 1))
+    assert_shape(field.u, (*shape, 1))
 
 
 @pytest.mark.parametrize(
@@ -74,8 +72,8 @@ def test_point_source(power, z, shape, pupil):
 )
 def test_objective_point_source(power, z, shape):
     field = cf.objective_point_source(
-        shape, 0.1, 0.532, 1.0, z, 100.0, 1.33, NA=0.8, power=power
+        shape, 0.1, (0.532, 1.0), z, 100.0, 1.33, NA=0.8, power=power
     )
 
     assert jnp.allclose(field.power, power)
-    assert_shape(field.u, (1, *shape, 1, 1))
+    assert_shape(field.u, (*shape, 1))
