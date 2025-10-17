@@ -20,6 +20,11 @@ dependencies = [
   "jaxtyping>=0.3.3",
   "equinox>=0.12.2",
   "optimistix>=0.0.10",
+  "tqdm>=4.67.1",
+  "matplotlib>=3.10.3",
+  "jupyter>=1.1.1",
+  "ipykernel>=6.29.5",
+  "pre-commit>=4.2.0",
 ]
 version = "0.5.0"
 
