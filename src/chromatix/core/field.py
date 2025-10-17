@@ -175,8 +175,14 @@ class Field(eqx.Module, strict=_strict_config):
         """
         The frequency grid for each spatial dimension as an array. The 2 entries
         along the last dimension represent the y and x grids, respectively. This
-        grid assumes that the center of the ``Field`` is the origin and that the
-        elements are sampling from the center, not the corner.
+        grid assumes that the center of the ``Field`` is the `origin` and that
+        the elements are sampling from the center, not the corner.
+
+        !!! warning
+            Previous versions of Chromatix used this `k_grid` property for what
+            is now `f_grid`, i.e. the old `k_grid` used to not be multiplied
+            by `2 * jnp.pi`. For the frequency grid (what used to be called
+            `k_grid`), use `f_grid`. For angular frequency, use `k_grid`.
         """
         pass
 
@@ -187,8 +193,14 @@ class Field(eqx.Module, strict=_strict_config):
         This is the same as ``f_grid`` but multiplied by ``2 * jnp.pi``.
         The 2 entries along the last dimension represent the y and x grids,
         respectively. This grid assumes that the center of the ``Field`` is
-        the origin and that the elements are sampling from the center, not the
-        corner.
+        the `origin` and that the elements are sampling from the center, not
+        the corner.
+
+        !!! warning
+            Previous versions of Chromatix used this `k_grid` property for what
+            is now `f_grid`, i.e. the old `k_grid` used to not be multiplied
+            by `2 * jnp.pi`. For the frequency grid (what used to be called
+            `k_grid`), use `f_grid`. For angular frequency, use `k_grid`.
         """
         return 2 * jnp.pi * self.f_grid
 
