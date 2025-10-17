@@ -1,13 +1,12 @@
-from typing import Callable, Sequence
+from typing import Sequence
 
-from chex import PRNGKey
-from flax import linen as nn
-from jax import Array
+import equinox as eqx
+from chex import assert_rank
+from jaxtyping import Array, Float, ScalarLike
 
-from chromatix.elements.utils import register
-from chromatix.field import Field
+from chromatix import Field
 from chromatix.functional import interpolated_phase_change, phase_change
-from chromatix.typing import ArrayLike, ScalarLike
+from chromatix.typing import m
 from chromatix.utils import seidel_aberrations, zernike_aberrations
 
 __all__ = [
@@ -18,60 +17,42 @@ __all__ = [
 ]
 
 
-class PhaseMask(nn.Module):
+class PhaseMask(eqx.Module):
     """
-    Applies a ``phase`` mask to an incoming ``Field``.
+    Perturbs ``field`` by ``phase`` (**in radians**), i.e. ``field * exp(1j * phase)``.
 
     This element can be placed after any element that returns a ``Field`` or
     before any element that accepts a ``Field``.
 
-    This element handles multi-wavelength ``Field``s by assuming that the first
-    wavelength in the ``spectrum`` of the ``Field`` is the central wavelength
-    for which the ``phase`` was calculated, and modulates the ``phase`` by the
-    ratio of other wavelengths in the ``spectrum`` to the central wavelength
-    appropriately.
+    Also scales the phase by the ratio of each wavelength to the central
+    wavelength of the spectrum (i.e. the first wavelength in the array
+    of wavelengths) by default. This scaling is necessary to achieve the
+    proper chromatic dispersion effect after propagating a field that is not
+    monochromatic through a phase mask (especially if the phase mask is a fine
+    grating). Returns a new ``Field`` with the result of the perturbation.
 
-    The ``phase`` can be learned (pixel by pixel) by using
-    ``chromatix.utils.trainable``.
+    The ``phase`` can be optimized (pixel by pixel).
 
-    Since phase mask initializations might require information about the
-    pupil of a system, the extra parameters ``n``, ``f``, and ``NA`` can
-    be specified. These will be passed as arguments to the phase mask
-    initialization function if ``phase`` is trainable. Note that if any of
-    these is None, none of them will be passed to the initialization function
-    and you will get an error.
+    Common phase mask generators can be found in ``chromatix.utils.initializers``.
+    These generators typically assume that the phase mask is placed at the pupil
+    plane of a system.
 
     Attributes:
-        phase: The phase to be applied. Should have shape `(H W)`.
-        f: Focal length of the system's objective. Defaults to None.
-        n: Refractive index of the system's objective. Defaults to None.
-        NA: The numerical aperture of the system's objective. Defaults to None.
+        phase: The phase mask to apply as a 2D array of phase values (in
+            radians) of shape ``(height width)``.
     """
 
-    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
-    f: ScalarLike | None = None
-    n: ScalarLike | None = None
-    NA: ScalarLike | None = None
+    phase: Float[Array, "h w"]
 
-    @nn.compact
+    def __init__(self, phase: Float[Array, "h w"]):
+        self.phase = phase
+
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        if all(x is not None for x in [self.n, self.f, self.NA]):
-            pupil_args = (self.n, self.f, self.NA)
-        else:
-            pupil_args = ()
-        phase = register(
-            self,
-            "phase",
-            field.spatial_shape,
-            field.dx[..., 0, 0].squeeze(),
-            field.spectrum[..., 0, 0].squeeze(),
-            *pupil_args,
-        )
-        return phase_change(field, phase)
+        return phase_change(field, self.phase)
 
 
-class SpatialLightModulator(nn.Module):
+class SpatialLightModulator(eqx.Module):
     """
     Simulates a spatial light modulator (SLM) applied to an incoming ``Field``.
 
@@ -81,78 +62,82 @@ class SpatialLightModulator(nn.Module):
     This means that this element acts as if the SLM is phase only and transmits
     a ``Field``, rather than reflecting it.
 
-    This element handles multi-wavelength ``Field``s by assuming that the first
-    wavelength in the ``spectrum`` of the ``Field`` is the central wavelength
-    for which the ``phase`` was calculated, and modulates the ``phase`` by the
-    ratio of other wavelengths in the ``spectrum`` to the central wavelength
-    appropriately.
+    Also scales the phase by the ratio of each wavelength to the central
+    wavelength of the spectrum (i.e. the first wavelength in the array
+    of wavelengths) by default. This scaling is necessary to achieve the
+    proper chromatic dispersion effect after propagating a field that is not
+    monochromatic through a phase mask (especially if the phase mask is a fine
+    grating). Returns a new ``Field`` with the result of the perturbation.
 
     This element also handles the limited phase modulation range of an SLM,
     controlled by ``phase_range``.
 
-    This element also roughly handles the simulation of the surface of
-    the SLM by interpolating the phase with the given ``shape`` (which
-    can be the number of pixels in the SLM) to the shape of the incoming
-    ``Field``, which is assumed to have a shape larger than the given SLM
-    ``shape``. The order of the interpolation performed can be controlled with
-    ``interpolation_order``, but currently only orders of 0 (nearest neighbor)
-    and 1 (linear interpolation) are supported.
-
-    The ``phase`` of the SLM can be learned (pixel by pixel) by using
-    ``chromatix.utils.trainable``.
+    This element also approximates the simulation of the surface of the SLM by
+    interpolating the phase with the given ``shape`` (which can be the number of
+    pixels in the SLM) to the shape of the incoming ``Field``, which is assumed
+    to have a shape larger than the given SLM ``shape``. The order of the
+    interpolation performed can be controlled with ``interpolation_order``, but
+    currently only orders of 0 (nearest neighbor) and 1 (linear interpolation)
+    are supported.
 
     Attributes:
-        phase: The phase to be applied. Should have shape `(H W)`.
-        shape: The shape of the SLM, provided as (H W).
-        spacing: The pitch of the SLM pixels.
-        phase_range: The phase range that the SLM can simulate, provided as
-            (min, max).
-        num_bits: The number of bits of precision the phase pixels should be
-            quantized to. Defaults to None, in which case no quantization is
-            applied. Otherwise, the phase will be quantized to have
-            ``2.0 ** num_bits`` values within ``phase_range``.
-        interpolation_order: The order of interpolation for the SLM pixels to
-            the shape of the incoming ``Field``. Can be 0 or 1. Defaults to 0.
-        f: Focal length of the system's objective. Defaults to None.
-        n: Refractive index of the system's objective. Defaults to None.
-        NA: The numerical aperture of the system's objective. Defaults to None.
+        phase: The phase mask to apply as a 2D array of phase values (in
+            radians) of shape ``(height width)``.
+        shape: The shape of the SLM in number of pixels, provided as `(height
+            width)`.
+        spacing: The pitch of the SLM pixels in units of distance.
+        phase_range: The phase range in radians that the SLM can simulate,
+            provided as `(min, max)`.
+        num_bits: An integer value representing the number of bits to which the
+            phase mask should be quantized, i.e. only `2**num_bits` values will
+            be allowed in the phase mask. This quantization occurs after the
+            wrapping of the phase values to the provided ``phase_range``, or if
+            no ``phase_range`` is provided then to the full range of values in
+            the provided ``phase``.
+        interpolation_order: An integer defining the order of the interpolation
+            of the phase values to the number of pixels of the field. Set to `0`
+            by default for nearest-neighbor interpolation, but can also be set
+            to 1 for bilinear interpolation. No higher order interpolation is
+            supported for now.
     """
 
-    phase: ArrayLike | Callable[[PRNGKey, tuple[int, int], Array, Array], Array]
+    phase: Float[Array, "h w"]
     shape: tuple[int, int]
     spacing: ScalarLike
-    phase_range: ArrayLike
+    phase_range: Float[Array, "2"] | tuple[float, float]
     num_bits: int | None = None
     interpolation_order: int = 0
-    f: ScalarLike | None = None
-    n: ScalarLike | None = None
-    NA: ScalarLike | None = None
 
-    @nn.compact
+    def __init__(
+        self,
+        phase: Float[Array, "h w"],
+        shape: tuple[int, int],
+        spacing: ScalarLike,
+        phase_range: Float[Array, "2"] | tuple[float, float],
+        num_bits: int | None = None,
+        interpolation_order: int = 0,
+    ):
+        self.phase = phase
+        assert_rank(
+            self.phase, 2, custom_message="Phase must be a 2D array of shape (H W)"
+        )
+        assert self.phase.shape == shape, (
+            f"Phase array must have same shape as SLM: expected {shape} got {self.phase.shape}"
+        )
+        self.shape = shape
+        self.spacing = spacing
+        self.phase_range = phase_range
+        self.num_bits = num_bits
+        self.interpolation_order
+
     def __call__(self, field: Field) -> Field:
         """Applies simulated SLM ``phase`` mask to incoming ``Field``."""
-        if all(x is not None for x in [self.n, self.f, self.NA]):
-            pupil_args = (self.n, self.f, self.NA)
-        else:
-            pupil_args = ()
-
-        phase = register(
-            self,
-            "phase",
-            self.shape,
-            self.spacing,
-            field.spectrum[..., 0, 0].squeeze(),
-            *pupil_args,
-        )
-        assert phase.shape == self.shape, (
-            "Provided phase shape should match provided SLM shape"
-        )
         return interpolated_phase_change(
-            field, phase, self.phase_range, self.num_bits, self.interpolation_order
+            field, self.phase, self.phase_range, self.num_bits, self.interpolation_order
         )
 
 
-class SeidelAberrations(nn.Module):
+class SeidelAberrations(eqx.Module):
     """
     Applies Seidel phase polynomial to an incoming ``Field``.
 
@@ -165,43 +150,62 @@ class SeidelAberrations(nn.Module):
     ratio of other wavelengths in the ``spectrum`` to the central wavelength
     appropriately.
 
-    The ``coefficients`` can be learned by using ``chromatix.utils.trainable``.
-
     Attributes:
-        coefficients: The Seidel coefficients. Should have shape `[5,]`.
-        f: The focal length.
-        n: The refractive index.
+        coefficients: The Seidel coefficients. Should have shape `(5,)`.
+        f: The focal length of the system's objective lens in units of distance.
+        n: The refractive index of the medium.
         NA: The numerical aperture. The applied phase will be 0 outside NA.
-        u: The horizontal position of the object field point
-        v: The vertical position of the object field point
     """
 
-    coefficients: ArrayLike | Callable[[PRNGKey], Array]
+    coefficients: Float[Array, "5"]
     f: ScalarLike
     n: ScalarLike
     NA: ScalarLike
-    u: ScalarLike
-    v: ScalarLike
 
-    @nn.compact
-    def __call__(self, field: Field) -> Field:
-        """Applies ``phase`` mask to incoming ``Field``."""
-        coefficients = register(self, "coefficients")
+    def __init__(
+        self,
+        coefficients: Float[Array, "5"],
+        f: ScalarLike,
+        n: ScalarLike,
+        NA: ScalarLike,
+    ):
+        self.coefficients = coefficients
+        self.f = f
+        self.n = n
+        self.NA = NA
+
+    def __call__(self, field: Field, u: ScalarLike, v: ScalarLike) -> Field:
+        """
+        Applies ``phase`` mask to incoming ``Field``.
+
+        Args:
+            field: The complex field to be perturbed.
+            u: The horizontal position of the object field point in normalized
+                coordinates from 0 to +/- 1. A value of 0 represents the center
+                coordinate in the plane while a value of 1 represents the farthest
+                point from the center. Positive values go right and negative values
+                go left.
+            v: The vertical position of the object field point in normalized
+                coordinates from 0 to +/- 1. A value of 0 represents the center
+                coordinate in the plane while a value of 1 represents the farthest
+                point from the center. Positive values go down and negative values
+                go up.
+        """
         phase = seidel_aberrations(
             field.spatial_shape,
-            field.dx[..., 0, 0].squeeze(),
-            field.spectrum[..., 0, 0].squeeze(),
+            field.central_dx,
+            field.central_wavelength,
             self.n,
             self.f,
             self.NA,
-            coefficients,
+            self.coefficients,
             self.u,
             self.v,
         )
         return phase_change(field, phase)
 
 
-class ZernikeAberrations(nn.Module):
+class ZernikeAberrations(eqx.Module):
     """
     Applies Zernike aberrations to an incoming ``Field``.
 
@@ -215,9 +219,10 @@ class ZernikeAberrations(nn.Module):
     appropriately.
 
     Attributes:
-        coefficients: The Zernike coefficients as a 1D array.
-        f: The focal length.
-        n: The refractive index.
+        coefficients: The Zernike coefficients as a 1D array of the same length as the
+            ``ansi_indices``.
+        f: The focal length of the system's objective lens in units of distance.
+        n: The refractive index of the medium.
         NA: The numerical aperture. The applied phase will be 0 outside NA.
         ansi_indices: Linear Zernike indices according to ANSI numbering.
         coefficients: Weight coefficients for the Zernike polynomials.
@@ -225,26 +230,40 @@ class ZernikeAberrations(nn.Module):
             ``True``.
     """
 
-    coefficients: ArrayLike | Callable[[PRNGKey], Array]
-    f: ArrayLike
-    n: ArrayLike
-    NA: ArrayLike
+    coefficients: Float[Array, "m"]
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike
     ansi_indices: Sequence[int]
-    normalize: bool = True
+    normalize: bool
 
-    @nn.compact
+    def __init__(
+        self,
+        coefficients: Float[Array, "m"],
+        f: ScalarLike,
+        n: ScalarLike,
+        NA: ScalarLike,
+        ansi_indices: Sequence[int],
+        normalize: bool = True,
+    ):
+        self.coefficients = coefficients
+        self.f = f
+        self.n = n
+        self.NA = NA
+        self.ansi_indices = ansi_indices
+        self.normalize = normalize
+
     def __call__(self, field: Field) -> Field:
         """Applies ``phase`` mask to incoming ``Field``."""
-        coefficients = register(self, "coefficients")
         phase = zernike_aberrations(
             field.spatial_shape,
-            field.dx[..., 0, 0].squeeze(),
-            field.spectrum[..., 0, 0].squeeze(),
+            field.central_dx,
+            field.central_wavelength,
             self.n,
             self.f,
             self.NA,
             self.ansi_indices,
-            coefficients,
+            self.coefficients,
             self.normalize,
         )
         return phase_change(field, phase)
