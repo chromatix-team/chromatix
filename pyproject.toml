@@ -17,6 +17,7 @@ dependencies = [
   "optax>=0.1.4",
   "scipy>=1.10.0",
   "jaxopt>=0.8.5",
+  "jaxtyping>=0.3.3",
   "equinox>=0.12.2",
   "optimistix>=0.0.10",
 ]
