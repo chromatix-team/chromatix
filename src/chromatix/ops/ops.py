@@ -1,9 +1,8 @@
 from functools import partial
 
 import jax.numpy as jnp
-from jax import Array
+from jaxtyping import Array, ArrayLike
 
-from chromatix.typing import ArrayLike
 from chromatix.utils import next_order
 
 
@@ -11,7 +10,7 @@ def fourier_convolution(
     image: ArrayLike,
     kernel: ArrayLike,
     *,
-    axes: tuple[int, int] = (0, 1),
+    axes: tuple[int, ...] = (0, 1),
     fast_fft_shape: bool = True,
     mode: str = "same",
 ) -> Array:
@@ -42,11 +41,15 @@ def fourier_convolution(
             convolution to the same shape as ``image``. Should be either
             ``"same"`` or ``"full"``. Defaults to ``"same"``.
     """
+    axes = list(axes)
     for i in range(len(axes) - 1):
         assert axes[i + 1] == (axes[i] + 1), "Axes to convolve over must be contiguous"
     assert image.ndim == kernel.ndim, (
         f"Input ({image.ndim}D) and kernel ({kernel.ndim}D) must have same number of dimensions"
     )
+    for i in range(len(axes)):
+        if axes[i] < 0:
+            axes[i] = image.ndim + axes[i]
     # Get padded shape to prevent circular convolution
     padded_shape = [
         k1 + k2
