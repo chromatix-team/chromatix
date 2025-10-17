@@ -14,23 +14,28 @@ nav:
     - FAQ: FAQ.md
   - API:
     - Field: api/field.md
+    - Core: api/core.md
     - Functional: api/functional.md
     - Elements: api/elements.md
     - Systems: api/systems.md
     - Operations: api/ops.md
     - Utilities: api/utils.md
+    - Dataset Generators: api/data.md
   - Examples:
     - Fourier Ptychography: examples/fourier_ptychography.ipynb
     - Holoscope: examples/holoscope.ipynb
-    - High NA lenses: examples/highNA_PSF.ipynb
     - Computer Generated Holography: examples/cgh.ipynb
-    - Digital Micromirror Device: examples/dmd.ipynb
+    - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
     - Scalable Angular Spectrum: examples/sas.ipynb
+    - Off-axis propagation: examples/off_axis_propagation.ipynb
     - Bandlimited Angular Spectrum: examples/bandlimited_angular_spectrum.ipynb
     - Rescaled propagation: examples/rescaled_propagation.ipynb
+    - Digital Micromirror Device: examples/dmd.ipynb
     - Seidel Aberration Fitting: examples/seidel_fitting.ipynb
-    - Zernike Aberration Fitting: examples/zernike_fitting.ipynb
-    - Polarized multislice: examples/polarized_multislice.ipynb
+    - Scattering through 3D birefringent samples: examples/polarized_multislice.ipynb
+    - High NA lenses: examples/highNA_PSF.ipynb
+    - Pollen grain phantom data generator: examples/pollen.ipynb
+    - Filaments phantom data generator: examples/filaments.ipynb
     - Modified Born Series: examples/modified_born.ipynb
 
 theme:

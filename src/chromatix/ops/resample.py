@@ -97,8 +97,25 @@ def init_plane_resample(
     dimensions, i.e. resampling is parallelized across those dimensions. In
     order to add arbitrary batch dimensions before the first two dimensions,
     use ``jax.vmap``.
+
+    Args:
+        out_shape: A tuple representing the number of samples (pixels) to
+            which the incoming plane should be resampled in the format `(height
+            width)`.
+        out_spacing: Either a scalar or a 1D array of size 2 (in the format
+            `(height width)`) representing the spacing between samples in units
+            of distance. A scalar value represents square pixels, which is
+            typically what you will want to use.
+        resampling_method: A string representing the type of resampling
+            method to initialize. Can be either ``"linear"``, ``"cubic"``,
+            ``"lanczos3"``, or ``"lanczos5"`` for arbitrary interpolation,
+            or ``"pooling"`` for a sum pooling downsampling. Defaults to
+            ``"linear"``.
+    Returns:
+        A [``Resampler``](core.md#chromatix.core.base.Resampler), which is a
+        callable that actually performs the resampling.
     """
-    assert len(out_shape) == 2, "Shape must be tuple of form (H W)"
+    assert len(out_shape) == 2, "Shape must be tuple of form (height width)"
     assert np.atleast_1d(np.asarray(out_spacing).squeeze()).size <= 2, (
         "Spacing is either a float or array of shape (2,) for non-square pixels"
     )

@@ -302,8 +302,8 @@ def rectangular_microlens_array(
     field: Field,
     n: ScalarLike,
     f: Array,
-    num_lenses_height: ScalarLike,
-    num_lenses_width: ScalarLike,
+    num_lenses_height: int,
+    num_lenses_width: int,
     radius: Array,
     separation: ScalarLike,
     block_between: bool = False,
@@ -318,12 +318,14 @@ def rectangular_microlens_array(
 
     Args:
         field: The ``Field`` to which the lens will be applied.
-        f: A scalar value defining the focal length of each lens in units of
-            distance.
         n: The refractive index of the surrounding medium (assumed to be the
             same incoming and exiting).
-        num_lenses_per_side: The number of lenses on each outer side of the
-            hexagon (e.g. setting this number to 4 will create 37 microlenses).
+        f: A scalar value defining the focal length of each lens in units of
+            distance.
+        num_lenses_height: The number of lenses on each vertical side of the
+            rectangle.
+        num_lenses_width: The number of lenses on each horizontal side of the
+            rectangle.
         radius: A scalar value defining the radius of each microlens in units
             of distance.
         separation: A scalar value defining how far apart the center of each

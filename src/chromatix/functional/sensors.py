@@ -21,11 +21,11 @@ def basic_sensor(
     noise_key: PRNGKey | None = None,
 ) -> Array:
     """
-    Produces an intensity image from an incoming ``Field`` or intensity
-    ``Array`` and simulates shot noise. In most cases, it is better and easier
-    to use the [BasicSensor](``chromatix.elements.sensors.BasicSensor``) element
-    which will handle some of the state/arguments necessary for this function
-    (especially for resampling to the pixel size of the sensor).
+    Produces an intensity image from an incoming ``Field`` or intensity ``Array``
+    and simulates shot noise. In most cases, it is better and easier to use
+    the [``BasicSensor``](elements.md#chromatix.elements.sensors.BasicSensor)
+    element which will handle some of the state/arguments necessary for this
+    function (especially for resampling to the pixel size of the sensor).
 
     !!! warning
         Assumes that the input has the same spacing at all wavelengths!
@@ -40,8 +40,8 @@ def basic_sensor(
         resampler: If provided, will be called to resample the
             incoming ``Field`` to the given ``shape``. These are
             instances of ``Resampler``s which can be created using
-            [``chromatix.ops.resample.init_plane_resample``](chromatix.ops.resam
-            ple.init_plane_resample).
+            [``chromatix.ops.resample.init_plane_resample``](ops.md#chromatix.op
+            s.resample.init_plane_resample).
         reduce_axis: If provided, the result will be summed along this
             dimension. Useful for simulating multiple depth planes being summed
             at the sensor plane.

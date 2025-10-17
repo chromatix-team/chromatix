@@ -190,7 +190,7 @@ class KernelPropagate(eqx.Module):
 
     Attributes:
         propagator: The propagation kernel to use (can be created using e.g.
-            [`compute_asm_propagator`](chromatix.functional.propagation.compute_asm_propagator)).
+            [`compute_asm_propagator`](functional.md#chromatix.functional.propagation.compute_asm_propagator)).
         pad_width: The padding for propagation (will be used as both height and
             width padding). To automatically calculate the padding, use padding
             calculation functions from  ``chromatix.functional``. This must be

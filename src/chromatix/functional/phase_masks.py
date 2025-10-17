@@ -342,13 +342,9 @@ def axicon(
 
     Args:
         field: The ``Field`` to which the axicon will be applied.
-        n_grating: The refractive index of the grating material (e.g. glass).
-        period: The period of the sinusoid wave defining the grating in units
-            of distance.
-        thickness: A scalar defining the thickness of the grating in units of
-            distance.
-        rotation: How much to rotate the grating in-plane (counter-clockwise
-            in radians).
+        n_axicon: The refractive index of the axicon material (e.g. glass).
+        slope_angle: The angle between the base of the axicon and the base in
+            radians.
         n_medium: The refractive index of the surrounding medium. Defaults to
             1.0 for air.
 

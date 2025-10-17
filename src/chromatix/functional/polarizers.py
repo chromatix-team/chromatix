@@ -246,12 +246,12 @@ def universal_compensator(
     """Applies the Universal Polarizer for the LC-PolScope to the incoming field.
 
     Args:
-        field (VectorField | ChromaticVectorField): incoming field.
-        retA (float): retardance induced at a 45 deg angle.
-        retB (float): retardance induced at a 0 deg angle.
+        field: Incoming field to polarize.
+        retardance_45: Retardance induced at a 45 deg angle.
+        retardance_0: Retardance induced at a 0 deg angle.
 
     Returns:
-        VectorField | ChromaticVectorField: outgoing field.
+        The outgoing field.
     """
     field = linear_polarizer(field, 0)
     field_retardance_45 = wave_plate(field, -jnp.pi / 4, retardance_45)

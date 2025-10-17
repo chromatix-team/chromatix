@@ -90,7 +90,7 @@ class BasicSensor(Sensor):
                 is desired and the input is an ``Array``.
             resample: Whether to perform resampling or not. Only matters if
                 ``resampling_method`` is not ``None``. Defaults to ``True``.
-            noise_key: If provided, will be used to generate the shot noise. If
+            key: If provided, will be used to generate the shot noise. If
                 ``shot_noise_mode`` is not ``None``, this must be provided.
         """
         if resample and self.resampling_method is not None:

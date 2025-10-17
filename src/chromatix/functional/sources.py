@@ -66,10 +66,11 @@ def point_source(
             you must always include the `wavelengths` dimension even if there
             is only a single wavelength in the spectrum (i.e. a `(1 2)` shaped
             array).
-        spectrum: The [``Spectrum``](chromatix.core.spectrum.Spectrum) of the
-            ``Field`` to be created. This can be specified either as a single
-            float value representing a wavelength in units of distance for
-            a monochromatic field, a 1D array of wavelengths for a chromatic
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
             field that has the same intensity in all wavelengths, or a tuple
             of two 1D arrays where the first array represents the wavelengths
             and the second array is a unitless array of weights that define the
@@ -156,10 +157,11 @@ def objective_point_source(
             you must always include the `wavelengths` dimension even if there
             is only a single wavelength in the spectrum (i.e. a `(1 2)` shaped
             array).
-        spectrum: The [``Spectrum``](chromatix.core.spectrum.Spectrum) of the
-            ``Field`` to be created. This can be specified either as a single
-            float value representing a wavelength in units of distance for
-            a monochromatic field, a 1D array of wavelengths for a chromatic
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
             field that has the same intensity in all wavelengths, or a tuple
             of two 1D arrays where the first array represents the wavelengths
             and the second array is a unitless array of weights that define the
@@ -243,10 +245,11 @@ def plane_wave(
             you must always include the `wavelengths` dimension even if there
             is only a single wavelength in the spectrum (i.e. a `(1 2)` shaped
             array).
-        spectrum: The [``Spectrum``](chromatix.core.spectrum.Spectrum) of the
-            ``Field`` to be created. This can be specified either as a single
-            float value representing a wavelength in units of distance for
-            a monochromatic field, a 1D array of wavelengths for a chromatic
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
             field that has the same intensity in all wavelengths, or a tuple
             of two 1D arrays where the first array represents the wavelengths
             and the second array is a unitless array of weights that define the
@@ -326,10 +329,11 @@ def gaussian_plane_wave(
             you must always include the `wavelengths` dimension even if there
             is only a single wavelength in the spectrum (i.e. a `(1 2)` shaped
             array).
-        spectrum: The [``Spectrum``](chromatix.core.spectrum.Spectrum) of the
-            ``Field`` to be created. This can be specified either as a single
-            float value representing a wavelength in units of distance for
-            a monochromatic field, a 1D array of wavelengths for a chromatic
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
             field that has the same intensity in all wavelengths, or a tuple
             of two 1D arrays where the first array represents the wavelengths
             and the second array is a unitless array of weights that define the
@@ -390,7 +394,7 @@ def generic_field(
     Generates field with arbitrary ``phase`` and ``amplitude``.
     You can likely use the appropriate constructor for the type
     of ``Field`` you want rather than this function, or just use
-    [``Field.build``](chromatix.core.field.Field).
+    [``Field.build``](field.md#chromatix.core.field.Field.build).
 
     Args:
         dx: The spacing (pixel size) of the samples of the ``Field`` in units
@@ -407,10 +411,11 @@ def generic_field(
             you must always include the `wavelengths` dimension even if there
             is only a single wavelength in the spectrum (i.e. a `(1 2)` shaped
             array).
-        spectrum: The [``Spectrum``](chromatix.core.spectrum.Spectrum) of the
-            ``Field`` to be created. This can be specified either as a single
-            float value representing a wavelength in units of distance for
-            a monochromatic field, a 1D array of wavelengths for a chromatic
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
             field that has the same intensity in all wavelengths, or a tuple
             of two 1D arrays where the first array represents the wavelengths
             and the second array is a unitless array of weights that define the

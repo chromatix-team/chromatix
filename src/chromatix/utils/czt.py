@@ -1,11 +1,10 @@
-from typing import Tuple
-
 import jax.numpy as jnp
-from jax import Array
-from jax.typing import ArrayLike
+from jaxtyping import Array, ArrayLike, Complex
+
+from chromatix.typing import m
 
 
-def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
+def czt(x: ArrayLike, m: int, a: Complex, w: Complex, axis: int = -1) -> Array:
     """
     Chirp Z-transform (CZT) of a signal along one dimension. The CZT is a
     generalization of the discrete Fourier transform (DFT). The DFT samples the
@@ -55,10 +54,10 @@ def czt(x: ArrayLike, m: int, a: complex, w: complex, axis=-1) -> Array:
 
 def cztn(
     x: ArrayLike,
-    m: Tuple[int],
-    a: Tuple[complex],
-    w: Tuple[complex],
-    axes: Tuple[int] = (-2, -1),
+    m: tuple[int],
+    a: Complex[Array, "m"],
+    w: Complex[Array, "m"],
+    axes: tuple[int] = (-2, -1),
 ) -> Array:
     """
     Chirp Z-transform (CZT) of a signal along multiple dimensions as defined by
@@ -85,10 +84,10 @@ def zoomed_fft(
     x: ArrayLike,
     k_start: float,
     k_end: float,
-    output_shape: Tuple[int],
-    axes: Tuple[int] = (-2, -1),
+    output_shape: tuple[int],
+    axes: tuple[int] = (-2, -1),
     include_end: bool = True,
-):
+) -> ArrayLike:
     """
     Custom FFTN function that uses the Chirp Z-transform (CZT) to compute the
     Fourier transform of a signal. It allows to generate zoomed FFT in a region
@@ -101,6 +100,7 @@ def zoomed_fft(
         k_start: Start of the frequency range.
         k_end: End of the frequency range.
         output_shape: Desired shape of the output.
+        axes: Axes along which to perform the CZT.
         include_end: Whether to include the end point in the frequency range.
 
     Returns:

@@ -58,8 +58,8 @@ class Spectrum(eqx.Module):
                 as the array of weights representing the relative power of each
                 wavelength in the spectrum.
         Returns:
-            Spectrum | MonoSpectrum: An object representing a spectrum (or a
-                single wavelength in the monochrome case).
+            An object representing a spectrum (or a single wavelength in the
+            monochrome case).
         """
         if isinstance(spectrum, Spectrum):
             return spectrum

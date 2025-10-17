@@ -33,7 +33,8 @@ class PhaseMask(eqx.Module):
 
     The ``phase`` can be optimized (pixel by pixel).
 
-    Common phase mask generators can be found in ``chromatix.utils.initializers``.
+    Common phase mask generators can be found in
+    [``chromatix.utils.initializers``](utils.md#chromatix.utils.initializers).
     These generators typically assume that the phase mask is placed at the pupil
     plane of a system.
 

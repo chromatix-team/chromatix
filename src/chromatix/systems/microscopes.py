@@ -27,9 +27,9 @@ class Microscope(eqx.Module):
     the provided sample with the specified PSF. This is useful for simulating
     images in the fully incoherent case where coherent propagation through
     samples is not an appropriate model, e.g. fluorescence imaging. Microscope
-    also takes a [``Sensor``][chromatix.elements.sensors] which can perform
-    resampling of the PSF simulation to the desired sensor pixel pitch or
-    simulate noise. Parameters of the provided PSF can be differentiated
+    also takes a [``Sensor``][chromatix.elements.sensors.BasicSensor] which can
+    perform resampling of the PSF simulation to the desired sensor pixel pitch
+    or simulate noise. Parameters of the provided PSF can be differentiated
     through, e.g. the phase mask of the Optical4FSystemPSF.
 
     Attributes:
@@ -47,16 +47,25 @@ class Microscope(eqx.Module):
             ``Field``, the spacing is assumed to be equal for all wavelengths
             of the ``spectrum`` of the ``Field`` and the spacing for the first
             wavelength is used to calculate the resampling.
-        sensor: The sensor used for imaging the sample. Must be an
-            instance of [``Sensor``][chromatix.core.base.Sensor], e.g.
+        sensor: The sensor used for imaging the sample. Must be an instance
+            of [``Sensor``][chromatix.core.base.Sensor], e.g.
             [``BasicSensor``][chromatix.elements.sensors.BasicSensor]. This
-            sensor may be used to perform resampling of the simulated PSF to
-            the pixel pitch of the sensor.
+            sensor may be used to perform resampling of the simulated PSF to the
+            pixel pitch of the sensor.
         f: Focal length of the system's objective.
         n: Refractive index of the system's objective.
         NA: The numerical aperture of the system's objective.
-        spectrum: The wavelengths included in the simulation of the system's
-            PSF.
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
+            field that has the same intensity in all wavelengths, or a tuple
+            of two 1D arrays where the first array represents the wavelengths
+            and the second array is a unitless array of weights that define the
+            spectral density (the relative intensity of each wavelength in the
+            spectrum). This second array of spectral density will automatically
+            be normalized to sum to 1.
         padding_ratio: The proportion of the original PSF shape that will be
             added to simulate the PSF. That means the final PSF simulation
             shape will be shape * (1.0 + padding) in each dimension. This will
@@ -132,10 +141,18 @@ class Microscope(eqx.Module):
             f: Focal length of the system's objective.
             n: Refractive index of the system's objective.
             NA: The numerical aperture of the system's objective.
-            spectrum: The wavelengths included in the simulation of the system's
-                PSF.
-            spectral_density: The weights of each wavelength in the simulation
-                of the system's PSF.
+            spectrum: The
+                [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+                of the ``Field`` to be created. This can be specified either
+                as a single float value representing a wavelength in units of
+                distance for a monochromatic field, a 1D array of wavelengths
+                for a chromatic field that has the same intensity in all
+                wavelengths, or a tuple of two 1D arrays where the first array
+                represents the wavelengths and the second array is a unitless
+                array of weights that define the spectral density (the relative
+                intensity of each wavelength in the spectrum). This second array
+                of spectral density will automatically be normalized to sum
+                to 1.
             padding_ratio: The proportion of the original PSF shape that will
                 be added to simulate the PSF. That means the final shape will
                 be shape * (1.0 + padding) in each dimension. This will then

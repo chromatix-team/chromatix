@@ -123,8 +123,8 @@ def rectangular_microlens_array_amplitude_and_phase(
     wavelength: ScalarLike,
     n: ScalarLike,
     f: ScalarLike,
-    num_lenses_height: ScalarLike,
-    num_lenses_width: ScalarLike,
+    num_lenses_height: int,
+    num_lenses_width: int,
     radius: ScalarLike,
     separation: ScalarLike,
 ) -> tuple[Array, Array]:

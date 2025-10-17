@@ -110,10 +110,11 @@ class Field(eqx.Module, strict=_strict_config):
             By default, fields are initialized with an origin of `(0.0, 0.0)`
             such that their center is aligned with the center of the optical
             axis.
-        spectrum: The [``Spectrum``](chromatix.core.spectrum.Spectrum) of the
-            ``Field`` to be created. This can be specified either as a single
-            float value representing a wavelength in units of distance for
-            a monochromatic field, a 1D array of wavelengths for a chromatic
+        spectrum: The
+            [``Spectrum``](core.md#chromatix.core.spectrum.Spectrum.build)
+            of the ``Field`` to be created. This can be specified either as a
+            single float value representing a wavelength in units of distance
+            for a monochromatic field, a 1D array of wavelengths for a chromatic
             field that has the same intensity in all wavelengths, or a tuple
             of two 1D arrays where the first array represents the wavelengths
             and the second array is a unitless array of weights that define the
