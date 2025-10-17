@@ -15,6 +15,9 @@
 ## Amplitude Masks
 :::chromatix.elements.amplitude_masks
 
+## Samples
+:::chromatix.elements.samples
+
 ## Sensors
 :::chromatix.elements.sensors
 
