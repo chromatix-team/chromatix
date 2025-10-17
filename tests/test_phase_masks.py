@@ -1,7 +1,6 @@
-import jax
 import jax.numpy as jnp
 
-from chromatix.elements import PhaseMask, trainable
+from chromatix.elements import PhaseMask
 from chromatix.functional import (
     phase_change,
     plane_wave,
@@ -15,7 +14,7 @@ from chromatix.utils import (
 
 def test_flat_phase():
     shape = (256, 256)
-    field = plane_wave(shape, dx=0.3, spectrum=0.532, spectral_density=1.0)
+    field = plane_wave(shape, dx=0.3, spectrum=(0.532, 1.0))
     phase = flat_phase(shape)
     field_after_phase_mask = phase_change(field, phase)
     # There should be no change to the intensity
@@ -37,7 +36,7 @@ def test_defocused_ramps():
     n = 1.33
     NA = 0.5
     wavelength = 0.532
-    field = plane_wave(shape, dx=spacing, spectrum=wavelength, spectral_density=1.0)
+    field = plane_wave(shape, dx=spacing, spectrum=(wavelength, 1.0))
     phase = defocused_ramps(shape, spacing, wavelength, n, f, NA)
     field_after_phase_mask = phase_change(field, phase)
     # There should be no change to the intensity
@@ -59,7 +58,7 @@ def test_zernike_aberrations():
     n = 1.33
     NA = 0.5
     wavelength = 0.532
-    field = plane_wave(shape, dx=spacing, spectrum=wavelength, spectral_density=1.0)
+    field = plane_wave(shape, dx=spacing, spectrum=(wavelength, 1.0))
     phase = zernike_aberrations(
         shape,
         spacing,
@@ -90,10 +89,9 @@ def test_phase_mask_element():
     n = 1.33
     NA = 0.5
     wavelength = 0.532
-    field = plane_wave(shape, dx=spacing, spectrum=wavelength, spectral_density=1.0)
-    model = PhaseMask(trainable(defocused_ramps, rng=False), f, n, NA)
-    variables = model.init(jax.random.PRNGKey(4), field)
-    field_after_phase_mask = model.apply(variables, field)
+    field = plane_wave(shape, dx=spacing, spectrum=(wavelength, 1.0))
+    model = PhaseMask(defocused_ramps(shape, spacing, wavelength, n, f, NA))
+    field_after_phase_mask = model(field)
     phase = defocused_ramps(shape, spacing, wavelength, n, f, NA)
     field_after_phase_mask_function = phase_change(field, phase)
     # There should be no change to the intensity

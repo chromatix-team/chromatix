@@ -1,40 +1,40 @@
-from typing import Callable
+import equinox as eqx
+from jaxtyping import Array, Float
 
-from chex import PRNGKey
-from flax import linen as nn
-from jax import Array
-
-from chromatix.elements.utils import register
-from chromatix.field import Field
+from chromatix import Field
 from chromatix.functional.amplitude_masks import amplitude_change
 from chromatix.ops import binarize
-from chromatix.typing import ArrayLike
 
 __all__ = ["AmplitudeMask"]
 
 
-class AmplitudeMask(nn.Module):
+class AmplitudeMask(eqx.Module):
     """
-    Applies an ``amplitude`` mask to an incoming ``Field``.
+    Perturbs ``field`` by ``amplitude``, i.e. ``field * amplitude``.
 
     This element can be placed after any element that returns a ``Field`` or
     before any element that accepts a ``Field``.
 
-    The ``amplitude`` can be learned (pixel by pixel) by using
-    ``chromatix.utils.trainable``.
-
     Attributes:
-        amplitude: The amplitude to be applied. Should have shape `(H W)`.
-        is_binary: binarize the amplitude mask if True.
+        amplitude: The amplitude mask to apply as a 2D array of amplitude values
+            of shape ``(height width)``.
+        is_binary: Binarize (make 0 or 1) the amplitude mask if ``True``. Note
+            that if this is ``False``, amplitude values do not need to be in
+            any range (i.e. they are allowed to be more than 1 which would add
+            energy to the ``Field``).
     """
 
-    amplitude: ArrayLike | Callable[[PRNGKey, tuple[int, int]], Array]
-    is_binary: bool
+    amplitude: Float[Array, "h w"]
+    is_binary: bool = eqx.field(static=True)
 
-    @nn.compact
+    def __init__(self, amplitude: Float[Array, "h w"], is_binary: bool):
+        self.amplitude = amplitude
+        self.is_binary = is_binary
+
     def __call__(self, field: Field) -> Field:
         """Applies ``amplitude`` mask to incoming ``Field``."""
-        amplitude = register(self, "amplitude", field.spatial_shape)
         if self.is_binary:
-            amplitude = binarize(amplitude)
+            amplitude = binarize(self.amplitude)
+        else:
+            amplitude = self.amplitude
         return amplitude_change(field, amplitude)

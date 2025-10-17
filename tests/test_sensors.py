@@ -7,7 +7,13 @@ from chromatix.elements.sensors import BasicSensor
 
 def test_basic_sensor():
     field = cf.objective_point_source(
-        (512, 512), 0.3, 0.532, 1.0, jnp.linspace(-5, 5, num=3), f=100.0, n=1.0, NA=0.8
+        (512, 512),
+        0.3,
+        (0.532, 1.0),
+        jnp.linspace(-5, 5, num=3),
+        f=100.0,
+        n=1.0,
+        NA=0.8,
     )
     shape = (256, 256)
     spacing = 0.6
@@ -15,9 +21,8 @@ def test_basic_sensor():
     sensor = BasicSensor(
         shape, spacing, shot_noise_mode="poisson", resampling_method="cubic"
     )
-    params = sensor.init({"params": key, "noise": key}, field)
-    image = sensor.apply(params, field, rngs={"noise": key})
-    assert image.shape[1:3] == shape
+    image = sensor(field, key=key)
+    assert image.shape[1:] == shape
     assert image.shape[0] == field.shape[0]
     sensor = BasicSensor(
         shape,
@@ -26,21 +31,19 @@ def test_basic_sensor():
         resampling_method="pool",
         reduce_axis=0,
     )
-    params = sensor.init({"params": key, "noise": key}, field)
-    image = sensor.apply(params, field, rngs={"noise": key})
+    image = sensor(field, key=key)
     assert image.squeeze().shape == shape
-    assert image.shape[0] == 1
-    params = sensor.init(
-        {"params": key, "noise": key},
-        field.intensity,
-        input_spacing=field.dx[..., 0, 0].squeeze(),
-    )
-    image_from_intensity = sensor.apply(
-        params,
-        field.intensity,
-        input_spacing=field.dx[..., 0, 0].squeeze(),
-        rngs={"noise": key},
+    image_from_intensity = sensor(
+        field.intensity, input_spacing=field.central_dx, key=key
     )
     assert image_from_intensity.squeeze().shape == shape
-    assert image_from_intensity.shape[0] == 1
     assert jnp.all(image_from_intensity == image)
+    sensor = BasicSensor(
+        (512, 512),
+        0.3,
+        shot_noise_mode="poisson",
+        resampling_method=None,
+        reduce_axis=0,
+    )
+    no_resample_image = sensor(field, key=key)
+    assert no_resample_image.squeeze().shape == field.spatial_shape

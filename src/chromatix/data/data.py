@@ -7,7 +7,7 @@ try:
 except ModuleNotFoundError:
     USE_CV2 = False
 
-from chromatix.typing import ArrayLike
+from jaxtyping import ArrayLike
 
 
 def sqr_dist_to_line(
@@ -72,8 +72,8 @@ def filaments_3d(
     rand_offset: float = 0.05,
     rel_theta: float = 1.0,
     num_filaments: int = 50,
-    apply_seed: bool = True,
     thickness: float = 0.3,
+    seed: int | None = True,
 ) -> np.ndarray:
     """
     Create a 3D representation of filaments.
@@ -92,10 +92,12 @@ def filaments_3d(
             filaments. Default is 1.0.
         num_filaments: An integer representing the number of filaments to be
             created. Default is 50.
-        apply_seed: A boolean representing whether to apply a seed to the random
-            number generator. Default is ``True``.
         thickness: A real number representing the thickness of the filaments in
             pixels. Default is 0.8.
+        seed: An optional integer used to seed the random number generator
+            for randomly generating filaments. This can be used to repeatedly
+            generate the same sample. Default is ``None`` in which case no seed
+            is set and the default Numpy seed is used.
 
     This code is based on the SyntheticObjects.jl package by Hossein Zarei
     Oshtolagh and Rainer Heintzmann.
@@ -103,22 +105,14 @@ def filaments_3d(
 
     sz = np.array(sz)
     radius = np.array(radius)
-
-    # Save the state of the rng to reset it after the function is done
-    rng_state = np.random.get_state()
-    if apply_seed:
-        np.random.seed(42)
-
-    # Create the object
+    rng = np.random.default_rng(seed)
     obj = np.zeros(sz, dtype=np.float32)
-
     mid = sz // 2
-
     # Draw random lines equally distributed over the 3D sphere
     for n in range(num_filaments):
-        phi = 2 * np.pi * np.random.rand()
+        phi = 2 * np.pi * rng.random()
         # Theta should be scaled such that the distribution over the unit sphere is uniform
-        theta = np.arccos(rel_theta * (1 - 2 * np.random.rand()))
+        theta = np.arccos(rel_theta * (1 - 2 * rng.random()))
         pos = (sz * radius / 2) * np.array(
             [
                 np.sin(theta) * np.cos(phi),
@@ -126,7 +120,7 @@ def filaments_3d(
                 np.cos(theta),
             ]
         )
-        pos_offset = np.array(rand_offset * sz * (np.random.rand(3) - 0.5))
+        pos_offset = np.array(rand_offset * sz * (rng.random((3,)) - 0.5))
         # Draw line
         obj = draw_line(
             obj,
@@ -135,9 +129,6 @@ def filaments_3d(
             thickness=thickness,
             intensity=intensity,
         )
-
-    # Reset the rng to the state before this function was called
-    np.random.set_state(rng_state)
     return obj
 
 
@@ -305,7 +296,7 @@ else:
         return image
 
 
-class RandDiskGenerator:  # TODO avoid overlapping disks
+class RandomDiskGenerator:  # TODO avoid overlapping disks
     def __init__(
         self,
         N: int,

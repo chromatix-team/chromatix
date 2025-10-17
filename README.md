@@ -47,33 +47,31 @@ Check out [the documentation](https://chromatix.readthedocs.io/en/latest/install
 
 ## Usage
 
-Chromatix describes optical systems as sequences of sources and optical elements, composed in a similar style as neural network layers. These elements pass `Field` objects to each other, which contain both the tensor representation of the field at particular planes as well as information about the spatial sampling of the field and its spectrum. Typically, a user will not have to construct or deal with these `Field` objects unless they want to, but they are how `chromatix` can keep track of a lot of details of a simulation under the hood. Here's a very brief example of using `chromatix` to calculate the intensity of a widefield PSF (point spread function) at a single wavelength by describing a 4f system with a flat phase mask:
+Chromatix describes optical systems as sequences of sources and optical elements, composed in a style similar to neural network layers. These elements pass `Field` objects to each other, which contain both the tensor representation of the field at particular planes as well as information about the spatial sampling of the field and its spectrum. Typically, a user will not have to construct or deal with these `Field` objects unless they want to, but they are how `chromatix` can keep track of a lot of details of a simulation under the hood. Here's a very brief example of using `chromatix` to calculate the intensity of a widefield PSF (point spread function) at a single wavelength by describing a 4f system with a flat phase mask:
 
 ```python
-import chromatix
-import chromatix.functional as cf
+import chromatix.functional as cx
 import jax
 import jax.numpy as jnp
-shape = (512, 512) # number of pixels in simulated field
-spacing = 0.3 # spacing of pixels for the final PSF, microns
+shape = (1280, 1280) # number of pixels in simulated field
+camera_pixel_pitch = 6.5 # spacing of pixels for the final PSF at the camera, microns
 spectrum = 0.532 # microns
-spectral_density = 1.0
-f = 100.0 # focal length, microns
+f_objective = 8e3 # focal length, microns
+f_tube = 200.0e3
 n = 1.33 # refractive index of medium
-NA = 0.8 # numerical aperture of objective
+NA = 0.6 # numerical aperture of objective
+spacing = f_tube * spectrum / (n * shape[0] * camera_pixel_pitch) # spacing for simulation
 
 
 @jax.jit
 def optical_model(z: jax.Array) -> jax.Array:
     # Field in the Fourier plane due to a point source defocused by z from the
     # focal plane through an objective
-    field = cf.objective_point_source(
-        shape, spacing, spectrum, spectral_density, 0.0, f, n, NA
-    )
+    field = cx.objective_point_source(shape, spacing, spectrum, z, f_objective, n, NA)
     #  Flat phase mask in the Fourier plane
-    field = cf.phase_change(field, jnp.ones(shape))
+    field = cx.phase_change(field, jnp.ones(shape))
     # Field at the image plane after the tube lens
-    field = cf.ff_lens(field, f, n)
+    field = cx.ff_lens(field, f_tube, n)
     # Return intensity of field
     return field.intensity
 
@@ -82,7 +80,7 @@ def optical_model(z: jax.Array) -> jax.Array:
 # We first have to initialize any parameters or state of the system:
 widefield_psf = optical_model(jnp.linspace(-5, 5, num=11))
 ```
-When we obtain the intensity, `chromatix` took the spectrum as described by `spectrum` and `spectral_density` into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the phase at the output instead: ``return field.phase`` and we would know the phase of the final PSF instead of the intensity.
+When we obtain the intensity, if we had simulated in multiple wavelengths `chromatix` would take the spectrum and its density into account. This example uses only a single wavelength, but we can easily add more and `chromatix` will automatically adjust. We could also have checked the phase at the output instead: ``return field.phase`` and we would know the phase of the final PSF instead of the intensity.
 
 Chromatix supports a variety of optical phenomena and elements including:
 

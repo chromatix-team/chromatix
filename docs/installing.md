@@ -3,7 +3,8 @@
 ## System Requirements
 
 Chromatix is based on [`jax`](https://github.com/google/jax) which can be
-installed on macOS, Linux (Ubuntu), and Windows.
+installed on Linux (Ubuntu), macOS, and Windows (though GPU support is only
+available on Linux or WSL2 on Windows).
 
 If you would like to run simulations on GPU, you will need an NVIDIA GPU with
 CUDA support. Ubuntu installations can take advantage of NVIDIA GPUs assuming
@@ -22,13 +23,16 @@ limited GPU support.
 
 ## Using `pip`
 
-Chromatix can be installed on any supported operating system with Python 3.10+.
-First install `jax` as described in the [`jax` README](https://github.com/google/jax?tab=readme-ov-file#installation).
-NVIDIA support will be automatically installed if you install with `pip install jax["cuda12"]`.
-Note that `jax` currently only supports CUDA 12. If your NVIDIA driver is compatible with CUDA 12
-but is older than the version that the default `jax` installation is built for using `pip`, you
-may see a warning when running your code that `jax` has disabled parallel compilation. This is
-not an error and your code should still use the GPU, but it may take longer to compile before running.
+Chromatix can be installed on any supported operating system
+with Python 3.12+. First install `jax` as described in the [`jax`
+README](https://github.com/google/jax?tab=readme-ov-file#installation). NVIDIA
+support will be automatically installed if you install with `pip install
+jax["cuda12"]`. Note that `jax` currently only supports CUDA 12 and CUDA 13. If
+your NVIDIA driver is compatible with CUDA 12 but is older than the version that
+the default `jax` installation is built for using `pip`, you may see a warning
+when running your code that `jax` has disabled parallel compilation. This is
+not an error and your code should still use the GPU, but it may take longer to
+compile before running.
 
 !!! info
     If you are on Windows 10+ and want NVIDIA GPU support, first make sure
@@ -77,4 +81,4 @@ A virtual environment is created in `.venv`.
 We do not package `chromatix` for `conda` because `jax` is also not officially
 packaged for `conda`. However, if you would like to install `chromatix` into a
 `conda` environment, you can [first create and activate a `conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#)
-with a supported Python version (3.10+), and then follow the `pip` installation instructions above.
+with a supported Python version (3.12+), and then follow the `pip` installation instructions above.

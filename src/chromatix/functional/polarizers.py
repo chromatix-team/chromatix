@@ -1,10 +1,11 @@
 import jax.numpy as jnp
 from jax import Array
+from jaxtyping import Complex, ScalarLike
 
-from chromatix.typing import ComplexScalarLike, ScalarLike
+from chromatix import ChromaticVectorField, Vector, VectorField
 from chromatix.utils.utils import matvec
 
-from ..field import VectorField
+ComplexScalarLike = Complex
 
 __all__ = [
     # General functions
@@ -79,41 +80,44 @@ def right_circular() -> Array:
 
 
 def polarizer(
-    field: VectorField,
+    field: VectorField | ChromaticVectorField,
     J00: ComplexScalarLike,
     J01: ComplexScalarLike,
     J10: ComplexScalarLike,
     J11: ComplexScalarLike,
-) -> VectorField:
+) -> VectorField | ChromaticVectorField:
     """Applies a Jones matrix with given components to the field.
     Note that the components here refer to the common choice of coordinate
     system and are inverted by us - i.e. J00 refers to Jxx.
 
     Args:
-        field (VectorField): field to apply polarization to.
+        field (VectorField | ChromaticVectorField): field to apply polarization to.
         J00 (Union[float, complex, Array]): _description_
         J01 (Union[float, complex, Array]): _description_
         J10 (Union[float, complex, Array]): _description_
         J11 (Union[float, complex, Array]): _description_
 
     Returns:
-        VectorField: Field after polarizer.
+        VectorField | ChromaticVectorField: Field after polarizer.
     """
+    assert isinstance(field, Vector), "Must be a vectorial Field"
     # Invert the axes as our order is zyx
     LP = jnp.array([[0, 0, 0], [0, J11, J10], [0, J01, J00]])
     LP = LP / jnp.linalg.norm(LP)
     return field.replace(u=matvec(LP, field.u))
 
 
-def linear_polarizer(field: VectorField, angle: ScalarLike) -> VectorField:
+def linear_polarizer(
+    field: VectorField | ChromaticVectorField, angle: ScalarLike
+) -> VectorField | ChromaticVectorField:
     """Applies a linear polarizer with a given angle to the incoming field.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
         angle (float): angle w.r.t to the horizontal.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
 
     c, s = jnp.cos(angle), jnp.sin(angle)
@@ -124,14 +128,16 @@ def linear_polarizer(field: VectorField, angle: ScalarLike) -> VectorField:
     return polarizer(field, J00, J01, J10, J11)
 
 
-def left_circular_polarizer(field: VectorField) -> VectorField:
+def left_circular_polarizer(
+    field: VectorField | ChromaticVectorField,
+) -> VectorField | ChromaticVectorField:
     """Applies a left circular polarizer to the incoming field.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
     J00 = 1
     J11 = 1
@@ -140,7 +146,9 @@ def left_circular_polarizer(field: VectorField) -> VectorField:
     return polarizer(field, J00, J01, J10, J11)
 
 
-def right_circular_polarizer(field: VectorField) -> VectorField:
+def right_circular_polarizer(
+    field: VectorField | ChromaticVectorField,
+) -> VectorField | ChromaticVectorField:
     """
     Applies a thin RCP polarizer to the incoming ``Field``.
 
@@ -158,19 +166,22 @@ def right_circular_polarizer(field: VectorField) -> VectorField:
 
 
 def phase_retarder(
-    field: VectorField, theta: ScalarLike, eta: ScalarLike, phi: ScalarLike
-) -> VectorField:
+    field: VectorField | ChromaticVectorField,
+    theta: ScalarLike,
+    eta: ScalarLike,
+    phi: ScalarLike,
+) -> VectorField | ChromaticVectorField:
     """Applies a general purpose retardation matrix with angle w.r.t horizontal theta,
     relative phase change eta and circularity phi.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
         theta (float): angle w.r.t horizonal axis.
         eta (float): relative phase retardation.
         phi (float): circularity.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
     s, c = jnp.sin(theta), jnp.cos(theta)
     scale = jnp.exp(-1j * eta / 2)
@@ -181,60 +192,68 @@ def phase_retarder(
     return polarizer(field, J00, J01, J10, J11)
 
 
-def wave_plate(field: VectorField, theta: ScalarLike, eta: ScalarLike) -> VectorField:
+def wave_plate(
+    field: VectorField | ChromaticVectorField, theta: ScalarLike, eta: ScalarLike
+) -> VectorField | ChromaticVectorField:
     """Applies a general waveplate with angle theta and delay eta to the field.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
         theta (float): angle w.r.t horizontal.
         eta (float): relative delay between components.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
     return phase_retarder(field, theta, eta, phi=0)
 
 
-def halfwave_plate(field: VectorField, theta: ScalarLike) -> VectorField:
+def halfwave_plate(
+    field: VectorField | ChromaticVectorField, theta: ScalarLike
+) -> VectorField | ChromaticVectorField:
     """Applies a halfwave plate with angle theta to the incoming field.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
         theta (float): angle w.r.t. horizontal.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
     return phase_retarder(field, theta, eta=jnp.pi, phi=0)
 
 
-def quarterwave_plate(field: VectorField, theta: ScalarLike) -> VectorField:
+def quarterwave_plate(
+    field: VectorField | ChromaticVectorField, theta: ScalarLike
+) -> VectorField | ChromaticVectorField:
     """Applies a quarterwave plate with angle theta to the incoming field.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
         theta (float): angle w.r.t. horizontal.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
     return phase_retarder(field, theta, eta=jnp.pi / 2, phi=0)
 
 
 def universal_compensator(
-    field: VectorField, retA: ScalarLike, retB: ScalarLike
-) -> VectorField:
+    field: VectorField | ChromaticVectorField,
+    retardance_45: ScalarLike,
+    retardance_0: ScalarLike,
+) -> VectorField | ChromaticVectorField:
     """Applies the Universal Polarizer for the LC-PolScope to the incoming field.
 
     Args:
-        field (VectorField): incoming field.
+        field (VectorField | ChromaticVectorField): incoming field.
         retA (float): retardance induced at a 45 deg angle.
         retB (float): retardance induced at a 0 deg angle.
 
     Returns:
-        VectorField: outgoing field.
+        VectorField | ChromaticVectorField: outgoing field.
     """
-    field_LP = linear_polarizer(field, 0)
-    field_retA = wave_plate(field_LP, -jnp.pi / 4, retA)
-    field_retB = wave_plate(field_retA, 0, retB)
-    return field_retB
+    field = linear_polarizer(field, 0)
+    field_retardance_45 = wave_plate(field, -jnp.pi / 4, retardance_45)
+    field_retardance_0 = wave_plate(field_retardance_45, 0, retardance_0)
+    return field_retardance_0

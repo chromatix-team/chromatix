@@ -32,17 +32,13 @@ def test_linear_polarizer(E0, angle, power):
     field = cf.plane_wave(
         (512, 512),
         1.0,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         amplitude=E0,
         pupil=partial(cf.square_pupil, w=10.0),
         scalar=False,
     )
     field = cf.linear_polarizer(field, angle=angle)
-
-    # check shape
     assert_axis_dimension(field.u, -1, 3)
-
     # check power - malus law
     assert jnp.allclose(field.power.squeeze(), power)
 
@@ -53,8 +49,7 @@ def test_left_circular_polarizer():
     field = cf.plane_wave(
         (512, 512),
         1.0,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         amplitude=cf.right_circular(),
         power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
@@ -63,14 +58,12 @@ def test_left_circular_polarizer():
     field = cf.left_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
     assert np.allclose(field.power, 0.0)
-
     # Right circular light through right ciruclar
     # polarizer should return right circular light
     field = cf.plane_wave(
         (512, 512),
         1.0,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         amplitude=cf.left_circular(),
         power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
@@ -87,8 +80,7 @@ def test_right_circular_polarizer():
     field = cf.plane_wave(
         (512, 512),
         1.0,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         amplitude=cf.left_circular(),
         power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
@@ -97,14 +89,12 @@ def test_right_circular_polarizer():
     field = cf.right_circular_polarizer(field)
     assert_axis_dimension(field.u, -1, 3)
     assert np.allclose(field.power, 0.0)
-
     # Right circular light through right ciruclar
     # polarizer should return right circular light
     field = cf.plane_wave(
         (512, 512),
         1.0,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         amplitude=cf.right_circular(),
         power=1.0,
         pupil=partial(cf.square_pupil, w=10.0),
@@ -119,15 +109,11 @@ def test_quarter_waveplate():
     field = cf.plane_wave(
         (512, 512),
         1.0,
-        0.532,
-        1.0,
+        (0.532, 1.0),
         amplitude=cf.linear(0),
         pupil=partial(cf.square_pupil, w=10.0),
         scalar=False,
     )
-
     # Linear with quarterwave at pi/4 yields right circular.
     field = cf.quarterwave_plate(field, jnp.pi / 4)
-    assert jnp.allclose(
-        field.jones_vector[0, 256, 256, 0], cf.right_circular(), atol=1e-7
-    )
+    assert jnp.allclose(field.jones_vector[256, 256], cf.right_circular(), atol=1e-7)

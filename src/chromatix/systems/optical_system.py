@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Callable, Sequence
 
-from flax import linen as nn
+import equinox as eqx
 from jax import Array
 
-from ..field import Field
+from chromatix import Field
 
 
-class OpticalSystem(nn.Module):
+class OpticalSystem(eqx.Module):
     """
     Combines a sequence of optical elements into a single ``Module``.
 
@@ -28,10 +28,14 @@ class OpticalSystem(nn.Module):
 
     elements: Sequence[Callable]
 
-    @nn.compact
+    def __init__(self, elements: Sequence[Callable]):
+        self.elements = elements
+
     def __call__(self, *args: Any, **kwargs: Any) -> Field | Array:
         """Returns the result of calling all elements in sequence."""
-        field = self.elements[0](*args, **kwargs)  # allow field to be initialized
+        # NOTE(dd/2025-08-12): Allow the first element to be a source
+        # generating a Field, which would require additional arguments
+        field = self.elements[0](*args, **kwargs)
         for element in self.elements[1:]:
             field = element(field)
         return field

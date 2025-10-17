@@ -1,7 +1,7 @@
 import jax.numpy as jnp
+from jaxtyping import Array, Float, ScalarLike
 
-from chromatix import Field
-from chromatix.field import ScalarField, VectorField, cartesian_to_spherical
+from chromatix import Field, ScalarField, Vector, VectorField, cartesian_to_spherical
 from chromatix.functional.amplitude_masks import amplitude_change
 from chromatix.functional.convenience import optical_fft
 from chromatix.functional.phase_masks import phase_change
@@ -10,7 +10,7 @@ from chromatix.functional.rays import (
     compute_plano_convex_spherical_lens_abcd,
     ray_transfer,
 )
-from chromatix.typing import Array, ScalarLike
+from chromatix.typing import m
 from chromatix.utils.czt import zoomed_fft
 
 from ..utils import l2_sq_norm
@@ -38,19 +38,20 @@ def thin_lens(
     field: Field, f: ScalarLike, n: ScalarLike, NA: ScalarLike | None = None
 ) -> Field:
     """
-    Applies a thin lens placed directly after the incoming ``Field``.
+    Applies a thin lens placed immediately in the plane of the incoming ``Field``.
 
     Args:
         field: The ``Field`` to which the lens will be applied.
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
+        f: Focal length of the lens in units of distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
 
     Returns:
-        The ``Field`` directly after the lens.
+        The ``Field`` immediately after the lens.
     """
-    L = jnp.sqrt(field.spectrum * f / n)
+    L = jnp.sqrt(field.broadcasted_wavelength * f / n)
     phase = -jnp.pi * l2_sq_norm(field.grid) / L**2
 
     if NA is not None:
@@ -72,10 +73,14 @@ def ff_lens(
 
     Args:
         field: The ``Field`` to which the lens will be applied.
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
+        f: Focal length of the lens in units of distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
+        inverse: Whether the field is passing forwards or backwards through
+            the lens. If ``True``, the phase of the lens is conjugated.
+            Defaults to ``False``.
 
     Returns:
         The ``Field`` propagated a distance ``f`` to and after the lens.
@@ -91,13 +96,13 @@ def ff_lens(
 
 
 def high_na_ff_lens(
-    field: Field,
+    field: ScalarField | VectorField,
     f: float,
     n: float,
     NA: float,
     output_shape: tuple[int, int] | None = None,
-    output_dx: float | None = None,
-) -> Field:
+    output_dx: ScalarLike | None = None,
+) -> ScalarField | VectorField:
     """
     Applies a high NA lens placed a distance ``f`` after the incoming ``Field``.
 
@@ -108,9 +113,9 @@ def high_na_ff_lens(
     Args:
         field: The ``Field`` to which the lens will be applied.
         f: Focal length of the lens.
-        n: Refractive index of the lens.
-        NA: If provided, the NA of the lens. By default, no pupil is applied
-            to the incoming ``Field``.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
+        NA: The NA of the lens.
         output_shape: The shape of the camera (in pixels). If not provided, the
             output shape will be the same as the shape of the incoming field.
         output_dx: The pixel pitch of the camera (in units of distance). If not
@@ -120,34 +125,25 @@ def high_na_ff_lens(
     Returns:
         The ``Field`` propagated a distance ``f`` to and after the lens.
     """
-
-    if field.shape[-1] == 1:
-        # Scalar
+    if not isinstance(field, Vector):
         spherical_u = field.u
-        create = ScalarField.create
     else:
-        # Vectorial
         spherical_u = cartesian_to_spherical(field, n, NA, f)
-        create = VectorField.create
-
     if output_dx is None:
-        output_dx = field._dx
-
+        output_dx = field.central_dx
     if output_shape is None:
         output_shape = field.spatial_shape
-
-    # NOTE: This only works for single wavelength so far?
-    # NOTE: What about non-square cases?
+    # TODO: This only works for single wavelength so far?
+    # TODO: What about non-square cases?
     fov_out = output_shape[0] * output_dx
-    zoom_factor = 2 * NA * fov_out / ((field.shape[1] - 1) * field.spectrum.squeeze())
-
+    zoom_factor = 2 * NA * fov_out / ((field.shape[1] - 1) * field.spectrum.wavelength)
     # Correction factors
-    s_grid = field.k_grid * field.spectrum.squeeze() / n
+    s_grid = field.f_grid * field.spectrum.wavelength / n
     sz_sq = 1 - NA**2 * l2_sq_norm(s_grid)
     sz = jnp.sqrt(jnp.maximum(sz_sq, 0.0))
-    k = 2 * jnp.pi * n / field.spectrum.squeeze()
+    k = 2 * jnp.pi * n / field.spectrum.wavelength
     defocus = jnp.where(sz != 0.0, jnp.exp(1j * k * sz * f) / sz, 0.0)
-
+    # Create zoomed field
     u = zoomed_fft(
         x=spherical_u * defocus,
         k_start=-zoom_factor * jnp.pi,
@@ -156,8 +152,8 @@ def high_na_ff_lens(
         include_end=True,
         axes=field.spatial_dims,
     )
-
-    return create(output_dx, field._spectrum, field._spectral_density, u=u)
+    output_dx = output_dx * jnp.ones_like(field.dx)
+    return field.replace(u=u, dx=output_dx)
 
 
 def df_lens(
@@ -174,10 +170,14 @@ def df_lens(
     Args:
         field: The ``Field`` to which the lens will be applied.
         d: Distance from the incoming ``Field`` to the lens.
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
+        f: Focal length of the lens in units of distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
+        inverse: Whether the field is passing forwards or backwards through
+            the lens. If ``True``, the phase of the lens is conjugated.
+            Defaults to ``False``.
 
     Returns:
         The ``Field`` propagated a distance ``f`` after the lens.
@@ -193,23 +193,46 @@ def df_lens(
     field = optical_fft(field, f, n)
 
     # Phase factor due to distance d from lens
-    L = jnp.sqrt(jnp.complex64(field.spectrum * f / n))  # Lengthscale L
+    L = jnp.sqrt(jnp.complex64(field.broadcasted_wavelength * f / n))  # Lengthscale L
     phase = jnp.pi * (1 - d / f) * l2_sq_norm(field.grid) / jnp.abs(L) ** 2
     return field * jnp.exp(1j * phase)
 
 
 def microlens_array(
     field: Field,
+    fs: Float[Array, "m"],
     n: ScalarLike,
-    fs: Array,
-    centers: Array,
-    radii: Array,
+    centers: Float[Array, "m"],
+    radii: Float[Array, "m"],
     block_between: bool = False,
 ) -> Field:
+    """
+    Applies a microlens array of arbitrary positioned microlenses placed
+    immediately in the plane of the incoming ``Field``.
+
+    !!!warning
+        If you have recently used this function prior to it being documented,
+        note that the arguments have changed.
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        fs: A 1D array of shape ``(lenses)`` defining the focal lengths of each
+            lens in units of distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
+        centers: A 2D array of shape ``(lenses 2)`` defining the center position
+            in units of distance (in `y x` order) for each lens of the microlens
+            array.
+        radii: A 1D array of shape ``(lenses)`` defining the radius of each
+            microlens in units of distance.
+
+    Returns:
+        The ``Field`` immediately after the microlens array.
+    """
     amplitude, phase = microlens_array_amplitude_and_phase(
         field.spatial_shape,
-        field._dx[0, 0],
-        field.spectrum[..., 0, 0].squeeze(),
+        field.central_dx,
+        field.central_wavelength,
         n,
         fs,
         centers,
@@ -223,17 +246,46 @@ def microlens_array(
 
 def hexagonal_microlens_array(
     field: Field,
+    f: ScalarLike,
     n: ScalarLike,
-    f: Array,
-    num_lenses_per_side: ScalarLike,
+    num_lenses_per_side: int,
     radius: Array,
     separation: ScalarLike,
     block_between: bool = False,
 ) -> Field:
+    """
+    Applies a microlens array of hexagonally arranged microlenses placed
+    immediately in the plane of the incoming ``Field``.
+
+    !!!warning
+        If you have recently used this function prior to it being documented,
+        note that the arguments have changed.
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        f: A scalar value defining the focal length of each lens in units of
+            distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
+        num_lenses_per_side: The number of lenses on each outer side of the
+            hexagon (e.g. setting this number to 4 will create 37 microlenses).
+        radius: A scalar value defining the radius of each microlens in units
+            of distance.
+        separation: A scalar value defining how far apart the center of each
+            microlens is from its neighbors in units of distance.
+        block_between: If ``True``, will mask out the ``Field`` in the spaces
+            between the microlenses. For example, this is useful to suppress
+            background from light that is not focused by the microlenses in the
+            PSF of a Fourier light-field microscope. Defaults to ``False``, in
+            which case no blocking of light occurs.
+
+    Returns:
+        The ``Field`` immediately after the microlens array.
+    """
     amplitude, phase = hexagonal_microlens_array_amplitude_and_phase(
         field.spatial_shape,
-        field._dx[0, 0],
-        field.spectrum[..., 0, 0].squeeze(),
+        field.central_dx,
+        field.central_wavelength,
         n,
         f,
         num_lenses_per_side,
@@ -256,10 +308,39 @@ def rectangular_microlens_array(
     separation: ScalarLike,
     block_between: bool = False,
 ) -> Field:
+    """
+    Applies a microlens array of hexagonally arranged microlenses placed
+    immediately in the plane of the incoming ``Field``.
+
+    !!!warning
+        If you have recently used this function prior to it being documented,
+        note that the arguments have changed.
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        f: A scalar value defining the focal length of each lens in units of
+            distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
+        num_lenses_per_side: The number of lenses on each outer side of the
+            hexagon (e.g. setting this number to 4 will create 37 microlenses).
+        radius: A scalar value defining the radius of each microlens in units
+            of distance.
+        separation: A scalar value defining how far apart the center of each
+            microlens is from its neighbors in units of distance.
+        block_between: If ``True``, will mask out the ``Field`` in the spaces
+            between the microlenses. For example, this is useful to suppress
+            background from light that is not focused by the microlenses in the
+            PSF of a Fourier light-field microscope. Defaults to ``False``, in
+            which case no blocking of light occurs.
+
+    Returns:
+        The ``Field`` immediately after the microlens array.
+    """
     amplitude, phase = rectangular_microlens_array_amplitude_and_phase(
         field.spatial_shape,
-        field._dx[0, 0],
-        field.spectrum[..., 0, 0].squeeze(),
+        field.central_dx,
+        field.central_wavelength,
         n,
         f,
         num_lenses_height,
@@ -276,7 +357,7 @@ def rectangular_microlens_array(
 def thick_plano_convex_lens(
     field: Field,
     f: ScalarLike,
-    R: ScalarLike,
+    radius: ScalarLike,
     center_thickness: ScalarLike,
     n_lens: ScalarLike,
     n_medium: ScalarLike = 1.0,
@@ -284,11 +365,41 @@ def thick_plano_convex_lens(
     inverse: bool = False,
     magnification: ScalarLike = 1.0,
 ) -> Field:
+    """
+    Applies a thick plano-convex lens placed immediately in the plane of the
+    incoming ``Field``. This lens includes propagation by a small distance
+    within the lens (defined by ``center_thickness``).
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        f: The focal length of the lens in units of distance.
+        radius: The radius of the spherical part of the plano-convex lens in
+            units of distance.
+        center_thickness: The maximum thickness of the plano-convex lens (i.e.
+            the distance through the center of the lens) in units of distance.
+        n_lens: The refractive index of the lens material (e.g. glass).
+        n_medium: The refractive index of the surrounding medium (assumed to be
+            the same incoming and exiting). Defaults to 1.0 for air.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
+        inverse: Whether the field is passing forwards (plano-convex) or
+            backwards (convex-plano) through the lens. If ``True``, the phase of
+            the lens is conjugated. Defaults to ``False``.
+        magnification: The magnification to be applied to the propagation
+            through the system. A magnification of greater than 1 will zoom
+            in during the propagation (decrease the spacing of the outgoing
+            ``Field``) and a magnification of smaller than 1 will do the
+            opposite. Defaults to 1.0 for no change to the spacing of the
+            ``Field``.
+
+    Returns:
+        The ``Field`` immediately after the lens.
+    """
     if NA is not None:
         D = 2 * f * NA / n_medium  # Expression for NA yields width of pupil
         field = circular_pupil(field, D)
     ABCD = compute_plano_convex_spherical_lens_abcd(
-        f, R, center_thickness, n_lens, n_medium, inverse
+        f, radius, center_thickness, n_lens, n_medium, inverse
     )
     field = ray_transfer(field, ABCD, n_medium, magnification=magnification)
     return field
@@ -297,7 +408,7 @@ def thick_plano_convex_lens(
 def thick_plano_convex_ff_lens(
     field: Field,
     f: ScalarLike,
-    R: ScalarLike,
+    radius: ScalarLike,
     center_thickness: ScalarLike,
     n_lens: ScalarLike,
     n_medium: ScalarLike = 1.0,
@@ -305,11 +416,41 @@ def thick_plano_convex_ff_lens(
     inverse: bool = False,
     magnification: ScalarLike = 1.0,
 ) -> Field:
+    """
+    Applies a thick plano-convex lens placed a distance ``f`` after the incoming
+    ``Field``. This lens includes propagation by a small distance within the
+    lens (defined by ``center_thickness``).
+
+    Args:
+        field: The ``Field`` to which the lens will be applied.
+        f: The focal length of the lens in units of distance.
+        radius: The radius of the spherical part of the plano-convex lens in
+            units of distance.
+        center_thickness: The maximum thickness of the plano-convex lens (i.e.
+            the distance through the center of the lens) in units of distance.
+        n_lens: The refractive index of the lens material (e.g. glass).
+        n_medium: The refractive index of the surrounding medium (assumed to be
+            the same incoming and exiting). Defaults to 1.0 for air.
+        NA: If provided, the NA of the lens. By default, no pupil is applied
+            to the incoming ``Field``.
+        inverse: Whether the field is passing forwards (plano-convex) or
+            backwards (convex-plano) through the lens. If ``True``, the phase of
+            the lens is conjugated. Defaults to ``False``.
+        magnification: The magnification to be applied to the propagation
+            through the system. A magnification of greater than 1 will zoom
+            in during the propagation (decrease the spacing of the outgoing
+            ``Field``) and a magnification of smaller than 1 will do the
+            opposite. Defaults to 1.0 for no change to the spacing of the
+            ``Field``.
+
+    Returns:
+        The ``Field`` propagated a distance ``f`` after the lens.
+    """
     if NA is not None:
         D = 2 * f * NA / n_medium  # Expression for NA yields width of pupil
         field = circular_pupil(field, D)
     _lens = compute_plano_convex_spherical_lens_abcd(
-        f, R, center_thickness, n_lens, n_medium, inverse
+        f, radius, center_thickness, n_lens, n_medium, inverse
     )
     _free_space = compute_free_space_abcd(f)
     ABCD = _free_space @ _lens @ _free_space

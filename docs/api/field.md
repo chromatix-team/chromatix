@@ -1,17 +1,23 @@
 # Field
 
 ## Field
-::: chromatix.field.Field
+::: chromatix.core.field.Field
 
 ## ScalarField
-::: chromatix.field.ScalarField
+::: chromatix.core.field.ScalarField
+
+## ChromaticScalarField
+::: chromatix.core.field.ChromaticScalarField
 
 ## VectorField
-::: chromatix.field.VectorField
+::: chromatix.core.field.VectorField
+
+## ChromaticVectorField
+::: chromatix.core.field.ChromaticVectorField
 
 ## Helpers
-::: chromatix.field.pad
-::: chromatix.field.crop
-::: chromatix.field.shift_grid
-::: chromatix.field.shift_field
-::: chromatix.field.cartesian_to_spherical
+::: chromatix.core.field.pad
+::: chromatix.core.field.crop
+::: chromatix.core.field.shift_grid
+::: chromatix.core.field.shift_field
+::: chromatix.core.field.cartesian_to_spherical

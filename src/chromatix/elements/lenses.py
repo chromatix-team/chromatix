@@ -1,19 +1,14 @@
-from typing import Callable
+import equinox as eqx
+from jaxtyping import ScalarLike
 
-import flax.linen as nn
-from chex import PRNGKey
-from jax import Array
-
-from chromatix.elements.utils import register
-from chromatix.typing import ScalarLike
+from chromatix import Field
 
 from .. import functional as cf
-from ..field import Field
 
 __all__ = ["ThinLens", "FFLens", "DFLens"]
 
 
-class ThinLens(nn.Module):
+class ThinLens(eqx.Module):
     """
     Applies a thin lens placed directly after the incoming ``Field``.
     This element returns the ``Field`` directly after the lens.
@@ -21,29 +16,42 @@ class ThinLens(nn.Module):
     This element can be placed after any element that returns a ``Field`` or
     before any element that accepts a ``Field``.
 
-    The attributes ``f``, ``n``, and ``NA`` can be learned by using
-    ``chromatix.utils.trainable``.
-
     Attributes:
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
+        f: Focal length of the lens in units of distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
     """
 
-    f: ScalarLike | Callable[[PRNGKey], Array]
-    n: ScalarLike | Callable[[PRNGKey], Array]
-    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike | None
 
-    @nn.compact
+    def __init__(self, f: ScalarLike, n: ScalarLike, NA: ScalarLike | None = None):
+        """
+        Applies a thin lens placed directly after the incoming ``Field``.
+        This element returns the ``Field`` directly after the lens.
+
+        This element can be placed after any element that returns a ``Field`` or
+        before any element that accepts a ``Field``.
+
+        Args:
+            f: Focal length of the lens in units of distance.
+            n: The refractive index of the surrounding medium (assumed to be the
+                same incoming and exiting).
+            NA: If provided, the NA of the lens. By default, no pupil is applied
+                to the incoming ``Field``.
+        """
+        self.f = f
+        self.n = n
+        self.NA = NA
+
     def __call__(self, field: Field) -> Field:
-        f = register(self, "f")
-        n = register(self, "n")
-        NA = register(self, "NA")
-        return cf.thin_lens(field, f, n, NA)
+        return cf.thin_lens(field, self.f, self.n, self.NA)
 
 
-class FFLens(nn.Module):
+class FFLens(eqx.Module):
     """
     Applies a thin lens placed a distance ``f`` after the incoming ``Field``.
     This element returns the ``Field`` a distance ``f`` after the lens.
@@ -51,31 +59,56 @@ class FFLens(nn.Module):
     This element can be placed after any element that returns a ``Field`` or
     before any element that accepts a ``Field``.
 
-    The attributes ``f``, ``n``, and ``NA`` can be learned by using
-    ``chromatix.utils.trainable``.
-
     Attributes:
         f: Focal length of the lens.
-        n: Refractive index of the lens.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
-        inverse: Whether to use IFFT (default is False, which uses FFT).
+        inverse: Whether the field is passing forwards or backwards through
+            the lens. If ``True``, the phase of the lens is conjugated.
+            Defaults to ``False``.
     """
 
-    f: ScalarLike | Callable[[PRNGKey], Array]
-    n: ScalarLike | Callable[[PRNGKey], Array]
-    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
-    inverse: bool = False
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike | None
+    inverse: bool = eqx.field(static=True)
 
-    @nn.compact
+    def __init__(
+        self,
+        f: ScalarLike,
+        n: ScalarLike,
+        NA: ScalarLike | None = None,
+        inverse: bool = False,
+    ):
+        """
+        Applies a thin lens placed directly after the incoming ``Field``.
+        This element returns the ``Field`` directly after the lens.
+
+        This element can be placed after any element that returns a ``Field`` or
+        before any element that accepts a ``Field``.
+
+        Args:
+            f: Focal length of the lens in units of distance.
+            n: The refractive index of the surrounding medium (assumed to be the
+                same incoming and exiting).
+            NA: If provided, the NA of the lens. By default, no pupil is applied
+                to the incoming ``Field``.
+            inverse: Whether the field is passing forwards or backwards through
+                the lens. If ``True``, the phase of the lens is conjugated.
+                Defaults to ``False``.
+        """
+        self.f = f
+        self.n = n
+        self.NA = NA
+        self.inverse = inverse
+
     def __call__(self, field: Field) -> Field:
-        f = register(self, "f")
-        n = register(self, "n")
-        NA = register(self, "NA")
-        return cf.ff_lens(field, f, n, NA, inverse=self.inverse)
+        return cf.ff_lens(field, self.f, self.n, self.NA, inverse=self.inverse)
 
 
-class DFLens(nn.Module):
+class DFLens(eqx.Module):
     """
     Applies a thin lens placed a distance ``d`` after the incoming ``Field``.
     This element returns the ``Field`` a distance ``f`` after the lens.
@@ -83,28 +116,56 @@ class DFLens(nn.Module):
     This element can be placed after any element that returns a ``Field`` or
     before any element that accepts a ``Field``.
 
-    The attributes ``d``, ``f``, ``n``, and ``NA`` can be learned by using
-    ``chromatix.utils.trainable``.
-
     Attributes:
-        d: Distance from the incoming ``Field`` to the lens.
-        f: Focal length of the lens.
-        n: Refractive index of the lens.
+        d: How far away the lens is from the incoming ``Field`` in units of distance.
+        f: Focal length of the lens in units of distance.
+        n: The refractive index of the surrounding medium (assumed to be the
+            same incoming and exiting).
         NA: If provided, the NA of the lens. By default, no pupil is applied
             to the incoming ``Field``.
-        inverse: Whether to use IFFT (default is False, which uses FFT).
+        inverse: Whether the field is passing forwards or backwards through
+            the lens. If ``True``, the phase of the lens is conjugated.
+            Defaults to ``False``.
     """
 
-    d: ScalarLike | Callable[[PRNGKey], Array]
-    f: ScalarLike | Callable[[PRNGKey], Array]
-    n: ScalarLike | Callable[[PRNGKey], Array]
-    NA: ScalarLike | Callable[[PRNGKey], Array] | None = None
-    inverse: bool = False
+    d: ScalarLike
+    f: ScalarLike
+    n: ScalarLike
+    NA: ScalarLike | None
+    inverse: bool = eqx.field(static=True)
 
-    @nn.compact
+    def __init__(
+        self,
+        d: ScalarLike,
+        f: ScalarLike,
+        n: ScalarLike,
+        NA: ScalarLike | None = None,
+        inverse: bool = False,
+    ):
+        """
+        Applies a thin lens placed a distance ``d`` after the incoming ``Field``.
+        This element returns the ``Field`` a distance ``f`` after the lens.
+
+        This element can be placed after any element that returns a ``Field`` or
+        before any element that accepts a ``Field``.
+
+        Args:
+            d: How far away the lens is from the incoming ``Field`` in units
+                of distance.
+            f: Focal length of the lens in units of distance.
+            n: The refractive index of the surrounding medium (assumed to be the
+                same incoming and exiting).
+            NA: If provided, the NA of the lens. By default, no pupil is applied
+                to the incoming ``Field``.
+            inverse: Whether the field is passing forwards or backwards through
+                the lens. If ``True``, the phase of the lens is conjugated.
+                Defaults to ``False``.
+        """
+        self.d = d
+        self.f = f
+        self.n = n
+        self.NA = NA
+        self.inverse = inverse
+
     def __call__(self, field: Field) -> Field:
-        d = register(self, "d")
-        f = register(self, "f")
-        n = register(self, "n")
-        NA = register(self, "NA")
-        return cf.df_lens(field, d, f, n, NA, inverse=self.inverse)
+        return cf.df_lens(field, self.d, self.f, self.n, self.NA, inverse=self.inverse)

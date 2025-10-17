@@ -6,4 +6,3 @@ from .propagation import *
 from .samples import *
 from .sensors import *
 from .sources import *
-from .utils import trainable
