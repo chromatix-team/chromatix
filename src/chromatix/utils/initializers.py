@@ -5,11 +5,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange
-from jax import Array
+from jaxtyping import Array, ScalarLike
 from scipy.special import comb  # type: ignore
 
-from ..typing import ScalarLike
-from .utils import (
+from chromatix.utils.utils import (
     create_grid,
     grid_spatial_to_pupil,
     l2_norm,
@@ -66,7 +65,9 @@ def microlens_array_amplitude_and_phase(
     ) -> tuple[Array, Array]:
         centers, amplitude, phase = centers_amplitude_and_phase
         center = centers[:, i]
-        squared_distance = l2_sq_norm(grid - center[:, jnp.newaxis, jnp.newaxis])
+        squared_distance = l2_sq_norm(
+            grid - center[:, jnp.newaxis, jnp.newaxis], axis=0
+        )
         L = wavelength * fs[i] / n
         mask = jnp.squeeze(squared_distance) < (radii[i] ** 2)
         amplitude += mask
@@ -178,7 +179,8 @@ def circular_phase(
     w: ScalarLike,
 ) -> Array:
     grid = create_grid(shape, spacing)
-    phase = l2_sq_norm(grid) <= (w / 2) ** 2
+    phase = l2_sq_norm(grid, axis=0)
+    phase = phase * (phase <= (w / 2) ** 2)
     phase = jnp.asarray(shift) * phase
     return phase
 
@@ -235,7 +237,7 @@ def axicon_phase(
 ) -> Array:
     dn = jnp.asarray(n_axicon - n_medium)
     grid = create_grid(shape, spacing)
-    thickness = jnp.sin(slope_angle) * l2_norm(grid)
+    thickness = jnp.sin(slope_angle) * l2_norm(grid, axis=0)
     phase = 2.0 * jnp.pi * dn * thickness / jnp.asarray(wavelength)
     return phase
 
@@ -315,8 +317,16 @@ def seidel_aberrations(
         f: The focal distance (should be in same units as ``wavelength``).
         NA: The numerical aperture. Phase will be 0 outside of this NA.
         coefficients: weight coefficients for Seidel aberrations
-        u: The horizontal position of the object field point
-        v: The vertical position of the object field point
+        u: The horizontal position of the object field point in normalized
+            coordinates from 0 to +/- 1. A value of 0 represents the center
+            coordinate in the plane while a value of 1 represents the farthest
+            point from the center. Positive values go right and negative values
+            go left.
+        v: The vertical position of the object field point in normalized
+            coordinates from 0 to +/- 1. A value of 0 represents the center
+            coordinate in the plane while a value of 1 represents the farthest
+            point from the center. Positive values go down and negative values
+            go up.
     """
     # @copypaste(Field): We must use meshgrid instead of mgrid here
     # in order to be jittable
@@ -368,9 +378,11 @@ def zernike_aberrations(
             integers of the form (H W).
         spacing: The spacing of each pixel in the phase mask.
         wavelength: The wavelength to compute the phase mask for.
-        n: Refractive index.
-        f: The focal distance (should be in same units as ``wavelength``).
-        NA: The numerical aperture. Phase will be 0 outside of this NA.
+        n: Refractive index of the medium.
+        f: The focal length of the objective (should be in same units as
+            ``wavelength``).
+        NA: The numerical aperture of the objective. Phase will be 0 outside of
+            this NA.
         ansi_indices: Linear Zernike indices according to ANSI numbering.
         coefficients: Weight coefficients for the Zernike polynomials.
         normalize: Whether to normalize the Zernike coefficients. Defaults to
@@ -409,7 +421,7 @@ def zernike_aberrations(
     # Normalize coordinates from -1 to 1 within radius R
     grid = grid_spatial_to_pupil(grid, f, NA, n)
 
-    rho = l2_norm(grid)  # radial coordinate
+    rho = l2_norm(grid, axis=0)  # radial coordinate
 
     mask = rho <= 1
     rho = rho * mask
