@@ -1,28 +1,24 @@
 from typing import Sequence
 
-import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange
-from jax import Array
+from jax import Array, nn
+from jaxtyping import ArrayLike, ScalarLike
 from scipy.ndimage import distance_transform_edt
-
-from chromatix.typing import ArrayLike, ScalarLike
-
-from .shapes import _broadcast_2d_to_spatial
 
 
 def next_order(val: int) -> int:
     return int(2 ** np.ceil(np.log2(val)))
 
 
-def center_pad(u: ArrayLike, padding: Sequence[int], cval: float = 0) -> Array:
+def center_pad(u: ArrayLike, pad_width: Sequence[int], cval: float = 0) -> Array:
     """
-    Symmetrically pads ``u`` with lengths specified per axis in ``padding``,
+    Symmetrically pads ``u`` with lengths specified per axis in ``pad_width``,
     which should be an iterable of integers and have the same length as
     ``u.ndims``.
     """
-    pad = [(n, n) for n in padding]
+    pad = [(n, n) for n in pad_width]
     return jnp.pad(u, pad, constant_values=cval)
 
 
@@ -77,10 +73,13 @@ def gaussian_kernel(
     return phi / phi.sum()
 
 
-def sigmoid_taper(shape: tuple[int, int], width: float, ndim: int = 5) -> Array:
-    dist = distance_transform_edt(np.pad(np.ones((shape[0] - 2, shape[1] - 2)), 1))
+def sigmoid_taper(shape: tuple[int, int], width: float) -> Array:
+    dist = jnp.asarray(
+        distance_transform_edt(np.pad(np.ones((shape[0] - 2, shape[1] - 2)), 1))
+    )
     taper = 2 * (nn.sigmoid(dist / width) - 0.5)  # type: ignore - it's an array!
-    return _broadcast_2d_to_spatial(taper, ndim)
+    return taper
+    # return _broadcast_2d_to_spatial(taper, ndim)
 
 
 def create_grid(shape: tuple[int, int], spacing: ScalarLike) -> Array:
@@ -136,22 +135,22 @@ def grid_spatial_to_pupil(
     return grid / R
 
 
-def l2_sq_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def l2_sq_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Sum of squares, i.e. `x**2 + y**2`."""
     return jnp.sum(a**2, axis=axis)
 
 
-def l2_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def l2_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Square root of ``l2_sq_norm``, i.e. `sqrt(x**2 + y**2)`."""
     return jnp.sqrt(jnp.sum(a**2, axis=axis))
 
 
-def l1_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def l1_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Sum absolute value, i.e. `|x| + |y|`."""
     return jnp.sum(jnp.abs(a), axis=axis)
 
 
-def linf_norm(a: Array, axis: int | tuple[int, ...] = 0) -> Array:
+def linf_norm(a: Array, axis: int | tuple[int, ...] = -1) -> Array:
     """Max absolute value, i.e. `max(|x|, |y|)`."""
     return jnp.max(jnp.abs(a), axis=axis)
 
