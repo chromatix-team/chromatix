@@ -93,7 +93,7 @@ class ClearThinSample(Sample, Scattering, strict=True):
 
     The sample is supposed to follow the thin sample approximation, so the
     sample perturbation is calculated as:
-    ``exp(1j * 2 * pi * (dn + 1j * absorption) * thickness / lambda)``.
+    ``exp(1j * 2 * pi * dn * thickness / lambda)``.
 
     Returns a ``ScalarField`` with the result of the perturbation.
 
