@@ -1,5 +1,3 @@
-from warnings import deprecated
-
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -552,9 +550,6 @@ def polarized_multislice_thick_sample(
     return field.replace(u=u)
 
 
-@deprecated(
-    "Please switch to the updated function name `polarized_multislice_thick_sample`"
-)
 def thick_polarized_sample(
     field: VectorField | ChromaticVectorField,
     potential_stack: Float[Array, "d h w 3 3"],
@@ -570,6 +565,9 @@ def thick_polarized_sample(
         This alias is deprecated and will be removed in a future release. Please
         switch to the updated name.
     """
+    print(
+        "Please switch to the updated function name `polarized_multislice_thick_sample`"
+    )
     return polarized_multislice_thick_sample(
         field, potential_stack, n, thickness_per_slice, NA=NA
     )
