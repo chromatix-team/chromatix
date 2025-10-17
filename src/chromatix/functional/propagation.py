@@ -3,15 +3,14 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import Array
 from jax.scipy.signal import fftconvolve
+from jaxtyping import Array, ArrayLike, Float, ScalarLike
 
-from chromatix.field import Field, ScalarField, VectorField, crop, pad, shift_grid
+from chromatix import Field, crop, pad, shift_grid
 from chromatix.functional.convenience import optical_fft
 from chromatix.functional.pupils import super_gaussian_pupil, tukey_pupil
-from chromatix.typing import ArrayLike, ScalarLike
+from chromatix.typing import z
 from chromatix.utils import (
-    _broadcast_1d_to_grid,
     _broadcast_1d_to_innermost_batch,
     l2_sq_norm,
 )
@@ -36,7 +35,7 @@ def transform_propagate(
     field: Field,
     z: ScalarLike,
     n: ScalarLike,
-    N_pad: int | tuple[int, int],
+    pad_width: int | tuple[int, int],
     cval: float = 0,
     skip_initial_phase: bool = False,
     skip_final_phase: bool = False,
@@ -50,9 +49,9 @@ def transform_propagate(
 
     Args:
         field: ``Field`` to be propagated.
-        z: Distance to propagate.
-        n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for
+        z: How far to propagate as a scalar value in units of distance.
+        n: A float that defines the (isotropic) refractive index of the medium.
+        pad_width: A keyword argument integer defining the pad length for
             the propagation FFT. Use padding calculator utilities from
             ``chromatix.functional.propagation`` to compute the padding.
             !!! warning
@@ -67,9 +66,9 @@ def transform_propagate(
             transforming). Defaults to False, in which case the output phase
             change is not skipped.
     """
-    field = pad(field, N_pad, cval=cval)
+    field = pad(field, pad_width, cval=cval)
     # Fourier normalization factor
-    L_sq = field.spectrum * z / n
+    L_sq = field.broadcasted_wavelength * z / n
     # New field is optical_fft minus -1j factor
     if not skip_initial_phase:
         # Calculating input phase change (defining Q1)
@@ -80,27 +79,25 @@ def transform_propagate(
     if not skip_final_phase:
         output_phase = (jnp.pi / L_sq) * l2_sq_norm(field.grid)
         field = field * jnp.exp(1j * output_phase)
-    return crop(field, N_pad)
+    return crop(field, pad_width)
 
 
 def compute_sas_precompensation(
-    field: ScalarField | VectorField,
+    field: Field,
     z: ScalarLike,
     n: ScalarLike,
 ) -> Array:
-    sz = np.array(field.spatial_shape)
-    kz = 2 * z * jnp.pi * n / field.spectrum
-    s = field.spectrum * field.k_grid / n
+    kz = 2 * z * jnp.pi * n / field.broadcasted_wavelength
+    s = field.broadcasted_wavelength * field.f_grid / n
     s_sq = s**2
-    N = _broadcast_1d_to_grid(sz, field.ndim)
     pad_factor = 2
-    L = pad_factor * N * field.dx
+    L = pad_factor * field.extent
     t = L / pad_factor / jnp.abs(z) + jnp.abs(s)
-    W = jnp.prod((s_sq * (2 + 1 / t**2) <= 1), axis=0)
+    W = jnp.prod((s_sq * (2 + 1 / t**2) <= 1), axis=-1)
     H_AS = jnp.sqrt(
-        jnp.maximum(0, 1 - jnp.sum(s_sq, axis=0))
+        jnp.maximum(0, 1 - jnp.sum(s_sq, axis=-1))
     )  # NOTE(rh): Or cast to complex? Can W be larger than the free-space limit?
-    H_Fr = 1 - jnp.sum(s_sq, axis=0) / 2
+    H_Fr = 1 - jnp.sum(s_sq, axis=-1) / 2
     delta_H = W * jnp.exp(1j * kz * (H_AS - H_Fr))
     delta_H = jnp.fft.ifftshift(delta_H, axes=field.spatial_dims)
     return delta_H
@@ -130,8 +127,8 @@ def transform_propagate_sas(
 
     Args:
         field: ``Field`` to be propagated.
-        z: Distance to propagate.
-        n: A float that defines the refractive index of the medium.
+        z: How far to propagate as a scalar value in units of distance.
+        n: A float that defines the (isotropic) refractive index of the medium.
         cval: The background value to use when padding the Field. Defaults to 0
             for zero padding.
         skip_initial_phase: Whether to skip the input phase change (before
@@ -144,8 +141,8 @@ def transform_propagate_sas(
     # Don't change this pad_factor, only 2 is supported
     pad_factor = 2
     sz = np.array(field.spatial_shape)
-    N_pad = tuple(sz // pad_factor)
-    field = pad(field, N_pad, cval=cval)
+    pad_width = tuple(sz // pad_factor)
+    field = pad(field, pad_width, cval=cval)
 
     def _forward(field: Field, z: ScalarLike) -> tuple[Array, Array]:
         delta_H = compute_sas_precompensation(field, z, n)
@@ -153,7 +150,7 @@ def transform_propagate_sas(
         field = transform_propagate(
             field, z, n, 0, 0, skip_initial_phase, skip_final_phase
         )
-        return field.u, field._dx
+        return field.u, field.dx
 
     def _inverse(field: Field, z: ScalarLike) -> tuple[Array, Array]:
         field = transform_propagate(
@@ -161,18 +158,18 @@ def transform_propagate_sas(
         )
         delta_H = compute_sas_precompensation(field, z, n)
         field = kernel_propagate(field, delta_H)
-        return field.u, field._dx
+        return field.u, field.dx
 
-    u, _dx = jax.lax.cond(z >= 0, _forward, _inverse, field, z)
-    field = field.replace(u=u, _dx=_dx)
-    return crop(field, N_pad)
+    u, dx = jax.lax.cond(z >= 0, _forward, _inverse, field, z)
+    field = field.replace(u=u, dx=dx)
+    return crop(field, pad_width)
 
 
 def transfer_propagate(
     field: Field,
-    z: ScalarLike,
+    z: ScalarLike | Float[Array, "z"],
     n: ScalarLike,
-    N_pad: int,
+    pad_width: int,
     cval: float = 0,
     absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
     absorbing_boundary_width: float = 0.65,
@@ -189,9 +186,11 @@ def transfer_propagate(
 
     Args:
         field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or a 1D array.
-        n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for
+        z: How far to propagate as either a scalar value in units of distance
+            or a 1D array of distances (in which case a batch dimension will be
+            added to the resulting ``Field``).
+        n: A float that defines the (isotropic) refractive index of the medium.
+        pad_width: A keyword argument integer defining the pad length for
             the propagation FFT. Use padding calculator utilities from
             ``chromatix.functional.propagation`` to compute the padding.
             !!! warning
@@ -225,11 +224,15 @@ def transfer_propagate(
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
-    field = pad(field, N_pad, cval=cval)
+    field = pad(field, pad_width, cval=cval)
     if output_dx is None and output_shape is None:
         # If neither output_dx nor output_shape is provided, use the default ASM propagation
         # as FFT is faster than CZT
         use_czt = False
+    z = jnp.atleast_1d(z)
+    # assert field.num_batch_dims == 0 or field.batch_dims[-1] == z.size, (
+    #     "Must have no batch dimensions or innermost batch dimension must have size z"
+    # )
     propagator = compute_transfer_propagator(field, z, n, kykx)
     field = kernel_propagate(
         field,
@@ -242,15 +245,15 @@ def transfer_propagate(
         use_czt=use_czt,
     )
     if mode == "same":
-        field = crop(field, N_pad)
+        field = crop(field, pad_width)
     return field
 
 
 def asm_propagate(
     field: Field,
-    z: ScalarLike,
+    z: ScalarLike | Float[Array, "z"],
     n: ScalarLike,
-    N_pad: int,
+    pad_width: int,
     cval: float = 0,
     absorbing_boundary: Literal["tukey", "super_gaussian"] | None = None,
     absorbing_boundary_width: float = 0.65,
@@ -270,9 +273,11 @@ def asm_propagate(
 
     Args:
         field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or a 1D array.
-        n: A float that defines the refractive index of the medium.
-        N_pad: A keyword argument integer defining the pad length for
+        z: How far to propagate as either a scalar value in units of distance
+            or a 1D array of distances (in which case a batch dimension will be
+            added to the resulting ``Field``).
+        n: A float that defines the (isotropic) refractive index of the medium.
+        pad_width: A keyword argument integer defining the pad length for
             the propagation FFT. Use padding calculator utilities from
             ``chromatix.functional.propagation`` to compute the padding.
             !!! warning
@@ -312,7 +317,7 @@ def asm_propagate(
             ``Field`` will match the shape of the incoming ``Field``. Defaults
             to "full", in which case the output shape will include padding.
     """
-    field = pad(field, N_pad, cval=cval)
+    field = pad(field, pad_width, cval=cval)
     if output_dx is None and output_shape is None:
         # If neither output_dx nor output_shape is provided, use the default ASM propagation
         # as FFT is faster than CZT
@@ -337,7 +342,7 @@ def asm_propagate(
         use_czt=use_czt,
     )
     if mode == "same":
-        field = crop(field, N_pad)
+        field = crop(field, pad_width)
     return field
 
 
@@ -348,7 +353,7 @@ def kernel_propagate(
     absorbing_boundary_width: float = 0.65,
     output_dx: ArrayLike | None = None,
     output_shape: tuple[int, int] | None = None,
-    shift_yx: ArrayLike | tuple[float, float] = (0.0, 0.0),
+    shift_yx: tuple[float, float] | Float[Array, "2"] = (0.0, 0.0),
     use_czt: bool = False,
 ) -> Field:
     """
@@ -376,6 +381,7 @@ def kernel_propagate(
         f"The absorbing_boundary must be None or in {_boundaries.keys()}."
     )
     axes = field.spatial_dims
+    shift_yx = jnp.asarray(shift_yx)
     if output_dx is None and output_shape is None and not use_czt:
         # shifting accounted for in `propagator`
         u = jnp.fft.ifft2(jnp.fft.fft2(field.u, axes=axes) * propagator, axes=axes)
@@ -384,10 +390,10 @@ def kernel_propagate(
         if output_shape is None:
             output_shape = field.spatial_shape
         if output_dx is None:
-            output_dx = field.dx.squeeze()
+            output_dx = field.dx
         in_field = field.u
-        in_field_dk = field.dk
-        in_field_k_grid = field.k_grid
+        in_field_df = field.df
+        in_field_f_grid = field.f_grid
         in_field_extent = field.extent.squeeze()
         field = shift_grid(field, shift_yx)
         field = Field.empty_like(field, dx=output_dx, shape=output_shape)
@@ -395,7 +401,7 @@ def kernel_propagate(
         # Scaling factor in Eq 7 of "Band-limited angular spectrum numerical
         # propagation method with selective scaling of observation window size
         # and sample number"
-        alpha = field.dx / in_field_dk
+        alpha = field.dx / in_field_df
 
         # output field in k-space
         # u = fft(in_field, axes=axes, shift=True) * jnp.fft.fftshift(propagator, axes=axes)
@@ -434,12 +440,14 @@ def kernel_propagate(
             # Eq 9 of "Band-limited angular spectrum numerical propagation method
             # with selective scaling of observation window size and sample number"
             # (2012)
-            wn = alpha * in_field_k_grid
-            f = jnp.prod(jnp.exp(-1j * jnp.pi / alpha * wn**2), axis=0)
-            B = u * jnp.prod((1 / alpha) * jnp.exp(1j * jnp.pi / alpha * wn**2), axis=0)
+            wn = alpha * in_field_f_grid
+            f = jnp.prod(jnp.exp(-1j * jnp.pi / alpha * wn**2), axis=-1)
+            B = u * jnp.prod(
+                (1 / alpha) * jnp.exp(1j * jnp.pi / alpha * wn**2), axis=-1
+            )
             mod_terms = jnp.prod(
                 field.dx * jnp.exp(1j * jnp.pi / alpha * field.grid**2),
-                axis=0,
+                axis=-1,
             )
             u = mod_terms * fftconvolve(B, f, mode="same", axes=axes)
 
@@ -450,8 +458,8 @@ def kernel_propagate(
 
 
 def compute_transfer_propagator(
-    field: ScalarField | VectorField,
-    z: ScalarLike,
+    field: Field,
+    z: ScalarLike | Float[Array, "z"],
     n: ScalarLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
 ) -> Array:
@@ -462,20 +470,26 @@ def compute_transfer_propagator(
 
     Args:
         field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or a 1D array.
-        n: A float that defines the refractive index of the medium.
+        z: How far to propagate as either a scalar value in units of distance
+            or a 1D array of distances (in which case a batch dimension will be
+            added to the resulting ``Field``).
+        n: A float that defines the (isotropic) refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format `[ky, kx]`.
     """
-    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    phase = -jnp.pi * (field.spectrum / n) * z * l2_sq_norm(field.k_grid - kykx)
+    z = jnp.asarray(z)
+    kykx = jnp.asarray(kykx)
+    if z.size > 1:
+        z = _broadcast_1d_to_innermost_batch(z, field.spatial_dims)
+    phase = (
+        -jnp.pi * field.broadcasted_wavelength / n * z * l2_sq_norm(field.f_grid - kykx)
+    )
     return jnp.fft.ifftshift(jnp.exp(1j * phase), axes=field.spatial_dims)
 
 
 def compute_asm_propagator(
-    field: ScalarField | VectorField,
-    z: ScalarLike,
+    field: Field,
+    z: ScalarLike | Float[Array, "z"],
     n: ScalarLike,
     kykx: ArrayLike | tuple[float, float] = (0.0, 0.0),
     bandlimit: bool = False,
@@ -492,9 +506,10 @@ def compute_asm_propagator(
 
     Args:
         field: ``Field`` to be propagated.
-        z: Distance(s) to propagate, either a float or an array of shape (Z 1
-            1 1).
-        n: A float that defines the refractive index of the medium.
+        z: How far to propagate as either a scalar value in units of distance
+            or a 1D array of distances (in which case a batch dimension will be
+            added to the resulting ``Field``).
+        n: A float that defines the (isotropic) refractive index of the medium.
         kykx: If provided, defines the orientation of the propagation. Should
             be an array of shape `[2,]` in the format `[ky, kx]`.
         bandlimit: If ``True``, bandlimited the kernel according to "Band-
@@ -506,28 +521,36 @@ def compute_asm_propagator(
         remove_evanescent: If ``True``, removes evanescent waves. Defaults to
             False.
     """
-    kykx = _broadcast_1d_to_grid(kykx, field.ndim)
-    z = _broadcast_1d_to_innermost_batch(z, field.ndim)
-    kernel = 1 - (field.spectrum / n) ** 2 * l2_sq_norm(field.k_grid - kykx)
+    # kykx = _broadcast_1d_to_grid(kykx, field.ndim)
+    z = jnp.asarray(z)
+    kykx = jnp.asarray(kykx)
+    shift_yx = jnp.asarray(shift_yx)
+    if z.size > 1:
+        z = _broadcast_1d_to_innermost_batch(z, field.spatial_dims)
+    kernel = 1 - (field.broadcasted_wavelength / n) ** 2 * l2_sq_norm(
+        field.f_grid - kykx
+    )
     if remove_evanescent:
         delay = jnp.sqrt(jnp.maximum(kernel, 0.0))
     else:
         delay = jnp.sqrt(jnp.complex64(kernel))
     # shift in output plane
-    shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
-    out_shift = 2 * jnp.pi * jnp.sum(field.k_grid * shift_yx, axis=0)
+    # shift_yx = _broadcast_1d_to_grid(shift_yx, field.ndim)
+    out_shift = 2 * jnp.pi * jnp.sum(field.f_grid * shift_yx, axis=-1)
     # compute field
-    phase = 2 * jnp.pi * (jnp.abs(z) * n / field.spectrum) * delay + out_shift
+    phase = (
+        2 * jnp.pi * (jnp.abs(z) * n / field.broadcasted_wavelength) * delay + out_shift
+    )
     kernel_field = jnp.where(z >= 0, jnp.exp(1j * phase), jnp.conj(jnp.exp(1j * phase)))
     if bandlimit:
         # Table 1 of "Shifted angular spectrum method for off-axis numerical
         # propagation" (2010) by Matsushima in vectorized form
-        k_limit_p = ((shift_yx + 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (
+        k_limit_p = ((shift_yx + 1 / (2 * field.df)) ** (-2) * z**2 + 1) ** (
             -1 / 2
-        ) / field.spectrum
-        k_limit_n = ((shift_yx - 1 / (2 * field.dk)) ** (-2) * z**2 + 1) ** (
+        ) / field.broadcasted_wavelength
+        k_limit_n = ((shift_yx - 1 / (2 * field.df)) ** (-2) * z**2 + 1) ** (
             -1 / 2
-        ) / field.spectrum
+        ) / field.broadcasted_wavelength
         k0 = (1 / 2) * (
             jnp.sign(shift_yx + field.extent) * k_limit_p
             + jnp.sign(shift_yx - field.extent) * k_limit_n
@@ -538,71 +561,84 @@ def compute_asm_propagator(
         )
         k_max = k_width / 2
         # obtain rect filter to bandlimit (Eq. 23)
-        H_filter_yx = jnp.abs(field.k_grid - k0) <= k_max
-        H_filter = H_filter_yx[0] * H_filter_yx[1]
+        H_filter_yx = jnp.abs(field.f_grid - k0) <= k_max
+        H_filter = H_filter_yx[..., 0] * H_filter_yx[..., 1]
         # apply filter
         kernel_field = kernel_field * H_filter
     return jnp.fft.ifftshift(kernel_field, axes=field.spatial_dims)
 
 
-def compute_padding_transform(height: int, spectrum: float, dx: float, z: float) -> int:
+def compute_padding_transform(
+    height: int, wavelength: float, dx: float, z: float
+) -> int:
     """
-    Automatically compute the padding required for transform propagation.
+    Automatically estimate the padding required for transform propagation.
 
     Args:
-        height: Height of the field
-        spectrum: spectrum of the field
-        dx: spacing of the field
-        z: A float that defines the distance to propagate.
+        height: Height (number of pixels in the y direction) of the field. This
+            assumes that the field is a square (height is the same as width).
+        wavelength: The wavelength of the field as a scalar in units of distance
+            (assumed to be a monochromatic field).
+        dx: The spacing of the samples of the field as a scalar in units of
+            distance. Assumes square pixels.
+        z: A float that defines how far to propagate in units of distance.
     """
     # TODO: works only for square fields
     D = height * dx  # height of field in real coordinates
-    Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
+    Nf = np.max((D / 2) ** 2 / (wavelength * z))  # Fresnel number
     M = height  # height of field in pixels
     Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
     N = (np.ceil((Q * M) / 2) * 2).astype(int)
-    N_pad = (N - M).astype(int)
-    return N_pad
+    pad_width = (N - M).astype(int)
+    return pad_width
 
 
-def compute_padding_transfer(height: int, spectrum: float, dx: float, z: float) -> int:
+def compute_padding_transfer(
+    height: int, wavelength: float, dx: float, z: float
+) -> int:
     """
-    Automatically compute the padding required for transfer propagation.
+    Automatically estimate the padding required for transfer propagation.
 
     Args:
-        height: Height of the field
-        spectrum: spectrum of the field
-        dx: spacing of the field
-        z: A float that defines the distance to propagate.
+        height: Height (number of pixels in the y direction) of the field. This
+            assumes that the field is a square (height is the same as width).
+        wavelength: The wavelength of the field as a scalar in units of distance
+            (assumed to be a monochromatic field).
+        dx: The spacing of the samples of the field as a scalar in units of
+            distance. Assumes square pixels.
+        z: A float that defines how far to propagate in units of distance.
     """
     # TODO: works only for square fields
     D = height * dx  # height of field in real coordinates
-    Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
+    Nf = np.max((D / 2) ** 2 / (wavelength * z))  # Fresnel number
     M = height  # height of field in pixels
     Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
     N = (np.ceil((Q * M) / 2) * 2).astype(int)
-    N_pad = (N - M).astype(int)
-    return N_pad
+    pad_width = (N - M).astype(int)
+    return pad_width
 
 
-def compute_padding_exact(height: int, spectrum: float, dx: float, z: float) -> int:
+def compute_padding_exact(height: int, wavelength: float, dx: float, z: float) -> int:
     """
-    Automatically compute the padding required for exact propagation.
+    Automatically estimate the padding required for exact/angular wavelength propagation.
 
     Args:
-        height: Height of the field
-        spectrum: spectrum of the field
-        dx: spacing of the field
-        z: A float that defines the distance to propagate.
+        height: Height (number of pixels in the y direction) of the field. This
+            assumes that the field is a square (height is the same as width).
+        wavelength: The wavelength of the field as a scalar in units of distance
+            (assumed to be a monochromatic field).
+        dx: The spacing of the samples of the field as a scalar in units of
+            distance. Assumes square pixels.
+        z: A float that defines how far to propagate in units of distance.
     """
     # TODO: works only for square fields
     D = height * dx  # height of field in real coordinates
-    Nf = np.max((D / 2) ** 2 / (spectrum * z))  # Fresnel number
+    Nf = np.max((D / 2) ** 2 / (wavelength * z))  # Fresnel number
     M = height  # height of field in pixels
     Q = 2 * np.maximum(1.0, M / (4 * Nf))  # minimum pad ratio * 2
-    scale = np.max((spectrum / (2 * dx)))
+    scale = np.max((wavelength / (2 * dx)))
     # assert scale < 1, "Can't do exact transfer when field.dx < lambda / 2"
     Q = Q / np.sqrt(1 - scale**2)  # minimum pad ratio for exact transfer
     N = (np.ceil((Q * M) / 2) * 2).astype(int)
-    N_pad = (N - M).astype(int)
-    return N_pad
+    pad_width = (N - M).astype(int)
+    return pad_width
