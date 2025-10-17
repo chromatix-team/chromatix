@@ -10,38 +10,9 @@ Chromatix tries to respect composable `jax` transformations, so you can use all 
 We discuss these styles of parallelism in our documentation on [Parallelism](parallelism.md).
 
 ## How do I decide which parameters get optimized?
-Any attribute of a Chromatix element that is specified as a possibly trainable parameter can be initialized using `chromatix.utils.trainable` in order to make it trainable. Otherwise, the attribute will be initialized (using either an `Array`, `float`, or `Callable` that takes a shape argument as specified in the documentation for that function) as non-trainable state of that element. If you are initializing an attribute as trainable using an initialization function, then you can specify whether that function requires a `jax.random.PRNGKey` or not. For example, if you are initializing the pixels of a phase mask with the `flat_phase` function, then you can use `trainable(flat_phase, rng=False)` because `flat_phase` takes only a shape argument.
+You can either create a function or Equinox/Flax `Module` accepting only your optimizable parameters and use those parameters in the implementation *or* use an ``OpticalSystem`` and Equinox's ``partition`` and ``combine`` functions to select the attributes of the model that you would like to optimize. For examples of how to do this for all three approaches, see our [documentation on optimization](https://chromatix.readthedocs.io/en/latest/training/).
 
-!!! warning
-    In order to use `trainable`, you must be using a Chromatix element as shown
-    below. This function will not work if you are making a custom `nn.Module`
-    using Flax and want something to always be a trainable parameter. In
-    that case, you must use `self.param` as shown in the [Flax documentation]
-    (https://flax.readthedocs.io/en/latest/api_reference/flax.linen/
-    module.html#flax.linen.Module.param).
-
-Here's an example of how to use `trainable`:
-
-```python
-import jax
-from chromatix.elements import ThinLens, PhaseMask, trainable
-from chromatix.utils import flat_phase
-
-# Refractive index is trainable and initialized to 1.33
-# Focal distance and NA are not trainable
-model = ThinLens(10.0, trainable(1.33), 0.8)
-
-# Focal distance is trainable and randomly initialized
-# Refractive index and NA are not trainable
-model = ThinLens(trainable(lambda key: 10.0 * jax.random.uniform(key)), 1.33, 0.8)
-
-# Phase mask pixels are trainable and initialized with the right shape
-# automatically at initialization time, and the pupil f, n, NA are not trainable
-model = PhaseMask(trainable(flat_phase, rng=False), 1.33, 100.0, 0.8)
-```
-
-We discuss `trainable()` further in the [API documentation](api/utils.md#chromatix.utils.utils.trainable).
 
 ## How can I optimize parameters in `chromatix`?
 
-Everything in Chromatix is just a PyTree or `jax`-transformable function, so you can use any `jax` optimization program or library you like! For deep learning style optimizers we suggest having a look at [optax](https://github.com/deepmind/optax). For classical optimization schemes, including optimizers found in `scipy` and conjugate gradient methods (but all implicitly differentiable!) see [`jaxopt`](https://github.com/google/jaxopt).
+Everything in Chromatix is just a PyTree or `jax`-transformable function, so you can use any `jax` optimization program or library you like! For deep learning style optimizers we suggest having a look at [optax](https://github.com/deepmind/optax). For classical optimization schemes, including optimizers found in `scipy` and conjugate gradient methods (but all implicitly differentiable!) see [`jaxopt`](https://github.com/google/jaxopt). Also see our [documentation on optimization](https://chromatix.readthedocs.io/en/latest/training/).
