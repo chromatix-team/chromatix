@@ -1,5 +1,8 @@
 # Chromatix 🔬: Differentiable wave optics using JAX!
 
+!!! warning
+    Chromatix has recently been updated to make things simpler, removing a lot of empty dimensions in the simple cases of monochromatic scalar diffraction. Defining things like the wavelengths and spectral density to create a spectrum have also been refined with new types, `Spectrum` and `MonoSpectrum`. For single wavelength simulations, you can now just pass a single scalar value and leave off any spectral density definition. You can quickly see these new changes in [Chromatix 101](101.ipynb) and the updated examples. You may also want to take a look at the [updated guide on optimization](training.ipynb) if you were ever using Chromatix elements/Flax modules.
+
 Welcome to `chromatix`, a differentiable wave optics library built using `jax` which combines JIT-compilation, (multi-)GPU support, and automatic differentiation with a convenient programming style inspired by deep learning libraries. This makes `chromatix` a great fit for inverse problems in optics. We intend `chromatix` to be used by researchers in computational optics, so `chromatix` provides a set of optical element "building blocks" that can be composed together in a style similar to neural network layers. This means we take care of the more tedious details of writing fast optical simulations, while still leaving a lot of control over what is simulated and/or optimized up to you! Chromatix is still in active development, so **expect sharp edges**.
 
 Here are some of the cool things we've already built with `chromatix`:
