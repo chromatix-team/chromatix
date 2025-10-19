@@ -198,7 +198,8 @@ class Microscope(eqx.Module):
         Computes PSF and convolves PSF with ``data`` to simulate imaging.
 
         Args:
-            sample: The sample to be imaged of shape `(... height width)`.
+            sample: The sample to be imaged of shape `(... height width)` for 2D
+                samples or `(... depth height width)` for 3D samples.
             *args: Any positional arguments needed for the PSF model.
             **kwargs: Any keyword arguments needed for the PSF model.
         """
@@ -279,8 +280,12 @@ class Microscope(eqx.Module):
         been sampled to the pixels of the sensor.
 
         Args:
-            sample: The sample volume to image with of shape `(B... H W 1 1)`.
-            psf: The PSF intensity volume to image with of shape `(B... H W 1 1)`.
+            sample: The sample volume to image with of shape `(... height
+                width)` for 2D samples or `(... depth height width)` for 3D
+                samples.
+            psf: The PSF intensity volume to image with of shape `(... height
+                width)` for 2D samples or `(... depth height width)` for 3D
+                samples.
         """
         image = fourier_convolution(
             sample, psf, axes=self.convolution_axes, fast_fft_shape=self.fast_fft_shape
@@ -297,20 +302,16 @@ class Optical4FSystemPSF(eqx.Module):
     Simulates the point spread function (PSF) of a 4f system with a phase mask.
 
     Attributes:
-        shape: A tuple of form (H W) defining the number of pixels used to
-            simulate the PSF at each plane.
+        shape: A tuple of form `(height width)` defining the number of pixels
+            used to simulate the PSF at each plane.
         spacing: The desired output spacing of the PSF once it is simulated,
-            i.e. the camera pixel size at the sample plane when the PSF is
-            measured.
-            !!! warning
-                Note that this spacing should not be the same as the camera
-                pixel size unless the magnification of the system is truly 1
-                to 1.
-        f_tube: The focal length of the tube lens of the system. The focal
-            length of the objective lens will be accessed through the
-            ``Microscope`` passed during a call to this ``Module``.
-        phase: The phase mask for the 4f simulation. Must be an array of
-            shape (H W) where (H W) match the shape of the simulation.
+            e.g. the camera sensor pixel pitch.
+        f_tube: The focal length of the tube lens of the system in units of
+            distance. The focal length of the objective lens will be accessed
+            through the ``Microscope`` passed during a call to this ``Module``.
+        phase: The phase mask for the 4f simulation. Must be a 2D array of
+            phase values in units of radians with shape `(height width)` where
+            `(height width)` match the shape of the simulation.
     """
 
     shape: tuple[int, int] = eqx.field(static=True)

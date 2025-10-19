@@ -91,7 +91,11 @@ class Field(eqx.Module, strict=_strict_config):
     to the correct shapes.
 
     Attributes:
-        u: The complex field of shape at least ``(... height width)``.
+        u: The complex-valued field of shape at least ``(height width)`` for
+            monochromatic scalar fields, ``(height width wavelengths)`` for
+            chromatic scalar fields, ``(height width 3)`` for monochromatic
+            vectorial fields, and ``(height width wavelengths 3)`` for chromatic
+            vectorial fields.
         dx: The spacing (pixel size) of the samples of the ``Field`` in units
             of distance. In the simplest case, you can pass a scalar value
             to define this spacing which creates a square pixel. Each sample
@@ -102,7 +106,7 @@ class Field(eqx.Module, strict=_strict_config):
             in the spectrum of the ``Field``. To create a non-square spacing,
             you must always pass a 2D array of shape `(wavelengths 2)` where
             the last dimension has length 2 and defines the height and width of
-            the spacing in units of distance. To createa a non-square spacing
+            the spacing in units of distance. To create a non-square spacing
             you must always include the `wavelengths` dimension even if there
             is only a single wavelength in the spectrum (i.e. a `(1 2)` shaped
             array).
@@ -209,7 +213,7 @@ class Field(eqx.Module, strict=_strict_config):
     def extent(self) -> Array:
         """
         The extent (lengths in height and width per wavelength) of the field
-        in units of distance. Defined as an array of shape ``(2 1... 1 1 C 1)``
+        in units of distance. Defined as an array of the same shape as ``dx``
         specifying the extent in the y and x dimensions respectively.
         """
         return self.dx * jnp.asarray(self.spatial_shape)
