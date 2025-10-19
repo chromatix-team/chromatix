@@ -7,6 +7,9 @@
 
 ![CI](https://github.com/chromatix-team/chromatix/actions/workflows/test.yaml/badge.svg) ![Ruff](https://github.com/chromatix-team/chromatix/actions/workflows/format_lint.yaml/badge.svg)
 
+## Notice ℹ️
+Chromatix has recently been updated to make things simpler, removing a lot of empty dimensions in the simple cases of monochromatic scalar diffraction. Defining things like the wavelengths and spectral density to create a spectrum have also been refined with new types, `Spectrum` and `MonoSpectrum`. For single wavelength simulations, you can now just pass a single scalar value and leave off any spectral density definition. You can quickly see these new changes in [Chromatix 101](https://chromatix.readthedocs.io/en/latest/101/) and the updated examples. You may also want to take a look at the [updated guide on optimization](https://chromatix.readthedocs.io/en/latest/training/) if you were ever using Chromatix elements/Flax modules.
+
 [**Installation**](#installation)
 | [**Usage**](#usage)
 | [**Contributions**](#contributions)
