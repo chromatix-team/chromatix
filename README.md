@@ -119,24 +119,25 @@ Chromatix was started by Diptodip Deb ([@diptodip](https://www.github.com/diptod
 and many more!
 
 ## Citation
-To cite Chromatix, please refer to our 2025 preprint on bioRxiv:
+To cite Chromatix, please refer to our 2026 publication in Nature Methods:
 
-**Deb, Diptodip**\* and **Both, Gert-Jan**\* and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, Cédric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pégard, Nicolas C. and La Rivière, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C. *Chromatix*. bioRxiv. [https://doi.org/10.1101/2025.04.29.651152](https://doi.org/10.1101/2025.04.29.651152)
+**Deb, Diptodip**\* and **Both, Gert-Jan**\* and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, Cédric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pégard, Nicolas C. and La Rivière, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C. *Chromatix*. Nature Methods. [https://www.nature.com/articles/s41592-026-03121-x](https://www.nature.com/articles/s41592-026-03121-x)
 
 \* equal contribution
 
 BibTex:
 ```bibtex
-@article {Deb2025.04.29.651152,
-	author = {Deb, Diptodip and Both, Gert-Jan and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, C{\'e}dric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pegard, Nicolas C. and La Rivi{\`e}re, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C.},
+@article {chromatix_2026,
 	title = {Chromatix: a differentiable, GPU-accelerated wave-optics library},
-	elocation-id = {2025.04.29.651152},
-	year = {2025},
-	doi = {10.1101/2025.04.29.651152},
-	publisher = {Cold Spring Harbor Laboratory},
-	URL = {https://www.biorxiv.org/content/early/2025/05/02/2025.04.29.651152},
-	eprint = {https://www.biorxiv.org/content/early/2025/05/02/2025.04.29.651152.full.pdf},
-	journal = {bioRxiv}
+	author = {Deb, Diptodip and Both, Gert-Jan and Bezzam, Eric and Kohli, Amit and Yang, Siqi and Chaware, Amey and Allier, C{\'e}dric and Cai, Changjia and Anderberg, Geneva and Eybposh, M. Hossein and Schneider, Magdalena C. and Heintzmann, Rainer and Rivera-Sanchez, Fabrizio A. and Simmerer, Corey and Meng, Guanghan and Tormes-Vaquerano, Jovan and Han, SeungYun and Shanmugavel, Sibi Chakravarthy and Maruvada, Teja and Yang, Xi and Kim, Yewon and Diederich, Benedict and Joo, Chulmin and Waller, Laura and Durr, Nicholas J. and Pegard, Nicolas C. and La Rivi{\`e}re, Patrick J. and Horstmeyer, Roarke and Chowdhury, Shwetadwip and Turaga, Srinivas C.},
+	journal   = "Nat. Methods",
+	publisher = "Springer Science and Business Media LLC",
+	volume    =  23,
+	number    =  6,
+	abstract = {Many current microscopy methods incorporate computational modeling as an integral part of the imaging process, either to solve inverse problems or optimize the optical system design itself. These methods often depend on differentiable optics simulations, yet no standardized framework exists—forcing computational optics researchers to repeatedly and independently implement simulations with limited reusability and performance. These common problems limit the potential impact of computational optics as a field. Here we present Chromatix: an open-source, GPU-accelerated, differentiable wave optics simulation library. Chromatix builds on JAX to democratize fast, parallelized simulation of diverse optical systems and expand the design space in computational optics. Chromatix standardizes a growing collection of optical elements and propagation methods allowing a broad range of applications, which we demonstrate here for snapshot microscopy, holography, and phase retrieval. We demonstrate speed improvements of 2-6{\texttimes} on a single GPU and up to 22{\texttimes} on 8 GPUs.},
+	month     =  june,
+	year      =  2026,
+	language  = "en",
 }
 ```
 
