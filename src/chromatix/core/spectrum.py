@@ -10,6 +10,13 @@ from chromatix.typing import wv
 class Spectrum(eqx.Module):
     """
     A spectrum defined by wavelengths and their corresponding densities.
+
+    Attributes:
+        wavelength: A 1D array representing the wavelengths in the discretized
+            spectrum in the same units of distance as the sampling of the
+            corresponding field.
+        density: A 1D array representing the weight of each wavelength in the
+            discretized spectrum.
     """
 
     wavelength: Float[Array, "wv"]
@@ -74,6 +81,7 @@ class Spectrum(eqx.Module):
 
     @property
     def size(self) -> int:
+        """Returns the number of wavelengths in the discretized spectrum."""
         return self.wavelength.size
 
     @property
@@ -87,6 +95,11 @@ class Spectrum(eqx.Module):
 
     @property
     def spectral_modulation(self) -> Array:
+        """
+        Returns the ratio of the central wavelength to all the wavelengths
+        in the spectrum. This is useful when calculating phase responses of a
+        material that scales approximately linearly with wavelength.
+        """
         return self.central_wavelength / self.wavelength
 
     def __repr__(self) -> str:
@@ -94,7 +107,15 @@ class Spectrum(eqx.Module):
 
 
 class MonoSpectrum(Spectrum):
-    """A spectrum with a scalar wavelength (density is a delta function)."""
+    """
+    A spectrum with a scalar wavelength (density is a delta function).
+
+    Attributes:
+        wavelength: A scalar representing the wavelength in the same units of
+            distance as the sampling of the corresponding field.
+        density: A scalar set to 1.0 because there is only one wavelength in
+            the spectrum.
+    """
 
     wavelength: Float[Array, "1"]
     density: Float[Array, "1"]
