@@ -556,10 +556,14 @@ def compute_asm_propagator(
     if bandlimit:
         # Table 1 of "Shifted angular spectrum method for off-axis numerical
         # propagation" (2010) by Matsushima in vectorized form
-        k_limit_p = ((shift_yx + 1 / (2 * field.df)) ** (-2) * z**2 + 1) ** (
+        # `z` carries trailing singletons for the spatial dims but not for the
+        # trailing length-2 yx-vector axis of `field.df` / `shift_yx`. Add it so
+        # the cutoffs broadcast against `field.f_grid` for multi-element `z`.
+        z_bl = z[..., None] if z.ndim > 0 else z
+        k_limit_p = ((shift_yx + 1 / (2 * field.df)) ** (-2) * z_bl**2 + 1) ** (
             -1 / 2
         ) / field.broadcasted_wavelength
-        k_limit_n = ((shift_yx - 1 / (2 * field.df)) ** (-2) * z**2 + 1) ** (
+        k_limit_n = ((shift_yx - 1 / (2 * field.df)) ** (-2) * z_bl**2 + 1) ** (
             -1 / 2
         ) / field.broadcasted_wavelength
         k0 = (1 / 2) * (

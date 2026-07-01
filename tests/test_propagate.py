@@ -1,5 +1,6 @@
 from functools import partial
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -204,3 +205,50 @@ def test_transform_multiple():
         field_after_first_propagation, z=10.0, n=1, pad_width=256
     )
     assert field_after_second_propagation.intensity.squeeze()[256, 256] != 0.0
+
+
+@pytest.mark.parametrize("shift_yx", [(0.0, 0.0), (3.0, -2.0)])
+def test_asm_multi_z_bandlimit_matches_vmap(shift_yx):
+    """Multi-z ``asm_propagate(..., bandlimit=True)`` must broadcast and match vmap.
+
+    Regression test for a broadcasting bug in ``compute_asm_propagator``: when
+    ``z`` is a multi-element array, the bandlimit branch built its cutoffs
+    without the trailing yx-vector singleton, so ``field.f_grid - k0`` raised a
+    ``TypeError`` (incompatible shapes). The batched result must (i) be finite
+    and have shape ``(n_z, Y, X)`` and (ii) equal a ``jax.vmap`` over the proven
+    scalar bandlimit path.
+    """
+    shape = (128, 128)
+    spacing = 0.5
+    pad_width = 128
+    z = jnp.array([50.0, 100.0, 150.0])
+
+    field = cf.plane_wave(shape, spacing, spectrum)
+    out = cf.asm_propagate(
+        field,
+        z,
+        n,
+        pad_width=pad_width,
+        mode="same",
+        bandlimit=True,
+        shift_yx=shift_yx,
+    )
+    u_batched = jnp.squeeze(out.u)
+
+    assert jnp.all(jnp.isfinite(jnp.abs(u_batched)))
+    assert u_batched.shape == (z.size, *shape)
+
+    def scalar_propagate(zi):
+        single = cf.plane_wave(shape, spacing, spectrum)
+        return cf.asm_propagate(
+            single,
+            zi,
+            n,
+            pad_width=pad_width,
+            mode="same",
+            bandlimit=True,
+            shift_yx=shift_yx,
+        ).u
+
+    u_vmap = jnp.squeeze(jax.vmap(scalar_propagate)(z))
+    assert jnp.array_equal(u_batched, u_vmap)
