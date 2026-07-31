@@ -106,9 +106,21 @@ def high_na_ff_lens(
     """
     Applies a high NA lens placed a distance ``f`` after the incoming ``Field``.
 
+    This function allows for zooming of the output result by controlling the
+    output shape and spacing (dx) via the Chirp Z-transform.
+
     !!!warning
         This function assumes that the incoming ``Field`` contains only a single
         wavelength and has a square shape.
+
+    !!!warning
+        The defocus correction phase factor for a field that is applied to
+        model propagation by a focal length will always be computed based on
+        the sampling of the input field (dependent on both the spacing of the
+        input as well as the number of samples (shape)). You may get different
+        results depending on the sampling of the input field even if you keep
+        ``output_dx`` constant, so you must ensure that the input is already
+        properly sampled.
 
     Args:
         field: The ``Field`` to which the lens will be applied.
@@ -135,8 +147,13 @@ def high_na_ff_lens(
         output_shape = field.spatial_shape
     # TODO: This only works for single wavelength so far?
     # TODO: What about non-square cases?
-    fov_out = output_shape[0] * output_dx
-    zoom_factor = 2 * NA * fov_out / ((field.shape[1] - 1) * field.spectrum.wavelength)
+    zoom_factor = (
+        n
+        * field.central_dx
+        * output_dx
+        * (output_shape[0] - 1)
+        / (field.spectrum.wavelength * f)
+    )
     # Correction factors
     s_grid = field.f_grid * field.spectrum.wavelength / n
     sz_sq = 1 - NA**2 * l2_sq_norm(s_grid)
