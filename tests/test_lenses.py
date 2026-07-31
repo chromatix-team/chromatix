@@ -67,21 +67,21 @@ def test_high_na_ff_lens():
     radius = 20
     output_shape = (256, 256)
     output_dx = 0.02
-    small = cf.high_na_ff_lens(
+    small = cf.high_na_tube_lens(
         _sim_illumination_pupil(128, dx, wavelength, radius),
         f,
         n,
         NA,
-        output_shape,
-        output_dx,
+        output_shape=output_shape,
+        output_dx=output_dx,
     )
-    padded = cf.high_na_ff_lens(
+    padded = cf.high_na_tube_lens(
         _sim_illumination_pupil(256, dx, wavelength, radius),
         f,
         n,
         NA,
-        output_shape,
-        output_dx,
+        output_shape=output_shape,
+        output_dx=output_dx,
     )
     small = small.intensity
     padded = padded.intensity
@@ -95,9 +95,9 @@ def test_high_na_ff_lens():
     # get a sinusoid pattern with period ``wavelength * f / (n * d_rho)``).
     d_rho = 2 * radius * dx
     expected_period = wavelength * f / (n * d_rho)
-    out = cf.high_na_ff_lens(
+    out = cf.high_na_tube_lens(
         _sim_illumination_pupil(128, dx, wavelength, radius),
-        f, n, NA, output_shape, output_dx,
+        f, n, NA, output_shape=output_shape, output_dx=output_dx,
     )
     row = np.asarray(out.intensity.squeeze()[output_shape[0] // 2, :])
     row = row - row.mean()
