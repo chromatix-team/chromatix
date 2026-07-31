@@ -220,7 +220,19 @@ def high_na_tube_lens(
         axes=field.spatial_dims,
     )
     output_dx = output_dx * jnp.ones_like(field.dx)
-    return field.replace(u=u, dx=output_dx)
+    output_field = field.replace(u=u, dx=output_dx)
+    # NOTE(dd/2026-07-30): The pupil is sampled on a grid centered in the
+    # middle, but the CZT applies a phase ramp from 0 in each dimension. This
+    # correction factor removes that ramp so we get a clean, centered phase
+    # profile (e.g. when simulating a PSF with a plane wave as the input).
+    input_extent = field.dx * jnp.asarray(field.spatial_shape)
+    output_phase = (
+        jnp.pi
+        * n
+        / (field.spectrum.wavelength * f)
+        * jnp.sum(input_extent * output_field.grid, axis=-1)
+    )
+    return output_field.replace(u=output_field.u * jnp.exp(-1j * output_phase))
 
 
 def df_lens(
