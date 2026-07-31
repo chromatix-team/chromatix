@@ -1,3 +1,5 @@
+from warnings import warn
+
 import jax.numpy as jnp
 from jaxtyping import Array, Float, ScalarLike
 
@@ -13,8 +15,9 @@ from chromatix.functional.rays import (
 from chromatix.typing import m
 from chromatix.utils.czt import zoomed_fft
 
-from ..utils import l2_sq_norm
-from ..utils.initializers import (
+from chromatix.utils import l2_sq_norm
+from chromatix.utils.shapes import _broadcast_1d_to_innermost_batch
+from chromatix.utils.initializers import (
     hexagonal_microlens_array_amplitude_and_phase,
     microlens_array_amplitude_and_phase,
     rectangular_microlens_array_amplitude_and_phase,
@@ -31,6 +34,7 @@ __all__ = [
     "thick_plano_convex_lens",
     "thick_plano_convex_ff_lens",
     "high_na_ff_lens",
+    "high_na_tube_lens",
 ]
 
 
@@ -102,9 +106,39 @@ def high_na_ff_lens(
     NA: float,
     output_shape: tuple[int, int] | None = None,
     output_dx: ScalarLike | None = None,
+    z: ScalarLike | Float[Array, "z"] | None = 0.0,
+) -> ScalarField | VectorField:
+    warn(
+        "high_na_ff_lens is deprecated; use high_na_tube_lens",
+        DeprecationWarning,
+    )
+    return high_na_tube_lens(
+        field, f, n, NA, z=z, output_shape=output_shape, output_dx=output_dx
+    )
+
+
+def high_na_tube_lens(
+    field: ScalarField | VectorField,
+    f: float,
+    n: float,
+    NA: float,
+    output_shape: tuple[int, int] | None = None,
+    output_dx: ScalarLike | None = None,
+    z: ScalarLike | Float[Array, "z"] | None = 0.0,
 ) -> ScalarField | VectorField:
     """
-    Applies a high NA lens placed a distance ``f`` after the incoming ``Field``.
+    Applies a tube lens placed a distance ``f`` after the incoming ``Field``,
+    but allows both defocusing of the input away from the focal plane by ``z``
+    as well as resampling to a desired output shape and sampling. This is useful
+    for computing high NA PSFs, and is meant to be used with a flat plane wave
+    or Gaussian beam as the input (representing the back focal plane of an
+    objective due to a point source at the focal plane of the objective). If
+    you want to defocus using ``z`` to compute a 3D PSF, the input should be
+    a 2D field (no pre-existing z axis). Note that you must ensure that you
+    have the appropriate sampling at the input field. See the [high NA PSF
+    example](https://chromatix.readthedocs.io/en/latest/examples/highNA_PSF/).
+
+    This model is due to https://arxiv.org/abs/2502.03170.
 
     This function allows for zooming of the output result by controlling the
     output shape and spacing (dx) via the Chirp Z-transform.
