@@ -148,28 +148,38 @@ def high_na_tube_lens(
         wavelength and has a square shape.
 
     !!!warning
-        The defocus correction phase factor for a field that is applied to
-        model propagation by a focal length will always be computed based on
-        the sampling of the input field (dependent on both the spacing of the
-        input as well as the number of samples (shape)). You may get different
-        results depending on the sampling of the input field even if you keep
-        ``output_dx`` constant, so you must ensure that the input is already
-        properly sampled.
+        This function assumes that the incoming ``Field`` has been appropriately
+        sampled. If you are trying to calculate a PSF using this function (e.g.
+        with a plane wave as the input), you must make sure that the input field
+        has the correct sampling according to https://arxiv.org/abs/2502.03170.
+        The input field MUST have a diameter equal to the diameter of the pupil
+        of the objective, i.e. ``2 * f * NA / n``. The input field should be
+        appropriately sampled at this diameter by choosing a sufficiently high
+        number of pixels.
+
+    !!!warning
+        This function assumes that if you are computing multiple defocus planes
+        (``z``) that you have a 2D incoming field (no pre-existing z/batch
+        axis).
 
     Args:
         field: The ``Field`` to which the lens will be applied.
-        f: Focal length of the lens.
-        n: The refractive index of the surrounding medium (assumed to be the
-            same incoming and exiting).
-        NA: The NA of the lens.
+        f: Focal length of the corresponding objective lens (NOT this tube
+            lens; you can choose the magnification by setting\ ``output_dx`` and
+            ``output_shape``).
+        n: The refractive index of the surrounding medium, e.g. oil.
+        NA: The NA of the corresponding objective lens (NOT this tube lens).
         output_shape: The shape of the camera (in pixels). If not provided, the
             output shape will be the same as the shape of the incoming field.
         output_dx: The pixel pitch of the camera (in units of distance). If not
             provided, the output spacing will be the same as the spacing of the
             incoming field.
+        z: Defocus distance(s) from the focal plane at which to evaluate the
+            field, in units of distance. May be a scalar or a 1D array to
+            produce a z-stack. Defaults to ``0.0`` (the focal plane).
 
     Returns:
-        The ``Field`` propagated a distance ``f`` to and after the lens.
+        The ``Field`` propagated a distance ``f`` after the tube lens (at the image plane).
     """
     if not isinstance(field, Vector):
         spherical_u = field.u
@@ -179,6 +189,9 @@ def high_na_tube_lens(
         output_dx = field.central_dx
     if output_shape is None:
         output_shape = field.spatial_shape
+    z = jnp.atleast_1d(jnp.asarray(z)).squeeze()
+    if z.size > 1:
+        z = _broadcast_1d_to_innermost_batch(z, field.spatial_dims)
     # TODO: This only works for single wavelength so far?
     # TODO: What about non-square cases?
     zoom_factor = (
@@ -188,12 +201,15 @@ def high_na_tube_lens(
         * (output_shape[0] - 1)
         / (field.spectrum.wavelength * f)
     )
-    # Correction factors
-    s_grid = field.f_grid * field.spectrum.wavelength / n
-    sz_sq = 1 - NA**2 * l2_sq_norm(s_grid)
+    sz_sq = 1 - l2_sq_norm(field.grid) / f**2
     sz = jnp.sqrt(jnp.maximum(sz_sq, 0.0))
     k = 2 * jnp.pi * n / field.spectrum.wavelength
-    defocus = jnp.where(sz != 0.0, jnp.exp(1j * k * sz * f) / sz, 0.0)
+    defocus = jnp.where(
+        sz != 0.0,
+        jnp.exp(1j * k * sz * z)
+        / sz,
+        0.0,
+    )
     # Create zoomed field
     u = zoomed_fft(
         x=spherical_u * defocus,
