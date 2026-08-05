@@ -89,11 +89,11 @@ def zoomed_fft(
     include_end: bool = True,
 ) -> ArrayLike:
     """
-    Custom FFTN function that uses the Chirp Z-transform (CZT) to compute the
-    Fourier transform of a signal. It allows to generate zoomed FFT in a region
-    between k_start and k_end with arbitrary output shape. The usual FFT
-    corresponds to output_shape = x.shape, k_start = 0, k_end = 2 * pi, and
-    include_end = False.
+    Custom FFTN function that uses the Chirp Z-transform (CZT) to compute
+    the Fourier transform of a signal. It allows to generate zoomed FFT in a
+    region between k_start and k_end with arbitrary output shape. The usual
+    FFT corresponds to ``output_shape`` = ``x.shape``, ``k_start`` = ``0``,
+    ``k_end`` = ``2 * np.pi``, and ``include_end`` = ``False``.
 
     Args:
         x: Input signal to transform.
@@ -106,15 +106,17 @@ def zoomed_fft(
     Returns:
         The Fourier transform of the input signal.
     """
+    if isinstance(output_shape, int):
+        output_shape = (output_shape,)
+    if isinstance(axes, int):
+        axes = (axes,)
     if include_end:
         renorm = tuple(m - 1 for m in output_shape)
     else:
         renorm = output_shape
-    w = tuple(jnp.exp(1j * (k_end - k_start) / n) for n in renorm)
-
-    a = jnp.exp(-1j * k_start)
+    w = tuple(jnp.exp(-1j * (k_end - k_start) / n) for n in renorm)
+    a = jnp.exp(1j * k_start)
     a = tuple(a for _ in range(len(output_shape)))
-
     return cztn(
         x=x,
         m=output_shape,

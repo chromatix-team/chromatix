@@ -203,7 +203,7 @@ def high_na_tube_lens(
     )
     sz_sq = 1 - l2_sq_norm(field.grid) / f**2
     sz = jnp.sqrt(jnp.maximum(sz_sq, 0.0))
-    k = 2 * jnp.pi * n / field.spectrum.wavelength
+    k = -2 * jnp.pi * n / field.spectrum.wavelength
     defocus = jnp.where(
         sz != 0.0,
         jnp.exp(1j * k * sz * z)
@@ -232,7 +232,7 @@ def high_na_tube_lens(
         / (field.spectrum.wavelength * f)
         * jnp.sum(input_extent * output_field.grid, axis=-1)
     )
-    return output_field.replace(u=output_field.u * jnp.exp(-1j * output_phase))
+    return output_field.replace(u=output_field.u * jnp.exp(1j * output_phase))
 
 
 def df_lens(
