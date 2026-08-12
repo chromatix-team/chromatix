@@ -1,7 +1,9 @@
+import jax
 import numpy as np
 import jax.numpy as jnp
 import chromatix.functional as cf
 from chromatix import ScalarField
+from chromatix.utils import l2_sq_norm
 
 
 def test_ff_lens():
@@ -41,6 +43,43 @@ def test_df_lens():
         field_after_second_lens.power, field_after_second_lens_back.power
     )
     assert field_after_third_lens.u.squeeze()[256, 256] != 0.0
+
+
+def test_high_na_tube_lens_matches_ff_lens():
+    NA = 1.3
+    n = 1.5
+    wavelength = 0.480
+    f = 3e3
+    pupil_diameter = 2 * f * NA / n  # pupil aperture diameter
+    with jax.experimental.enable_x64():
+        for N in (127, 128, 129):
+            dx = pupil_diameter / N  # grid spans the pupil diameter
+            field = cf.plane_wave(
+                (N, N),
+                dx,
+                wavelength,
+                scalar=True,
+                pupil=lambda fl: cf.circular_pupil(fl, pupil_diameter),
+            )
+            out_hn = cf.high_na_tube_lens(
+                field,
+                f,
+                n,
+                NA,
+                output_shape=(N, N),
+                output_dx=wavelength * f / (n * pupil_diameter),
+                z=0.0,
+            )
+            # NOTE(dd/2026-08-11): We need to manually apply the apodization
+            # correction factor to the ff_lens input, which does not perform the
+            # same corrections as the high NA model.
+            rho_sq = l2_sq_norm(field.grid)
+            cos_theta = jnp.sqrt(jnp.maximum(1 - rho_sq / f**2, 0.0))
+            field_apodized = field * jnp.where(cos_theta != 0.0, 1 / cos_theta, 0.0)
+            out_ff = cf.ff_lens(field_apodized, f, n)
+            assert jnp.allclose(
+                out_ff.u, out_hn.u, rtol=1e-4, atol=1e-5
+            ), f"N={N}: high_na_tube_lens does not match ff_lens"
 
 
 def test_high_na_ff_lens():
