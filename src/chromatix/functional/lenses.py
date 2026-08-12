@@ -127,14 +127,16 @@ def high_na_tube_lens(
     z: ScalarLike | Float[Array, "z"] | None = 0.0,
 ) -> ScalarField | VectorField:
     """
-    Applies a tube lens placed a distance ``f`` after the incoming ``Field``,
-    but allows both defocusing of the input away from the focal plane by ``z``
-    as well as resampling to a desired output shape and sampling. This is useful
-    for computing high NA PSFs, and is meant to be used with a flat plane wave
-    or Gaussian beam as the input (representing the back focal plane of an
-    objective due to a point source at the focal plane of the objective). If
-    you want to defocus using ``z`` to compute a 3D PSF, the input should be
-    a 2D field (no pre-existing z axis). Note that you must ensure that you
+    Applies a tube lens with apodization of the pupil from the corresponding
+    objective lens placed a distance ``f`` (objective focal length) after
+    the incoming ``Field``, and allows both defocusing of the input away
+    from the focal plane by ``z`` as well as resampling to a desired
+    output shape and sampling. This is useful for computing high NA PSFs,
+    and is meant to be used with a flat plane wave or Gaussian beam as
+    the input (representing the back focal plane of an objective due to
+    a point source at the focal plane of the objective). If you want to
+    defocus using ``z`` to compute a 3D PSF, the input should be a 2D
+    field (no pre-existing z axis). Note that you must ensure that you
     have the appropriate sampling at the input field. See the [high NA PSF
     example](https://chromatix.readthedocs.io/en/latest/examples/highNA_PSF/).
 
@@ -148,14 +150,14 @@ def high_na_tube_lens(
         wavelength and has a square shape.
 
     !!!warning
-        This function assumes that the incoming ``Field`` has been appropriately
-        sampled. If you are trying to calculate a PSF using this function (e.g.
-        with a plane wave as the input), you must make sure that the input field
-        has the correct sampling according to https://arxiv.org/abs/2502.03170.
-        The input field MUST have a diameter equal to the diameter of the pupil
-        of the objective, i.e. ``2 * f * NA / n``. The input field should be
-        appropriately sampled at this diameter by choosing a sufficiently high
-        number of pixels.
+        This function assumes that the incoming ``Field`` is from the back
+        focal plane of an objective lens. If you are trying to calculate a PSF
+        using this function (e.g. with a plane wave as the input), you must
+        make sure that the input field has the correct sampling according to
+        https://arxiv.org/abs/2502.03170. The input field MUST have a diameter
+        greater than or equal to the diameter of the pupil of the objective,
+        i.e. ``2 * f * NA / n``. The input field should be appropriately sampled
+        at this diameter by choosing a sufficiently high number of pixels.
 
     !!!warning
         This function assumes that if you are computing multiple defocus planes
@@ -163,7 +165,7 @@ def high_na_tube_lens(
         axis).
 
     Args:
-        field: The ``Field`` to which the lens will be applied.
+        field: The monochromatic ``Field`` to which the lens will be applied.
         f: Focal length of the corresponding objective lens (NOT this tube
             lens; you can choose the magnification by setting\ ``output_dx`` and
             ``output_shape``).
@@ -194,43 +196,55 @@ def high_na_tube_lens(
         z = _broadcast_1d_to_innermost_batch(z, field.spatial_dims)
     # TODO: This only works for single wavelength so far?
     # TODO: What about non-square cases?
-    zoom_factor = (
-        n
+    dk = (
+        2
+        * jnp.pi
+        * n
         * field.central_dx
         * output_dx
-        * (output_shape[0] - 1)
-        / (field.spectrum.wavelength * f)
+        / (field.broadcasted_wavelength * f)
     )
-    sz_sq = 1 - l2_sq_norm(field.grid) / f**2
-    sz = jnp.sqrt(jnp.maximum(sz_sq, 0.0))
-    k = -2 * jnp.pi * n / field.spectrum.wavelength
-    defocus = jnp.where(
-        sz != 0.0,
-        jnp.exp(1j * k * sz * z)
-        / sz,
+    k_start = -dk * (output_shape[0] // 2)
+    k_end = k_start + dk * (output_shape[0] - 1)
+    cos_theta = jnp.sqrt(jnp.maximum(1 - l2_sq_norm(field.grid) / f**2, 0.0))
+    k = -2 * jnp.pi * n / field.broadcasted_wavelength
+    # TODO(dd/2026-08-11): Maybe there should be an optical_fft analogue of
+    # zoomed_fft to handle the same kinds of normalizations.
+    norm = -1j * n * jnp.prod(field.dx, axis=-1) / (field.broadcasted_wavelength * f)
+    correction = jnp.where(
+        cos_theta != 0.0,
+        norm * jnp.exp(1j * k * cos_theta * z) / cos_theta,
         0.0,
     )
-    # Create zoomed field
     u = zoomed_fft(
-        x=spherical_u * defocus,
-        k_start=-zoom_factor * jnp.pi,
-        k_end=zoom_factor * jnp.pi,
+        x=spherical_u * correction,
+        k_start=k_start,
+        k_end=k_end,
         output_shape=output_shape,
         include_end=True,
         axes=field.spatial_dims,
     )
     output_dx = output_dx * jnp.ones_like(field.dx)
     output_field = field.replace(u=u, dx=output_dx)
+    # NOTE(dd/2026-08-11): The double-scaling below is intentional, and we
+    # don't use field.extent here so that the extent used to calculate the
+    # output_phase below is consistent for both even and odd sizes. We also
+    # have to change the centering of the grid so that zero falls on the N // 2
+    # center for the same even/odd issue.
+    input_extent = field.dx * (2 * (jnp.asarray(field.spatial_shape) // 2))
+    output_grid = output_field.grid + 0.5 * (
+        jnp.asarray(output_field.spatial_shape) % 2
+    ) * output_field.dx
     # NOTE(dd/2026-07-30): The pupil is sampled on a grid centered in the
-    # middle, but the CZT applies a phase ramp from 0 in each dimension. This
-    # correction factor removes that ramp so we get a clean, centered phase
-    # profile (e.g. when simulating a PSF with a plane wave as the input).
-    input_extent = field.dx * jnp.asarray(field.spatial_shape)
+    # middle at N // 2, but the CZT applies a phase ramp from index 0 in each
+    # dimension. This output phase correction factor removes that ramp so we get
+    # a clean, centered phase profile (e.g. when simulating a PSF with a plane
+    # wave as the input).
     output_phase = (
         jnp.pi
         * n
-        / (field.spectrum.wavelength * f)
-        * jnp.sum(input_extent * output_field.grid, axis=-1)
+        / (output_field.broadcasted_wavelength * f)
+        * jnp.sum(input_extent * output_grid, axis=-1)
     )
     return output_field.replace(u=output_field.u * jnp.exp(1j * output_phase))
 
