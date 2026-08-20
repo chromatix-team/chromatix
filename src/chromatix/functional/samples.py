@@ -220,9 +220,18 @@ def multislice_thick_sample(
         ``Field``).
     """
     assert_equal_shape([absorption_stack, dn_stack])
+    sample_height, sample_width = dn_stack.shape[-2:]
     field = pad(field, pad_width)
-    absorption_stack = center_pad(absorption_stack, (0, pad_width, pad_width))
-    dn_stack = center_pad(dn_stack, (0, pad_width, pad_width))
+    # The sample occupies only the unpadded centre of the padded field. Padding
+    # the stacks to the padded shape (which this used to do) fills with zeros, so
+    # the ring's transmission is exp(0) = 1 -- it multiplies by exactly 1. Beyond
+    # the one-off padding write, it makes every slice read a sample slab that is
+    # larger by (padded/unpadded)^2, in both the forward and the backward pass.
+    # Applying the sample to the centre instead is bit-identical and much cheaper.
+    centre = (
+        slice(pad_width, pad_width + sample_height),
+        slice(pad_width, pad_width + sample_width),
+    )
     if propagator is None:
         propagator = compute_asm_propagator(
             field,
@@ -234,15 +243,16 @@ def multislice_thick_sample(
         )
 
     def _scatter_through_plane(i: int, u: Array) -> Array:
-        absorption = absorption_stack[i]
-        dn = dn_stack[i]
         field_i = field.replace(u=u)
         field_i = kernel_propagate(
             field_i,
             propagator,
         )
-        field_i = thin_sample(field_i, absorption, dn, thickness_per_slice)
-        return field_i.u  # pyright: ignore
+        centre_field = field_i.replace(u=field_i.u[centre])  # pyright: ignore
+        centre_field = thin_sample(
+            centre_field, absorption_stack[i], dn_stack[i], thickness_per_slice
+        )
+        return field_i.u.at[centre].set(centre_field.u)  # pyright: ignore
 
     def _accumulate_field_at_each_plane(i: int, fields: Array) -> Array:
         fields = fields.at[i].set(
