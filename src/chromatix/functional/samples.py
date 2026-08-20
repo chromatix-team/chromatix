@@ -228,10 +228,12 @@ def multislice_thick_sample(
     # the one-off padding write, it makes every slice read a sample slab that is
     # larger by (padded/unpadded)^2, in both the forward and the backward pass.
     # Applying the sample to the centre instead is bit-identical and much cheaper.
-    centre = (
-        slice(pad_width, pad_width + sample_height),
-        slice(pad_width, pad_width + sample_width),
-    )
+    # Index the SPATIAL axes specifically -- a bare 2-tuple of slices would hit
+    # the leading axes and break any field with batch dimensions.
+    centre = [slice(None)] * field.u.ndim
+    centre[field.dims.y] = slice(pad_width, pad_width + sample_height)
+    centre[field.dims.x] = slice(pad_width, pad_width + sample_width)
+    centre = tuple(centre)
     if propagator is None:
         propagator = compute_asm_propagator(
             field,
@@ -379,10 +381,10 @@ def fluorescent_multislice_thick_sample(
     # i.e. both are no-ops out there, but every slice then reads a slab larger by
     # (padded/unpadded)^2 -- and here that padding is redone for every
     # Monte-Carlo sample. Apply both to the centre instead; bit-identical.
-    centre = (
-        slice(pad_width, pad_width + sample_height),
-        slice(pad_width, pad_width + sample_width),
-    )
+    centre = [slice(None)] * field.u.ndim
+    centre[field.dims.y] = slice(pad_width, pad_width + sample_height)
+    centre[field.dims.x] = slice(pad_width, pad_width + sample_width)
+    centre = tuple(centre)
     if propagator_forward is None:
         propagator_forward = compute_asm_propagator(
             field,

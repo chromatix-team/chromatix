@@ -190,3 +190,27 @@ def test_thick_sample_padding_is_lossy_but_finite():
     )
     assert jnp.isfinite(out_field.u).all()
     assert out_field.power <= field.power * (1.0 + 1e-5)
+
+
+@pytest.mark.parametrize("batch_shape", [(2,), (2, 3)])
+def test_thick_sample_padding_supports_batched_fields(batch_shape):
+    # Regression: the centre indexer must target the SPATIAL axes. A bare
+    # 2-tuple of slices hits the leading axes instead, which works for an
+    # unbatched field and raises for any batched one.
+    import jax
+
+    shape, depth, pad_width = (8, 8), 3, 4
+    field = plane_wave(shape=shape, dx=0.1, spectrum=(0.532, 1.0), power=1.0)
+    field = field.replace(u=jnp.broadcast_to(field.u, batch_shape + field.u.shape))
+    dn = 1e-3 * jax.random.normal(jax.random.key(0), (depth, *shape))
+    absorption = 1e-4 * jnp.abs(jax.random.normal(jax.random.key(1), (depth, *shape)))
+    out_field = multislice_thick_sample(
+        field=field,
+        absorption_stack=absorption,
+        dn_stack=dn,
+        n=1.33,
+        thickness_per_slice=0.532,
+        pad_width=pad_width,
+    )
+    assert out_field.u.shape == field.u.shape
+    assert jnp.isfinite(out_field.u).all()
