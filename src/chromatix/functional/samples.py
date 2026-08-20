@@ -17,7 +17,7 @@ from chromatix import (
 from chromatix.utils import matvec, outer
 from chromatix.utils.fft import fft, ifft
 
-from ..utils import _broadcast_2d_to_spatial, center_pad, l2_sq_norm
+from ..utils import _broadcast_2d_to_spatial, l2_sq_norm
 from .polarizers import polarizer
 from .propagation import (
     compute_asm_propagator,
@@ -220,9 +220,20 @@ def multislice_thick_sample(
         ``Field``).
     """
     assert_equal_shape([absorption_stack, dn_stack])
+    sample_height, sample_width = dn_stack.shape[-2:]
     field = pad(field, pad_width)
-    absorption_stack = center_pad(absorption_stack, (0, pad_width, pad_width))
-    dn_stack = center_pad(dn_stack, (0, pad_width, pad_width))
+    # The sample occupies only the unpadded centre of the padded field. Padding
+    # the stacks to the padded shape (which this used to do) fills with zeros, so
+    # the ring's transmission is exp(0) = 1 -- it multiplies by exactly 1. Beyond
+    # the one-off padding write, it makes every slice read a sample slab that is
+    # larger by (padded/unpadded)^2, in both the forward and the backward pass.
+    # Applying the sample to the centre instead is bit-identical and much cheaper.
+    # Index the SPATIAL axes specifically -- a bare 2-tuple of slices would hit
+    # the leading axes and break any field with batch dimensions.
+    centre = [slice(None)] * field.u.ndim
+    centre[field.dims.y] = slice(pad_width, pad_width + sample_height)
+    centre[field.dims.x] = slice(pad_width, pad_width + sample_width)
+    centre = tuple(centre)
     if propagator is None:
         propagator = compute_asm_propagator(
             field,
@@ -234,15 +245,16 @@ def multislice_thick_sample(
         )
 
     def _scatter_through_plane(i: int, u: Array) -> Array:
-        absorption = absorption_stack[i]
-        dn = dn_stack[i]
         field_i = field.replace(u=u)
         field_i = kernel_propagate(
             field_i,
             propagator,
         )
-        field_i = thin_sample(field_i, absorption, dn, thickness_per_slice)
-        return field_i.u  # pyright: ignore
+        centre_field = field_i.replace(u=field_i.u[centre])  # pyright: ignore
+        centre_field = thin_sample(
+            centre_field, absorption_stack[i], dn_stack[i], thickness_per_slice
+        )
+        return field_i.u.at[centre].set(centre_field.u)  # pyright: ignore
 
     def _accumulate_field_at_each_plane(i: int, fields: Array) -> Array:
         fields = fields.at[i].set(
@@ -361,8 +373,18 @@ def fluorescent_multislice_thick_sample(
     original_field_shape = field.spatial_shape
     axes = field.spatial_dims
     assert_equal_shape([fluorescence_stack, dn_stack])
+    sample_height, sample_width = dn_stack.shape[-2:]
     field = pad(field, pad_width)
-    dn_stack = center_pad(dn_stack, (0, pad_width, pad_width))
+    # As in ``multislice_thick_sample``: the sample and the fluorophores occupy
+    # only the unpadded centre. Zero-padding the stacks makes the ring's
+    # refractive-index factor exp(0) = 1 and its fluorescence contribution 0,
+    # i.e. both are no-ops out there, but every slice then reads a slab larger by
+    # (padded/unpadded)^2 -- and here that padding is redone for every
+    # Monte-Carlo sample. Apply both to the centre instead; bit-identical.
+    centre = [slice(None)] * field.u.ndim
+    centre[field.dims.y] = slice(pad_width, pad_width + sample_height)
+    centre[field.dims.x] = slice(pad_width, pad_width + sample_width)
+    centre = tuple(centre)
     if propagator_forward is None:
         propagator_forward = compute_asm_propagator(
             field,
@@ -390,11 +412,19 @@ def fluorescent_multislice_thick_sample(
             fluorescence_stack[i], field.spatial_dims
         )
         dn = _broadcast_2d_to_spatial(dn_stack[i], field.spatial_dims)
-        field = field * jnp.exp(
-            1j * 2 * jnp.pi * dn * thickness_per_slice / field.broadcasted_wavelength
+        u = field.u.at[centre].multiply(
+            jnp.exp(
+                1j
+                * 2
+                * jnp.pi
+                * dn
+                * thickness_per_slice
+                / field.broadcasted_wavelength
+            )
         )
         u = ifft(
-            fft(fluorescence + field.u, axes=axes, shift=False) * propagator_forward,
+            fft(u.at[centre].add(fluorescence), axes=axes, shift=False)
+            * propagator_forward,
             axes=axes,
             shift=False,
         )
@@ -420,10 +450,7 @@ def fluorescent_multislice_thick_sample(
         random_phase_stack = jax.random.uniform(
             keys[i], fluorescence_stack.shape, minval=0, maxval=2 * jnp.pi
         )
-        _fluorescence_stack = center_pad(
-            fluorescence_stack * jnp.exp(1j * random_phase_stack),
-            (0, pad_width, pad_width),
-        )
+        _fluorescence_stack = fluorescence_stack * jnp.exp(1j * random_phase_stack)
         (field, _) = jax.lax.fori_loop(
             0, _fluorescence_stack.shape[0], _forward, (field, _fluorescence_stack)
         )
